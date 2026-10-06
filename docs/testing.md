@@ -32,6 +32,7 @@ python -m unittest discover -s tests -p 'test_server.py' -v
 # Full application checks:
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
+node --test tests/*.test.cjs
 
 # Distribution checks:
 python -m pip install build

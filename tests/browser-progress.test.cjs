@@ -1,0 +1,111 @@
+// Exercise the real browser orchestration with controlled HTTP responses.
+// DOM stubs isolate timing and errors; actual rendering is checked in a browser.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const web = path.join(__dirname, '../src/mcdxkit/web');
+function element() {
+  return {
+    hidden: false, value: '', textContent: '', dataset: {}, children: [], attributes: {}, listeners: {},
+    classList: {add() {}, remove() {}, toggle() {}},
+    addEventListener(type, callback) { this.listeners[type] = callback; },
+    setAttribute(key, value) { this.attributes[key] = String(value); },
+    removeAttribute(key) { delete this.attributes[key]; if (key === 'value') delete this.value; },
+    append(...children) { this.children.push(...children); },
+    replaceChildren(...children) { this.children = children; },
+    querySelector() { return null; }, close() {}, show() {}, focus() {},
+  };
+}
+
+async function browser(action, count) {
+  const html = fs.readFileSync(path.join(web, 'index.html'), 'utf8');
+  const nodes = new Map([...html.matchAll(/id="([^"]+)"/g)].map(match => [match[1], element()]));
+  nodes.get('basis').value = 'effects';
+  const requests = [];
+  const context = vm.createContext({
+    document: {
+      getElementById: id => nodes.get(id), querySelectorAll: () => [],
+      createElement: element, createTextNode: text => ({textContent: text}), body: element(),
+    },
+    setTimeout, clearTimeout, URL, URLSearchParams,
+    fetch(url, options) {
+      if (url === '/api/session') return Promise.resolve({status: 401});
+      return new Promise(resolve => requests.push({url, options, resolve}));
+    },
+  });
+  vm.runInContext(fs.readFileSync(path.join(web, 'app.js'), 'utf8'), context);
+  await Promise.resolve();
+  vm.runInContext(`
+    session = {token:'synthetic'}; hasTemplate = true;
+    inspect = async () => {}; inspectDiff = async () => {};
+    for (let n = 1; n <= ${count}; n++) items.push({
+      id:'r'+n, name:'report-'+n+'.gp11t', selected:[1],
+      inspection:{cases:[{id:1,name:'STR test'}], envelope:{P:10}},
+      preview:${action === 'convert' ? '{worksheet:{id:"preview"},diff:{changes:[]}}' : 'null'}
+    });
+  `, context);
+  const finished = nodes.get(action === 'convert' ? 'convert-all' : 'compare-next').listeners.click();
+  async function respond(index, ok) {
+    assert.ok(requests[index], 'Expected the next request');
+    requests[index].resolve({ok, json: async () => ok
+      ? {worksheet:{id:'out'+index}, diff:{changes:[]}, calculation:{calculated:true}}
+      : {error:'Synthetic calculation failure'}});
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  return {nodes, requests, respond, finished};
+}
+
+for (const action of ['preview', 'convert']) {
+  test(`${action}: single-file progress stays indeterminate until the response`, async () => {
+    const app = await browser(action, 1);
+    const panel = app.nodes.get('operation-progress');
+    assert.ok(panel, 'A browser progress region must exist');
+    assert.equal(panel.hidden, false);
+    assert.equal(panel.dataset.running, 'true');
+    assert.equal(app.nodes.get('operation-bar').attributes.value, undefined);
+    assert.match(app.nodes.get('operation-current').textContent, /report-1/);
+    assert.match(app.nodes.get('operation-count').textContent, /0 of 1/);
+    assert.equal(app.requests.length, 1);
+    assert.deepEqual(Object.keys(JSON.parse(app.requests[0].options.body)).sort(),
+      ['cases','id','load_source','overrides','template_id']);
+    await app.respond(0, true);
+    await app.finished;
+    assert.equal(panel.dataset.running, 'false');
+    assert.equal(app.nodes.get('operation-bar').attributes.value, '1');
+    assert.match(app.nodes.get('operation-current').textContent, /1 ready/);
+  });
+}
+
+test('batch progress counts finished files and reports partial failures', async () => {
+  const app = await browser('convert', 2);
+  assert.ok(app.nodes.get('operation-progress'), 'A browser progress region must exist');
+  assert.equal(app.nodes.get('operation-bar').attributes.value, '0');
+  await app.respond(0, false);
+  assert.equal(app.nodes.get('operation-bar').attributes.value, '1');
+  assert.match(app.nodes.get('operation-count').textContent, /1 of 2/);
+  assert.match(app.nodes.get('operation-current').textContent, /report-2/);
+  await app.respond(1, true);
+  await app.finished;
+  assert.equal(app.nodes.get('operation-bar').attributes.value, '2');
+  assert.equal(app.nodes.get('operation-progress').dataset.running, 'false');
+  assert.match(app.nodes.get('operation-current').textContent, /1 ready.*1 failed/);
+});
+
+test('retry resets progress and clears a previous file failure', async () => {
+  const app = await browser('convert', 1);
+  await app.respond(0, false);
+  await app.finished;
+  assert.ok(app.nodes.get('operation-progress'), 'A browser progress region must exist');
+  assert.match(app.nodes.get('operation-current').textContent, /0 ready.*1 failed/);
+  const retry = app.nodes.get('convert-all').listeners.click();
+  assert.equal(app.nodes.get('operation-progress').dataset.running, 'true');
+  assert.equal(app.nodes.get('operation-bar').attributes.value, undefined);
+  assert.match(app.nodes.get('operation-count').textContent, /0 of 1/);
+  await app.respond(1, true);
+  await retry;
+  assert.match(app.nodes.get('operation-current').textContent, /^1 ready$/);
+  assert.doesNotMatch(app.nodes.get('notice').textContent, /failed/);
+});

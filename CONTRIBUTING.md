@@ -48,6 +48,7 @@ The [testing contract](docs/testing.md) maps each change type to required positi
 ```bash
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
+node --test tests/*.test.cjs
 python -m pip install build
 python -m build
 python scripts/check_package.py
@@ -67,6 +68,8 @@ docker run --rm -v "$PWD:/verify:ro" --entrypoint python \
 The Actions workflow also starts the container, checks health, checks bundled fonts and confirms that unauthenticated API access is rejected.
 
 For UI changes, use the real browser flow: upload → inputs → changes → generated outputs, then inspect the original file and fresh calculation view. Check the affected errors, keyboard focus and narrow layout. A rendered screenshot or syntax check alone does not establish a working conversion.
+
+For progress feedback, test pending requests, mixed success/failure, retries and cleanup after errors. Advance counts only on observed completion; do not simulate equation percentages or ETAs. Keep UI progress outside generated `.mcdx`, `.cpd`, result HTML and audit data. Browser orchestration tests use controlled HTTP responses; retain real-engine checks and actual browser verification as separate evidence.
 
 ## Change expectations
 

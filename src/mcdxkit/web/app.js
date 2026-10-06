@@ -11,7 +11,42 @@ async function api(path,data,raw=false) {
   if(data!==undefined){options.method='POST';options.headers['Content-Type']=raw?'application/octet-stream':'application/json';options.body=raw?data:JSON.stringify(data);}
   const r=await fetch(path,options);const value=await r.json();if(!r.ok)throw new Error(value.error||'The server could not complete this request.');return value;
 }
-async function run(fn) { if(busy)return;busy=true;$('workspace').disabled=true;$('workspace').setAttribute('aria-busy','true');try{await fn();}catch(e){notice(e.message,true);}finally{busy=false;$('workspace').disabled=false;$('workspace').setAttribute('aria-busy','false');render();} }
+async function run(fn) { if(busy)return;busy=true;$('operation-progress').hidden=true;$('workspace').disabled=true;$('workspace').setAttribute('aria-busy','true');try{await fn();}catch(e){notice(e.message,true);}finally{busy=false;$('workspace').disabled=false;$('workspace').setAttribute('aria-busy','false');render();} }
+
+// Progress belongs to this browser operation, never to the worksheet or request.
+async function processFiles(label, pending, process) {
+  if (!pending.length) return {ready: 0, failed: 0};
+  let completed = 0, succeeded = 0;
+  const panel = $('operation-progress'), bar = $('operation-bar');
+  function update(filename = null) {
+    const running = filename !== null;
+    const failed = completed - succeeded;
+    panel.hidden = false;
+    panel.dataset.running = String(running);
+    panel.dataset.failed = String(failed > 0);
+    $('operation-title').textContent = running ? label
+      : completed < pending.length ? 'Operation stopped'
+      : failed ? 'Finished with errors' : label + ' complete';
+    $('operation-count').textContent = `${completed} of ${pending.length} processed`;
+    $('operation-current').textContent = running ? filename
+      : `${succeeded} ready` + (failed ? ` · ${failed} failed` : '')
+        + (completed < pending.length ? ` · ${pending.length - completed} not processed` : '');
+    bar.max = pending.length;
+    // The backend returns one result per file; it does not report equation progress.
+    if (running && pending.length === 1) bar.removeAttribute('value');
+    else bar.setAttribute('value', completed);
+  }
+  try {
+    for (const item of pending) {
+      update(item.name);
+      if (await process(item)) succeeded++;
+      completed++;
+    }
+  } finally {
+    update();
+  }
+  return {ready: succeeded, failed: completed - succeeded};
+}
 function setStep(value) { step=value;for(let i=1;i<=4;i++)$('step-'+i).hidden=i!==step;document.querySelectorAll('[data-step]').forEach(n=>{n.classList.toggle('active',Number(n.dataset.step)===step);n.classList.toggle('done',Number(n.dataset.step)<step);n.setAttribute('aria-current',Number(n.dataset.step)===step?'step':'false');});render(); }
 function overrides() {
   $('override-error').hidden=true;$('overrides').removeAttribute('aria-invalid');
@@ -84,8 +119,45 @@ for(const id of ['inspect-template','inspect-template-review'])$(id).addEventLis
 $('basis').addEventListener('change',()=>run(async()=>{for(const item of items.filter(i=>i.inspection))await refresh(item);notice('Local load source updated. Review the refreshed envelopes.');}));
 $('overrides').addEventListener('input',()=>{$('override-error').hidden=true;$('overrides').removeAttribute('aria-invalid');invalidate();render();});
 $('review-next').addEventListener('click',()=>setStep(2));
-$('compare-next').addEventListener('click',()=>run(async()=>{setStep(3);for(const item of ready()){notice('Preparing changes for '+item.name+'…');item.previewError=null;try{item.preview=await api('/api/preview',options(item));item.result=null;}catch(e){item.preview=null;item.previewError=e.message;}render();}const prepared=items.find(i=>i.preview);if(prepared){activeItem=prepared;await inspectDiff(prepared.preview.worksheet.id);}notice('Review the changes, then select Create outputs.');}));
-$('convert-all').addEventListener('click',()=>run(async()=>{const pending=items.filter(i=>i.preview&&!i.result);let done=0;for(const item of pending){notice('Generating '+item.name+'…');try{item.result=await api('/api/convert',options(item));done++;}catch(e){item.previewError=e.message;notice(e.message,true);}render();}setStep(4);const generated=items.find(i=>i.result);if(generated){activeItem=generated;await inspect(generated.result.worksheet.id);}notice(`${done} output${done===1?'':'s'} created`+(done<pending.length?` · ${pending.length-done} failed`:'')+'.',done<pending.length);}));
+$('compare-next').addEventListener('click', () => run(async () => {
+  const pending = ready();
+  overrides(); // Validate before showing progress or sending a request.
+  setStep(3);
+  const result = await processFiles('Preparing previews', pending, async item => {
+    notice('Preparing changes for ' + item.name + '…');
+    item.previewError = null;
+    try {
+      item.preview = await api('/api/preview', options(item));
+      item.result = null;
+    } catch (error) {
+      item.preview = null;
+      item.previewError = error.message;
+    }
+    render();
+    return Boolean(item.preview);
+  });
+  const prepared = pending.find(item => item.preview);
+  if (prepared) { activeItem = prepared; await inspectDiff(prepared.preview.worksheet.id); }
+  notice(result.failed ? `${result.ready} previews ready · ${result.failed} failed. Review the errors.`
+    : 'Review the changes, then select Create outputs.', result.failed > 0);
+}));
+$('convert-all').addEventListener('click', () => run(async () => {
+  const pending = items.filter(item => item.preview && !item.result);
+  overrides();
+  const result = await processFiles('Generating outputs', pending, async item => {
+    notice('Generating ' + item.name + '…');
+    item.previewError = null;
+    try { item.result = await api('/api/convert', options(item)); }
+    catch (error) { item.previewError = error.message; }
+    render();
+    return Boolean(item.result);
+  });
+  setStep(4);
+  const generated = pending.find(item => item.result);
+  if (generated) { activeItem = generated; await inspect(generated.result.worksheet.id); }
+  notice(`${result.ready} output${result.ready === 1 ? '' : 's'} created`
+    + (result.failed ? ` · ${result.failed} failed` : '') + '.', result.failed > 0);
+}));
 for(const n of document.querySelectorAll('[data-step]'))n.addEventListener('click',()=>setStep(Number(n.dataset.step)));
 for(const n of document.querySelectorAll('[data-back]'))n.addEventListener('click',()=>setStep(Number(n.dataset.back)));
 for(const id of ['open-history','refresh-history'])$(id).addEventListener('click',()=>{if(session)run(history);});

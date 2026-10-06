@@ -8,6 +8,11 @@
 <fieldset id="workspace" disabled>
 <nav class="workflow" aria-label="Conversion steps"><button data-step="1" class="active"><span>1</span> Files</button><button data-step="2"><span>2</span> Inputs</button><button data-step="3"><span>3</span> Changes</button><button data-step="4"><span>4</span> Outputs</button></nav>
 <p id="notice" class="statusline" role="status" aria-live="polite">Connecting…</p><span id="file-count" hidden></span>
+<section id="operation-progress" class="operation-progress" aria-labelledby="operation-title" hidden>
+<div class="operation-heading"><strong id="operation-title"></strong><span id="operation-count"></span></div>
+<progress id="operation-bar" aria-labelledby="operation-title" aria-describedby="operation-count operation-current"></progress>
+<p id="operation-current" role="status" aria-live="polite" aria-atomic="true"></p>
+</section>
 <section id="step-1" class="step-page">
 <h2>Add your reports</h2>
 <div id="dropzone" class="dropzone"><svg class="upload-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4"/></svg><p>Drop files here</p><div class="actions"><button id="choose-files" class="primary-button">Add files</button><button id="choose-folder">Add folder</button></div><small>GROUP reports (.gp11t, .txt)<br>Or open a Mathcad file (.mcdx) to inspect it.</small><input id="files" type="file" multiple accept=".gp11t,.txt,.mcdx" hidden><input id="folder" type="file" multiple webkitdirectory hidden></div>
