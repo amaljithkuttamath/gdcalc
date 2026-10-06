@@ -45,7 +45,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(data['failed'], 1)
 
     def test_python_api_resume_with_tuple_cases(self):
-        from gdcalc.batch import convert_batch
+        from mcdxkit.batch import convert_batch
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); source = root/'a.txt'; source.write_text(report())
             ref = root/'reference.mcdx'; template(ref); out = root/'out'
