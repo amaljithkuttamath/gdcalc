@@ -30,3 +30,18 @@ class InspectionTests(unittest.TestCase):
         run=flow['children'][0]['node']['children'][0]['node']
         self.assertEqual(run['tag'],'span');self.assertEqual(run['style']['fontWeight'],'bold')
         self.assertEqual(run['text'],'<script>unsafe</script>')
+
+    def test_presentation_groups_negated_and_power_operands(self):
+        a,b,c=(mcdx.ident(x) for x in 'abc')
+        def apply(op,*args): return mcdx.node('apply',mcdx.node(op),*args)
+        def text(node): return (node['text'] or '')+''.join(text(child) for child in node['children'])
+        def shown(node): return text(inspection.presentation(node))
+        self.assertEqual(shown(apply('neg',apply('plus',a,b))),'−(a+b)')
+        self.assertEqual(shown(apply('mult',apply('neg',apply('minus',a,b)),c)),'−(a−b)×c')
+        self.assertEqual(shown(apply('minus',a,apply('neg',b))),'a−(−b)')
+        self.assertEqual(shown(apply('neg',a)),'−a')
+        power=inspection.presentation(apply('pow',apply('plus',a,b),mcdx.real(2)))
+        self.assertEqual(power['tag'],'msup')
+        self.assertEqual(text(power['children'][0]),'(a+b)');self.assertEqual(text(power['children'][1]),'2')
+        self.assertEqual(text(inspection.presentation(apply('pow',apply('neg',a),mcdx.real(2)))['children'][0]),'(−a)')
+        self.assertEqual(text(inspection.presentation(apply('pow',a,mcdx.real(2)))['children'][0]),'a')
