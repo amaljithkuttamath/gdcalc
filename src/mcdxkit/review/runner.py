@@ -14,7 +14,7 @@ import json
 import math
 import threading
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, cast
 
 from . import registry, view as views
 from .api import SCHEMA, Annotation, Context, Flag, NotApplicable, ReportView, Suggestion
@@ -112,8 +112,9 @@ def _validate(plugin: Any, results: Sequence[Any], view: ReportView) -> List[Dic
             raise TypeError(f'returned {type(item).__name__}; a {plugin.kind} must return {expected.__name__}')
         if getattr(item, owner) != plugin.id:
             raise ValueError(f'returned a result whose {owner} is {getattr(item, owner)!r}, not {plugin.id!r}')
-        if item.case is not None and item.case not in case_ids:
-            raise ValueError(f'returned a result for case {item.case}, which is not in the report')
+        case = cast(Any, item).case
+        if case is not None and case not in case_ids:
+            raise ValueError(f'returned a result for case {case}, which is not in the report')
         row = serialise(item)
         json.dumps(row, allow_nan=False)
         rows.append(row)

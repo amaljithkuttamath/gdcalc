@@ -30,7 +30,10 @@ FEATURES = (
 
 def _quantity(case: CaseView, reference: str) -> float:
     table, component = reference.split(':')
-    return magnitude((case.pile_top if table == 'top' else case.along_pile)[component])
+    values = case.pile_top if table == 'top' else case.along_pile
+    if values is None:
+        raise NotApplicable('needs the along-pile effects table')
+    return magnitude(values[component])
 
 
 def robust_z(values: Sequence[float], floor: float = MAD_FLOOR) -> Tuple[float, List[float]]:

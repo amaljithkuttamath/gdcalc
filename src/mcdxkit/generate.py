@@ -19,7 +19,7 @@ def case_ids(value):
             else:result.append(int(word))
         if any(i<1 for i in result) or len(set(result))!=len(result):raise ValueError
         return result
-    except ValueError:raise argparse.ArgumentTypeError('Use unique positive cases, e.g. 1-10 or 1,3,7')
+    except ValueError:raise argparse.ArgumentTypeError('Use unique positive cases, e.g. 1-10 or 1,3,7') from None
 
 
 def default_template():

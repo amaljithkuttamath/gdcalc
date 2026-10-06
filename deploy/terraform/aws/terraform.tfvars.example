@@ -1,0 +1,5 @@
+region     = "us-east-1"
+name       = "mcdxkit-staging"
+ubuntu_ami = "ami-REPLACE_WITH_REVIEWED_UBUNTU_24_04_AMD64_ID"
+admin_ipv4 = "203.0.113.10/32" # Replace with your real administrator/client address.
+key_name   = "existing-key-pair"

@@ -164,7 +164,7 @@ def read_regions(parts, part, cache, budget=None):
                 unit = formula.find('.//m:unitOverride',mcdx.NS)
                 if unit is not None and len(unit) and mcdx.tag(unit[0]) != 'placeholder' and mcdx.tag(value) != 'str':
                     result = {'tag':'mrow','children':[result,presentation(unit[0])],'text':None}
-                def replace_value(node):
+                def replace_value(node, result=result):
                     if node.get('tag') == 'mtext' and node.get('text') == '…': node.clear(); node.update(result)
                     else:
                         for child in node.get('children',[]):replace_value(child)

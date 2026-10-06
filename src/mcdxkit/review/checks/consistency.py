@@ -57,6 +57,8 @@ class EffectsBelowTop:
             raise NotApplicable('needs the effects load source')
         peaks = envelope(view)
         for case in view.cases:
+            if case.along_pile is None:
+                raise NotApplicable('needs the along-pile effects table')
             for component in EFFECT_COMPONENTS:
                 top = magnitude(case.pile_top[component])
                 along = magnitude(case.along_pile[component])

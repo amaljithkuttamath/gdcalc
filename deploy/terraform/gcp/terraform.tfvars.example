@@ -1,0 +1,6 @@
+project_id   = "your-project-id"
+region       = "us-central1"
+zone         = "us-central1-a"
+name         = "mcdxkit-staging"
+ubuntu_image = "projects/ubuntu-os-cloud/global/images/ubuntu-2404-REPLACE_WITH_REVIEWED_AMD64_IMAGE"
+admin_ipv4   = "203.0.113.10/32" # Replace with your real administrator/client address.

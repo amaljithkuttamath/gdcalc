@@ -42,7 +42,8 @@ def main(argv=None):
                              ('validate','Check an .mcdx package without executing Mathcad'),
                              ('serve','Start the local browser interface'),
                              ('batch','Convert files or folders with parallel workers and resume'),
-                             ('checks','List advisory review checks: built-in and installed plug-ins')]:
+                             ('checks','List advisory review checks: built-in and installed plug-ins'),
+                             ('summary','Write a CSV of per-case loads for several reports or output directories')]:
         sub.add_parser(name,help=description,add_help=False)
     selected,rest=parser.parse_known_args(args)
     if selected.command=='setup-engine':
@@ -53,6 +54,9 @@ def main(argv=None):
         return batch(rest)
     if selected.command=='checks':
         return checks(rest)
+    if selected.command=='summary':
+        from .summary import main as summary
+        return summary(rest)
     if selected.command=='serve':
         from .server import main as serve
         return serve(rest)

@@ -26,3 +26,19 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 mcdxkit = ["web/*.html", "web/*.css", "web/*.js", "web/fonts/*.ttf", "web/fonts/OFL.txt", "calcpad_bridge/*.cs", "calcpad_bridge/*.csproj"]
+
+[tool.ruff]
+extend-exclude = ["agents", "references"]
+
+[tool.ruff.lint]
+# Correctness rules only. The codebase keeps its compact style (docs/standards.md: no
+# repository-wide reformatting), so layout rules such as E701/E702 stay off.
+select = ["E9", "F", "B"]
+# Re-raising friendly request errors inside except blocks is intentional.
+ignore = ["B904"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src/mcdxkit"]
+ignore_missing_imports = true
+warn_unused_ignores = true

@@ -89,6 +89,26 @@ Explicit files and multiple folders are also accepted. Options apply to every in
 
 Exit codes: 0 = all succeeded or verified/skipped; 1 = one or more jobs failed; 2 = invalid setup. Inspect `batch-manifest.jsonl` for individual failures. Resume validates saved identity, hashes and calculation evidence; corrupted outputs are not silently reused. Do not run two batches writing to the same output directory. Manifest rows of converted or verified jobs carry `open_checks`, the number of review flags without an engineer decision (`null` when no check ran successfully, never 0), and `check_errors`, the number of review plug-ins that failed or timed out. Batch accepts `--checks`; the enabled check ids and versions are part of the job identity, so a new check version converts and reviews again on `--resume` (in a new job folder) instead of reusing the old audit.
 
+## Summary CSV across reports
+
+```bash
+mcdxkit summary /path/to/a.gp11t /path/to/b.gp11t -o /path/to/new-results/summary.csv
+mcdxkit summary /path/to/batch-results -o /path/to/new-results/summary.csv
+```
+
+Writes one CSV row per report and final-summary load case. Report inputs use the same parser and default case selection as `inspect`; `--cases` and `--load-source` apply to every report input. A directory is treated as MCDXKit output (batch or browser): each `.audit.json` is summarized from its `_source` report snapshot after checking the audited SHA-256, using the cases and load basis recorded in that audit. `--cases`/`--load-source` are rejected with a directory, even `--load-source effects`. The snapshot hash is checked before the snapshot is parsed; a symlinked audit, job folder or `_source` folder is rejected. A directory without audits, a missing or changed snapshot, an unresolved case selection or an unreadable report fails the whole command and writes nothing. The output must end in `.csv`, is written as UTF-8 with a byte-order mark (so Excel shows non-ASCII names) and is never overwritten. Overlapping inputs are skipped, not repeated, and listed in `duplicates_skipped` in the JSON result: the same resolved file twice (for example a directory and its subfolder), or a second input with identical source bytes, load basis and selected cases. The same report with a different selection is kept. The browser applies the same rule and requires at least two distinct reports.
+
+| Column | Meaning |
+| --- | --- |
+| `report`, `origin` | Report filename; the input path or audit path (relative to the directory) it came from |
+| `source_sha256` | SHA-256 of the report bytes |
+| `load_source` | `effects` or `reactions` basis for Vy/Vz/My/Mz |
+| `case_id`, `case_name`, `selected` | Every final-summary case; `selected` marks the cases used for the envelope |
+| `P_kip`, `Vy_kip`, `Vz_kip`, `My_kip_in`, `Mz_kip_in` | That case's maximum compression and maximum component magnitudes over all piles |
+| `governs` | Measures for which this selected case is the report's maximum (ties list every case) |
+
+Component maxima may come from different piles and cases; they are not concurrent loads. Excluded (for example service) cases are listed but never govern. Report and case names that begin with `=`, `+`, `-`, `@` are prefixed with `'` so spreadsheets do not evaluate them. In the browser, **Download summary** on the Inputs step appears when two or more reports are loaded and includes every report with a resolved case selection, using each report's selected cases and the current load basis.
+
 ## Start and stop the browser
 
 ```bash
@@ -131,5 +151,6 @@ For a host reachable over the network, follow [deployment instructions](../deplo
 | Pile ID beyond template capacity | Review actual geometry before an explicit override |
 | Unknown case names | Supply reviewed `--cases`; `case_suggestions` in `mcdxkit inspect` can suggest them |
 | Output exists | Choose another basename, or verified batch resume |
+| Summary file exists | Choose a new `-o` filename |
 | Port occupied | Use `--port 0` or another port |
 | Hosted login/origin error | Check exact HTTPS origin, secret and proxy Host forwarding; do not disable protections |
