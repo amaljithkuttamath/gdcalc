@@ -4,6 +4,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 import zipfile
 from pathlib import Path
 from lxml import etree as E
@@ -198,6 +199,22 @@ class PackageTests(unittest.TestCase):
             cases=group_report.select(group_report.parse(report()))
             with self.assertRaises(ValueError):mcdx.generate(src,out,cases,source_name='x',overrides={'n_z':5})
             with self.assertRaises(ValueError):mcdx.generate(src,out,cases,source_name='x')
+
+    def test_nested_packages_share_one_decompression_budget(self):
+        inner=io.BytesIO()
+        with zipfile.ZipFile(inner,'w',zipfile.ZIP_DEFLATED) as z:
+            z.writestr('Xaml/Document.xaml',b'<r/>');z.writestr('zeros.bin',bytes(1024*1024))
+        with tempfile.TemporaryDirectory() as folder:
+            src=Path(folder)/'t.mcdx';template(src)
+            with zipfile.ZipFile(src,'a',zipfile.ZIP_STORED) as z:
+                for i in range(100):z.writestr('mathcad/xaml/p%d.XamlPackage'%i,inner.getvalue())
+            self.assertLess(src.stat().st_size,1024*1024)
+            with mock.patch.object(mcdx,'read_package',wraps=mcdx.read_package) as reads:
+                with self.assertRaisesRegex(ValueError,'size limits'):mcdx.validate(src)
+            self.assertLessEqual(reads.call_count,65)
+            with mock.patch.object(mcdx,'MAX_NESTED',3):
+                with self.assertRaisesRegex(ValueError,'too many nested'):mcdx.validate(src)
+            with self.assertRaisesRegex(ValueError,'too deep'):mcdx.read_package(io.BytesIO(inner.getvalue()),depth=2)
 
 
 if __name__=='__main__':unittest.main()
