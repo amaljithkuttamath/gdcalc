@@ -1,12 +1,12 @@
 # Machine learning
 
-gdcalc ships a case-name classifier and a set of review flags, both implemented in the package itself with the standard library. They run offline, need no extra dependencies or downloads, and only advise: they never change inputs, case selections, worksheets or results.
+mcdxkit ships a case-name classifier and a set of review flags, both implemented in the package itself with the standard library. They run offline, need no extra dependencies or downloads, and only advise: they never change inputs, case selections, worksheets or results.
 
 ## Case classifier
 
 GROUP case names drive the default selection: names starting with `STR` are strength cases. Other conventions (`Strength I`, `ULS-1`, `Str1`, `Extreme Event II`, project-specific names) stop at "Case classification unavailable".
 
-`gdcalc learn REPORT` and **Suggest cases** in the Inputs step classify each final-summary case as `strength`, `service`, `extreme`, `fatigue` or `other`.
+`mcdxkit learn REPORT` and **Suggest cases** in the Inputs step classify each final-summary case as `strength`, `service`, `extreme`, `fatigue` or `other`.
 
 - **Model:** multinomial naive Bayes over character 2-4 grams and whole words of the normalized name, with Laplace smoothing.
 - **Training data:** a seed corpus of AASHTO LRFD limit-state names and common abbreviations, plus the engineer's own history. Every completed conversion's audit records the final-summary case names (`case_names`, new in this version; older audits only list the selected cases) and which were selected; selected names are learned as strength and unselected names as not strength, weighted 3× over the seed. The browser learns from its output directory; the CLI from `--history DIR`.
@@ -18,7 +18,7 @@ GROUP case names drive the default selection: names starting with `STR` are stre
 
 **Advisory only, never applied without your click.** Review flags, case-name suggestions and dominance hints never change inputs, case selection, worksheets or results. The only way a suggestion changes anything is the explicit **Use cases …** button. Tests check that the `.mcdx`, `.cpd` and `.html` bytes and the audit (apart from `review_flags`) are identical with the review on and off.
 
-`inspect` (CLI, SDK and browser), `convert`, batch audits and `gdcalc learn` return `review_flags` from `gdcalc.review`. They replace the earlier magnitude-based `anomalies`, which a planted-error validation found misleading (below). The browser shows them on the Inputs and Changes steps as "Review: …" items. A flag means "check the GROUP input for this case"; it is never a pass or fail, and no flag is not a verification.
+`inspect` (CLI, SDK and browser), `convert`, batch audits and `mcdxkit learn` return `review_flags` from `mcdxkit.review`. They replace the earlier magnitude-based `anomalies`, which a planted-error validation found misleading (below). The browser shows them on the Inputs and Changes steps as "Review: …" items. A flag means "check the GROUP input for this case"; it is never a pass or fail, and no flag is not a verification.
 
 ```json
 "review_flags": {
@@ -62,7 +62,7 @@ Each rule is a physical or labelling invariant. The only tolerance is 1% for rou
 
 ### Evidence
 
-Planted-error validation on synthetic GROUP-format reports from a simplified pile-group model. "Harmful" means the error changes the default STR envelope by more than 5%; reports gdcalc already refuses are excluded. Each corpus has 400 clean reports and 150 reports for each of 8 planted errors (factor typo, cap-moment unit slip, lateral force in lb, y/z axis swap, STR labelled SER, dropped load, one-cell ×10 or ÷10 edit, effects copied from another case).
+Planted-error validation on synthetic GROUP-format reports from a simplified pile-group model. "Harmful" means the error changes the default STR envelope by more than 5%; reports mcdxkit already refuses are excluded. Each corpus has 400 clean reports and 150 reports for each of 8 planted errors (factor typo, cap-moment unit slip, lateral force in lb, y/z axis swap, STR labelled SER, dropped load, one-cell ×10 or ÷10 edit, effects copied from another case).
 
 Round 2 used a harder corpus: thermal load with AASHTO factors, 0.9D minimum strength cases, extreme-event cases, random combination subsets, four naming styles, batter piles, soil and stiffness scatter and 4-significant-figure output. Study results (harmful recall at the false-alarm rate on clean reports):
 
@@ -73,7 +73,7 @@ Round 2 used a harder corpus: thermal load with AASHTO factors, 0.9D minimum str
 | Rules + ratio z + gross magnitude | 64% at 5.0% | **58% at 3.5%** |
 | LOF on 400 past reports (not shipped) | 68% at 7.2% | 51% at 5.8% |
 
-The 58% at 3.5% row used a ratio threshold of 5.63 (2.5% calibration) together with the 0.95 magnitude threshold. Re-running the shipped `gdcalc.review` (ratio threshold 4.64, negligible-value floor) on the same corpora gave:
+The 58% at 3.5% row used a ratio threshold of 5.63 (2.5% calibration) together with the 0.95 magnitude threshold. Re-running the shipped `mcdxkit.review` (ratio threshold 4.64, negligible-value floor) on the same corpora gave:
 
 | Shipped configuration | Round 1 corpus | Harder corpus |
 | --- | --- | --- |

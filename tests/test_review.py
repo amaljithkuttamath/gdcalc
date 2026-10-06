@@ -14,7 +14,7 @@ import unittest
 from pathlib import Path
 
 from test_pipeline import clean_report, report, template
-from gdcalc import engine, group_report, learn, review
+from mcdxkit import engine, group_report, learn, review
 
 FIXTURES = Path(__file__).resolve().parent / 'fixtures' / 'review'
 

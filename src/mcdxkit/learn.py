@@ -107,7 +107,7 @@ class CaseClassifier:
 
 
 def history_examples(output_dir, limit=500):
-    """Labelled names from completed gdcalc audits: selected cases are strength, others are not."""
+    """Labelled names from completed conversion audits: selected cases are strength, others are not."""
     examples = []
     root = Path(output_dir)
     if not root.is_dir():
@@ -162,7 +162,7 @@ def suggest_cases(report, *, load_source='effects', output_dir=None):
             'review_flags': engine.review_flags(parsed)}
 
 
-def main(argv=None, prog='gdcalc learn'):
+def main(argv=None, prog='mcdxkit learn'):
     import argparse
     import sys
     parser = argparse.ArgumentParser(prog=prog, description='Local ML: classify load cases, with advisory review flags. '
@@ -175,5 +175,5 @@ def main(argv=None, prog='gdcalc learn'):
         print(json.dumps(suggest_cases(args.input, load_source=args.load_source, output_dir=args.history), indent=2))
         return 0
     except (ValueError, OSError) as exc:
-        print('gdcalc: ' + str(exc), file=sys.stderr)
+        print('mcdxkit: ' + str(exc), file=sys.stderr)
         return 2

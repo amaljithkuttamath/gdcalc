@@ -1,6 +1,6 @@
 # Documentation
 
-## Use gdcalc
+## Use mcdxkit
 
 | Start here | What it covers |
 | --- | --- |
@@ -16,9 +16,12 @@
 
 [Contributing](../CONTRIBUTING.md) · [Architecture](architecture.md) · [Repository standards](standards.md) · [Testing contract](testing.md) · [Release process](releasing.md) · [Agent instructions](../AGENTS.md)
 
+[GitHub roadmap and workflow](github-workflow.md) · [Security reporting](../SECURITY.md)
+
 ## Research and planned work
 
 These describe direction and requirements, not completed features:
 
 - [Mathcad Prime feature review](mathcad-prime-review.md): product coverage and the independent calculation architecture.
 - [Engineering standards register](engineering-standards.md): proposed per-value sources, applicable codes, editions and rule validation.
+- [Template-driven 3D reuse research](research/template-driven-3d.md): existing open-source implementations, license considerations and prototype acceptance criteria.

@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 
 from test_pipeline import report, template
-from gdcalc import engine, group_report, learn
-from gdcalc.server import create_server
+from mcdxkit import engine, group_report, learn
+from mcdxkit.server import create_server
 
 
 def summary(cases):
@@ -134,7 +134,7 @@ class SuggestEndpointTests(unittest.TestCase):
             try:
                 def request(path, data, token=''):
                     conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=10)
-                    headers = {'X-Gdcalc-Token': token}
+                    headers = {'X-MCDXKit-Token': token}
                     if isinstance(data, dict):
                         data, headers['Content-Type'] = json.dumps(data).encode(), 'application/json'
                     elif data is not None:

@@ -31,7 +31,7 @@ python -m unittest discover -s tests -p 'test_server.py' -v
 
 # Full application checks:
 python -m unittest discover -s tests -v
-node --check src/gdcalc/web/app.js
+node --check src/mcdxkit/web/app.js
 
 # Distribution checks:
 python -m pip install build

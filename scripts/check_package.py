@@ -6,18 +6,28 @@ from zipfile import ZipFile
 
 
 def main():
-    wheels = list(Path('dist').glob('gdcalc-*.whl'))
+    wheels = list(Path('dist').glob('mcdxkit-*.whl'))
     if len(wheels) != 1:
-        raise SystemExit('Expected exactly one gdcalc wheel in dist/')
+        raise SystemExit('Expected exactly one mcdxkit wheel in dist/')
     required = {
-        'gdcalc/web/index.html', 'gdcalc/web/app.js', 'gdcalc/web/style.css',
-        'gdcalc/web/fonts/plex-regular.ttf', 'gdcalc/web/fonts/plex-medium.ttf',
-        'gdcalc/web/fonts/plex-semibold.ttf', 'gdcalc/web/fonts/OFL.txt',
-        'gdcalc/calcpad_bridge/Program.cs', 'gdcalc/calcpad_bridge/Bridge.csproj',
+        'mcdxkit/web/index.html', 'mcdxkit/web/app.js', 'mcdxkit/web/style.css',
+        'mcdxkit/web/fonts/plex-regular.ttf', 'mcdxkit/web/fonts/plex-medium.ttf',
+        'mcdxkit/web/fonts/plex-semibold.ttf', 'mcdxkit/web/fonts/OFL.txt',
+        'mcdxkit/calcpad_bridge/Program.cs', 'mcdxkit/calcpad_bridge/Bridge.csproj',
     }
     with ZipFile(wheels[0]) as wheel:
         metadata_path = next(name for name in wheel.namelist() if name.endswith('.dist-info/METADATA'))
         metadata = BytesParser().parsebytes(wheel.read(metadata_path))
+        if metadata.get('License-Expression') != 'MIT':
+            raise SystemExit('Package must declare the MIT license')
+        license_dir = metadata_path.rsplit('/', 1)[0] + '/licenses/'
+        for license_file in ('LICENSE', 'THIRD_PARTY.md'):
+            if license_file not in metadata.get_all('License-File', []):
+                raise SystemExit('Missing license metadata: ' + license_file)
+            if license_dir + license_file not in wheel.namelist():
+                raise SystemExit('Missing packaged license: ' + license_file)
+            if not wheel.read(license_dir + license_file).strip():
+                raise SystemExit('Empty packaged license: ' + license_file)
         description = metadata.get_payload()
         for target in re.findall(r'\]\(([^)]+)\)', description):
             if not re.match(r'(https?://|mailto:|#)', target):
@@ -27,7 +37,7 @@ def main():
             raise SystemExit('Missing package assets: ' + ', '.join(sorted(missing)))
         if any(not wheel.read(name) for name in required):
             raise SystemExit('Package contains an empty required asset')
-    print(f'{wheels[0].name}: browser assets, font license and bridge included')
+    print(f'{wheels[0].name}: browser assets, licenses and bridge included')
 
 
 if __name__ == '__main__':

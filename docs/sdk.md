@@ -1,20 +1,20 @@
 # Python SDK
 
-The `gdcalc` Python distribution contains the SDK, `gdcalc` command and browser server. The supported import surface is `gdcalc.engine`. The CLI and server call this same engine; no agent host is required.
+The `mcdxkit` Python distribution contains the SDK, `mcdxkit` command and browser server. The supported import surface is `mcdxkit.engine`. The CLI and server call this same engine; no agent host is required.
 
 Install the published SDK from PyPI in an isolated Python environment:
 
 ```bash
-python -m pip install gdcalc==0.2.1
+python -m pip install mcdxkit==0.3.0
 ```
 
-For source development, install a clone with `python -m pip install -e .`. Installation includes web assets and calculator bridge source, but not a compiled Calcpad runtime, Mathcad, engineering standards or a private template. Run `gdcalc setup-engine` once with Git and .NET 10 SDK available, or point `GDCALC_CALCPAD` at a compatible existing calculator. Conversion requires the [supported template](../references/template-contract.md).
+For source development, install a clone with `python -m pip install -e .`. Installation includes web assets and calculator bridge source, but not a compiled Calcpad runtime, Mathcad, engineering standards or a private template. Run `mcdxkit setup-engine` once with Git and .NET 10 SDK available, or point `MCDXKIT_CALCPAD` at a compatible existing calculator. Conversion requires the [supported template](../references/template-contract.md).
 
 ## Inspect, convert and validate
 
 ```python
 from pathlib import Path
-from gdcalc.engine import inspect_report, convert, validate
+from mcdxkit.engine import inspect_report, convert, validate
 
 report = Path("inputs/report.gp11t")
 info = inspect_report(report)
@@ -35,7 +35,7 @@ print(result["calculated_worksheet"])
 | Function | Contract |
 | --- | --- |
 | `inspect_report(report, *, cases=None, load_source='effects')` | Returns cases, selected IDs, unresolved selection reason, envelope, governing case per component, advisory `review_flags` and largest observed pile ID. Does not execute the calculator. Explicit invalid selection raises `ValueError`. |
-| `gdcalc.learn.suggest_cases(report, *, load_source='effects', output_dir=None)` | Offline case-name classification with confidence and evidence, recommended strength cases and the same `review_flags`; learns from audits under `output_dir`. Advisory: pass the IDs to `cases` explicitly. See [machine learning](machine-learning.md). |
+| `mcdxkit.learn.suggest_cases(report, *, load_source='effects', output_dir=None)` | Offline case-name classification with confidence and evidence, recommended strength cases and the same `review_flags`; learns from audits under `output_dir`. Advisory: pass the IDs to `cases` explicitly. See [machine learning](machine-learning.md). |
 | `convert(report, template, output, *, cases=None, load_source='effects', title=None, overrides=None)` | Calculates and returns the audit dictionary with final artifact paths, source hash, selection/envelope, `review_flags` and calculation evidence. Publishes `.mcdx`, `.cpd`, `.html`, `.audit.json`, with audit last. |
 | `validate(worksheet)` | Returns package integrity results. Does not execute Prime or prove engineering compliance. |
 

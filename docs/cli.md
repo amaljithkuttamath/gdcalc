@@ -7,18 +7,18 @@ All commands use the same conversion engine. No Codex or Mathcad installation is
 For command-line use:
 
 ```bash
-uv tool install gdcalc==0.2.1
-gdcalc --version
-gdcalc setup-engine
+uv tool install mcdxkit==0.3.0
+mcdxkit --version
+mcdxkit setup-engine
 ```
 
-The one-time engine build needs Git and the .NET 10 SDK. The resulting executable is self-contained. `setup-engine` deliberately refuses to replace an existing engine directory. Reuse a working engine; for an upgrade, build into a new directory and set `GDCALC_ENGINE_DIR` rather than deleting the old installation blindly. For editable development use [CONTRIBUTING.md](../CONTRIBUTING.md).
+The one-time engine build needs Git and the .NET 10 SDK. The resulting executable is self-contained. `setup-engine` deliberately refuses to replace an existing engine directory. Reuse a working engine; for an upgrade, build into a new directory and set `MCDXKIT_ENGINE_DIR` rather than deleting the old installation blindly. For editable development use [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Inspect before converting
 
 ```bash
-gdcalc inspect /path/to/report.gp11t
-gdcalc inspect /path/to/report.gp11t --cases 1,3,7
+mcdxkit inspect /path/to/report.gp11t
+mcdxkit inspect /path/to/report.gp11t --cases 1,3,7
 ```
 
 Inspection returns cases, selected cases, load basis and an envelope where selection is resolved. Default selection recognizes `STR` case names and excludes service cases. If classification is unresolved, obtain the intended case IDs; do not guess. Inspection, conversion audits and batch audits also include advisory `review_flags` (`{advisory, method, version, load_source, checks, skipped, flags, dominance}`, replacing the earlier `anomalies`): a flag asks you to check the GROUP input and never changes the selection or result. See [review flags](machine-learning.md#review-flags). Reports must be GROUP text in the supported kip/in convention, not Excel binaries.
@@ -28,12 +28,12 @@ Default loads come from the last summary: axial compression from local pile-top 
 ## Convert one report
 
 ```bash
-gdcalc convert /path/to/report.gp11t \
+mcdxkit convert /path/to/report.gp11t \
   --template /path/to/reference.mcdx \
   --output /path/to/new-results/design.mcdx
 
 # Explicit case selection and an already-reviewed literal input change:
-gdcalc convert /path/to/report.gp11t \
+mcdxkit convert /path/to/report.gp11t \
   --template /path/to/reference.mcdx \
   --cases 1,3,7 --set n_z=11 --set n_y=1 \
   --output /path/to/new-results/design-revised.mcdx
@@ -55,19 +55,19 @@ Existing artifacts are never overwritten. Choose a new basename for a new run. A
 ## Validate a package
 
 ```bash
-gdcalc validate /path/to/design.mcdx
+mcdxkit validate /path/to/design.mcdx
 ```
 
-This checks ZIP/XML relationships and package integrity. It does not execute Mathcad, validate all PTC schemas or approve the design. Use `gdcalc <command> --help` for authoritative flags. CLI commands print machine-readable results; inspect process exit status before consuming outputs.
+This checks ZIP/XML relationships and package integrity. It does not execute Mathcad, validate all PTC schemas or approve the design. Use `mcdxkit <command> --help` for authoritative flags. CLI commands print machine-readable results; inspect process exit status before consuming outputs.
 
 ## Batch conversion
 
 ```bash
-gdcalc batch /path/to/reports --recursive \
+mcdxkit batch /path/to/reports --recursive \
   --template /path/to/reference.mcdx \
   --output-dir /path/to/batch-results --workers 4
 
-gdcalc batch /path/to/reports --recursive \
+mcdxkit batch /path/to/reports --recursive \
   --template /path/to/reference.mcdx \
   --output-dir /path/to/batch-results --workers 4 --resume
 ```
@@ -79,7 +79,7 @@ Exit codes: 0 = all succeeded or verified/skipped; 1 = one or more jobs failed; 
 ## Start and stop the browser
 
 ```bash
-gdcalc serve --no-open --port 8765 \
+mcdxkit serve --no-open --port 8765 \
   --template /path/to/reference.mcdx \
   --output-dir /path/to/browser-results
 ```
@@ -90,25 +90,25 @@ Workflow: Files → Inputs → Changes → Outputs. Open Report/Template/Output 
 
 ## Suggest cases and review flags
 
-`gdcalc learn REPORT [--history OUTPUT_DIR] [--load-source reactions]` prints a JSON classification of every final-summary case with confidence and evidence, the recommended strength cases, cases it could not resolve and `review_flags`. `--history` learns naming conventions from earlier conversions; the browser uses its output directory automatically. Runs offline; see [machine learning](machine-learning.md).
+`mcdxkit learn REPORT [--history OUTPUT_DIR] [--load-source reactions]` prints a JSON classification of every final-summary case with confidence and evidence, the recommended strength cases, cases it could not resolve and `review_flags`. `--history` learns naming conventions from earlier conversions; the browser uses its output directory automatically. Runs offline; see [machine learning](machine-learning.md).
 
 ## Environment variables
 
-Default template lookup: explicit `--template`, then `GDCALC_TEMPLATE`, checkout `assets/local/reference.mcdx`, `$XDG_CONFIG_HOME/gdcalc/reference.mcdx` (default `~/.config/gdcalc/reference.mcdx`), then `~/.agents/skills/gdcalc/assets/local/reference.mcdx`. The older `$CODEX_HOME/skills/gdcalc/assets/local/reference.mcdx` location remains a last compatibility fallback. No agent installation is required. An explicitly configured missing path is reported as missing rather than silently replaced by another template.
+Default template lookup: explicit `--template`, then `MCDXKIT_TEMPLATE`, checkout `assets/local/reference.mcdx`, `$XDG_CONFIG_HOME/mcdxkit/reference.mcdx` (default `~/.config/mcdxkit/reference.mcdx`), then `~/.agents/skills/mcdxkit/assets/local/reference.mcdx`. The older `$CODEX_HOME/skills/mcdxkit/assets/local/reference.mcdx` location remains a last compatibility fallback. No agent installation is required. An explicitly configured missing path is reported as missing rather than silently replaced by another template.
 
 | Variable | Purpose |
 | --- | --- |
-| `GDCALC_TEMPLATE` | Private default template path; `--template` overrides it |
-| `GDCALC_ENGINE_DIR` | Directory containing the built calculator |
-| `GDCALC_CALCPAD` | Explicit calculator executable path |
+| `MCDXKIT_TEMPLATE` | Private default template path; `--template` overrides it |
+| `MCDXKIT_ENGINE_DIR` | Directory containing the built calculator |
+| `MCDXKIT_CALCPAD` | Explicit calculator executable path |
 | `PORT` | Server port; default 8765; `--port` overrides |
-| `GDCALC_HOST` | Default bind host; use loopback for local work |
-| `GDCALC_PUBLIC_URL` | Exact public origin for hosted mode |
-| `GDCALC_OUTPUT_DIR` | Server output location; `--output-dir` overrides |
-| `GDCALC_ACCESS_TOKEN` | Hosting secret, at least 32 characters |
-| `GDCALC_ACCESS_TOKEN_FILE` | Read the hosting secret from this file; takes precedence |
+| `MCDXKIT_HOST` | Default bind host; use loopback for local work |
+| `MCDXKIT_PUBLIC_URL` | Exact public origin for hosted mode |
+| `MCDXKIT_OUTPUT_DIR` | Server output location; `--output-dir` overrides |
+| `MCDXKIT_ACCESS_TOKEN` | Hosting secret, at least 32 characters |
+| `MCDXKIT_ACCESS_TOKEN_FILE` | Read the hosting secret from this file; takes precedence |
 
-For a host reachable over the network, follow [deployment instructions](../deploy/README.md). CLI startup does not automatically load `.env`; Compose reads it. `GDCALC_PORT`, `GDCALC_DOMAIN` and `GDCALC_IMAGE` in the example environment are Compose settings, distinct from direct CLI variables.
+For a host reachable over the network, follow [deployment instructions](../deploy/README.md). CLI startup does not automatically load `.env`; Compose reads it. `MCDXKIT_PORT`, `MCDXKIT_DOMAIN` and `MCDXKIT_IMAGE` in the example environment are Compose settings, distinct from direct CLI variables.
 
 ## Common recovery paths
 
@@ -119,7 +119,7 @@ For a host reachable over the network, follow [deployment instructions](../deplo
 | Template missing | Pass/select a compatible private template |
 | Unsupported expression | Report the exact construct and extend the adapter with tests; no cache fallback |
 | Pile ID beyond template capacity | Review actual geometry before an explicit override |
-| Unknown case names | Supply reviewed `--cases`; `gdcalc learn` can suggest them |
+| Unknown case names | Supply reviewed `--cases`; `mcdxkit learn` can suggest them |
 | Output exists | Choose another basename, or verified batch resume |
 | Port occupied | Use `--port 0` or another port |
 | Hosted login/origin error | Check exact HTTPS origin, secret and proxy Host forwarding; do not disable protections |
