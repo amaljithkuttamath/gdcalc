@@ -78,3 +78,5 @@ The HTTP layer checks Host/Origin, request tokens and hosted login state. Networ
 `pyproject.toml` defines the Python package and assets. The multi-stage Dockerfile builds the pinned calculator, installs Python dependencies, then runs as UID/GID 10001. `.dockerignore` is an allowlist to prevent private project data entering images.
 
 Actions tests Python versions and package contents before container checks. Only a successful `main` run pushes the exact tested image to GHCR. Pull-request code is tested without registry login or publication. The repository's public source, registry package visibility and a live hosted deployment are separate states.
+
+See [distributed execution boundaries](distributed-architecture.md) for the future API/job/worker/storage contract and its acceptance gates.
