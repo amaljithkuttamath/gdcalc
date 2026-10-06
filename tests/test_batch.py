@@ -169,3 +169,17 @@ class BatchReviewCountTests(unittest.TestCase):
             summary = convert_batch([raw], ref, root/'out', overrides=PILES, checks='none')
             self.assertEqual(summary['review']['reports_checked'], 0)
             self.assertEqual(summary['review']['summary'], '1 report, 0 with items to review, 1 not checked')
+            # Neither review column may read as a clean review when no check ran.
+            self.assertEqual([(r['review_items'], r['check_error']) for r in self.rows(summary['checks']['table'])[1]],
+                             [('', '')])
+
+    def test_failed_conversion_and_all_checks_failing_are_not_clean(self):
+        from mcdxkit.batch import check_row, format_review_summary, review_counts
+        failed = check_row({'source': 'a.txt', 'status': 'failed'})
+        broken = check_row({'source': 'b.txt', 'status': 'succeeded', 'check_summary': None,
+                            'open_checks': None, 'check_errors': 2})
+        self.assertEqual([(r['review_items'], r['check_error']) for r in (failed, broken)], [('', ''), ('', 'yes')])
+        counts = review_counts([failed, broken])
+        self.assertEqual((counts['reports_checked'], counts['reports_with_check_errors']), (0, 1))
+        self.assertEqual(format_review_summary(counts),
+                         '2 reports, 0 with items to review, 2 not checked, 1 report where some checks could not run')

@@ -179,7 +179,8 @@ def check_row(result, base=None):
     # Advisory review: blank when no check ran, so "nothing ran" never reads as nothing to review.
     items, errors = result.get('open_checks'), result.get('check_errors')
     row['review_items'] = '' if items is None else items
-    row['check_error'] = '' if errors is None else ('yes' if errors else 'no')
+    # "no" would read as a clean review when nothing ran (--checks none); failures still show "yes".
+    row['check_error'] = 'yes' if errors else '' if items is None else 'no'
     summary = result.get('check_summary')
     if result['status'] == 'failed':
         row['note'] = 'conversion failed'
