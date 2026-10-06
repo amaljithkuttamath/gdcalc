@@ -20,11 +20,14 @@ def _read_raw(path):
     return path.read_bytes()
 
 
-def _parse_raw(raw, load_source):
+def _decode(raw):
     if b'\x00' in raw:raise ValueError('Expected a text GROUP report, not a binary workbook')
-    try:text=raw.decode('utf-8-sig')
-    except UnicodeDecodeError:text=raw.decode('cp1252')
-    return group_report.parse(text,load_source)
+    try:return raw.decode('utf-8-sig')
+    except UnicodeDecodeError:return raw.decode('cp1252')
+
+
+def _parse_raw(raw, load_source):
+    return group_report.parse(_decode(raw),load_source)
 
 
 def _read_report(path, load_source):
@@ -133,19 +136,144 @@ def inspect_report(report, *, cases=None, load_source='effects', checks='default
     is an optional review.api.HistoryStore the case-name classifier learns from."""
     plan=review_runner.prepare(checks)
     _,parsed=_read_report(report,load_source)
+    return _inspect(Path(report).name,parsed,cases,load_source,plan,history)
+
+
+def _inspect(name, parsed, cases, load_source, plan, history=None):
     issue=None
     try:selected=group_report.select(parsed,cases)
     except ValueError as exc:
         if cases is not None:raise
         selected=[];issue=str(exc)
     block=review_runner.review(parsed,[c['id'] for c in selected],plan=plan,history=history)
-    return {'source':Path(report).name,'cases':[{'id':c['id'],'name':c['name']} for c in parsed['cases']],
+    return {'source':name,'cases':[{'id':c['id'],'name':c['name']} for c in parsed['cases']],
             'selected_cases':[c['id'] for c in selected],'selection_required':issue,
             'load_source':load_source,'envelope':group_report.envelope(selected) if selected else None,
             'governing':_governing(block) if selected else None,
             'case_suggestions':_case_suggestions(parsed,block),
             'review_checks':block,
             'largest_observed_pile_id':max((p for c in parsed['cases'] for p in c['pile_ids']),default=0)}
+
+
+COMPARE_SCHEMA='report-compare/1'
+COMPONENT_UNITS={'P':'force','Vy':'force','Vz':'force','My':'moment','Mz':'moment'}
+COMPONENT_LABELS={'P':'Axial load','Vy':'Shear Vy','Vz':'Shear Vz','My':'Moment My','Mz':'Moment Mz'}
+
+
+class UnitMismatchError(ValueError):
+    """Two reports name different force or moment units; compare_reports never converts."""
+
+
+def _change_pct(old, new):
+    if old==new:return 0.0
+    if old==0:return None
+    return (new-old)/abs(old)*100
+
+
+def _plural(count, word):
+    return f'{count} {word}' if count==1 else f'{count} {word}s'
+
+
+def _compare_headline(result):
+    """One line: the largest envelope change (and its new governing case), case and review changes."""
+    parts=[]
+    unresolved=[side.upper() for side in ('old','new') if result[side]['selection_required']]
+    if unresolved:
+        parts.append('Envelope not compared: case selection unresolved in '+' and '.join(unresolved)+'; pass explicit cases')
+    else:
+        changed=[c for c in result['components'] if c['governing_changed'] or c['change_pct']!=0]
+        if changed:
+            lead=max(changed,key=lambda c:float('inf') if c['change_pct'] is None else abs(c['change_pct']))
+            label=COMPONENT_LABELS[lead['component']]
+            if lead['change_pct'] is None:text=f'{label} now nonzero (was 0)'
+            elif lead['change_pct']==0:text=f'{label} unchanged'
+            elif round(lead['change_pct'],1)==0:text=f'{label} changed by less than 0.1%'
+            else:text=f"{label} {'up' if lead['change_pct']>0 else 'down'} {abs(lead['change_pct']):.1f}%"
+            if lead['governing_changed']:text+=f" (case {lead['governing_new']['case']} now governs)"
+            if len(changed)>1:text+=f"; {_plural(len(changed)-1,'other component')} changed"
+            parts.append(text)
+        else:parts.append('Envelope loads and governing cases unchanged')
+    cases=result['cases']
+    counts=[_plural(len(cases[k]),'case')+' '+k for k in ('added','removed','renamed') if cases[k]]
+    if counts:parts.append(', '.join(counts))
+    selection=cases['selection']
+    if selection['changed']:
+        parts.append('selected cases '+(','.join(map(str,selection['old'])) or 'none')+' -> '+(','.join(map(str,selection['new'])) or 'none'))
+    review=result['review']
+    if review['checks']:
+        appeared,cleared=len(review['appeared']),len(review['cleared'])
+        if appeared:parts.append(_plural(appeared,'new item')+' to review')
+        if cleared:parts.append(_plural(cleared,'review item')+' cleared')
+        if not appeared and not cleared:parts.append('no new review items')
+    return '; '.join(parts)
+
+
+def compare_reports(old, new, *, cases=None, load_source='effects', checks='default'):
+    """Compare two GROUP reports (an earlier and a revised run): envelope and governing case per
+    component, cases added/removed/renamed (matched by ID) and advisory review flags that appeared
+    or cleared. ``cases`` and ``load_source`` apply to both reports, as in inspect_report.
+
+    Read-only. Reports whose unit headers differ raise UnitMismatchError (a ValueError); values are
+    never converted. Unresolved default selection leaves the envelope uncompared, with the reason in
+    ``old``/``new.selection_required``; an explicit invalid selection raises ValueError."""
+    plan=review_runner.prepare(checks)
+    sides={}
+    for label,report in (('old',old),('new',new)):
+        report=Path(report)
+        try:
+            raw=_read_raw(report);text=_decode(raw)
+            sides[label]={'path':report,'raw':raw,'text':text,'units':group_report.units(text)}
+        except ValueError as exc:raise ValueError(f'{label.upper()} {report.name}: {exc}') from exc
+    units={k:v['units'] for k,v in sides.items()}
+    if units['old'] and units['new'] and units['old']!=units['new']:
+        def named(u):return f"force {u['force']}, moment {u['moment']}"
+        raise UnitMismatchError(f"Units differ: OLD {sides['old']['path'].name} uses {named(units['old'])}; "
+                                f"NEW {sides['new']['path'].name} uses {named(units['new'])}. "
+                                'Compare does not convert units; rerun GROUP with matching units')
+    info={}
+    for label,side in sides.items():
+        try:info[label]=_inspect(side['path'].name,group_report.parse(side['text'],load_source),cases,load_source,plan)
+        except ValueError as exc:raise ValueError(f"{label.upper()} {side['path'].name}: {exc}") from exc
+    a,b=info['old'],info['new']
+    def side(label):
+        data=info[label]
+        return {'source':data['source'],'sha256':hashlib.sha256(sides[label]['raw']).hexdigest(),
+                'cases':data['cases'],'selected_cases':data['selected_cases'],
+                'selection_required':data['selection_required'],'envelope':data['envelope']}
+    def governing(data,key):
+        row=(data['governing'] or {}).get(key)
+        return None if row is None else {'case':row['case'],'name':row['case_name']}
+    components=[]
+    for key in group_report.COMPONENTS:
+        before=a['envelope'][key] if a['envelope'] else None
+        after=b['envelope'][key] if b['envelope'] else None
+        was,now=governing(a,key),governing(b,key)
+        components.append({'component':key,'unit':'kip' if COMPONENT_UNITS[key]=='force' else 'kip-in',
+                           'old':before,'new':after,
+                           'change_pct':_change_pct(before,after) if before is not None and after is not None else None,
+                           'governing_old':was,'governing_new':now,
+                           'governing_changed':bool(was and now and was['case']!=now['case'])})
+    names_old={c['id']:c['name'] for c in a['cases']};names_new={c['id']:c['name'] for c in b['cases']}
+    case_changes={'added':[{'id':i,'name':names_new[i]} for i in sorted(names_new.keys()-names_old.keys())],
+                  'removed':[{'id':i,'name':names_old[i]} for i in sorted(names_old.keys()-names_new.keys())],
+                  'renamed':[{'id':i,'old_name':names_old[i],'new_name':names_new[i]}
+                             for i in sorted(names_old.keys()&names_new.keys()) if names_old[i]!=names_new[i]],
+                  'selection':{'old':a['selected_cases'],'new':b['selected_cases'],
+                               'changed':a['selected_cases']!=b['selected_cases']}}
+    # A flag is the same item in both reports when rule, case ID and component match; its message
+    # and values may differ with the loads. A rule may raise several flags with one key.
+    def keyed(data):return [((f['rule'],f['case'],f['component']),f) for f in data['review_checks']['flags']]
+    before_flags,after_flags=keyed(a),keyed(b)
+    before_keys,after_keys={k for k,_ in before_flags},{k for k,_ in after_flags}
+    review={'advisory':True,'checks':plan.identity,
+            'appeared':[f for k,f in after_flags if k not in before_keys],
+            'cleared':[f for k,f in before_flags if k not in after_keys],
+            'unchanged':sum(k in before_keys for k,_ in after_flags),
+            'errors':{'old':a['review_checks']['errors'],'new':b['review_checks']['errors']}}
+    result={'schema':COMPARE_SCHEMA,'old':side('old'),'new':side('new'),'load_source':load_source,
+            'units':{'force':'kip','moment':'kip-in'},'components':components,'cases':case_changes,'review':review}
+    result['headline']=_compare_headline(result)
+    return result
 
 
 def convert(report, template, output, *, cases=None, load_source='effects', title=None, overrides=None,

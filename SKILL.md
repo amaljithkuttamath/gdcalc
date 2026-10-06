@@ -42,6 +42,8 @@ Use `mcdxkit batch /path/to/reports --recursive --template /path/to/reference.mc
 
 Use `mcdxkit summary <reports-or-output-dir> -o /path/to/new/summary.csv` for one CSV row per report and load case with per-case loads, governing measures and source hashes. It never overwrites the CSV and fails as a whole on any unreadable report, unresolved selection or changed output snapshot.
 
+Use `mcdxkit compare OLD NEW` (or `--json`) when a GROUP run is revised: it reports the envelope change and governing case per component, cases added/removed/renamed by ID, selection changes and advisory review flags that appeared or cleared. It is read-only, and reports with different units fail (exit 2) rather than being converted.
+
 ## Browser and deployment
 
 Use `mcdxkit serve` when the user wants to select files/folders or inspect sources, worksheet equations and before/after differences in a browser. Keep the document central and guide Files → Inputs → Changes → Outputs. Local mode binds loopback. For Docker or cloud work, read [deploy/README.md](deploy/README.md); hosted mode uploads to that server and requires authentication. Preserve generated outputs and private source snapshots. Do not publish engineering data with source code.

@@ -46,7 +46,7 @@ flowchart LR
 | Module | Responsibility |
 | --- | --- |
 | `cli.py`, `generate.py`, `validate.py` | Commands, arguments, output and exit codes |
-| `engine.py` | Transport-independent inspect/convert/validate/summary API and staged publication |
+| `engine.py` | Transport-independent inspect/convert/validate/summary/compare API and staged publication |
 | `group_report.py` | Final summary parsing, case selection and envelopes |
 | `mcdx.py` | Package safety checks and constrained native template modifications |
 | `calcpad.py` | Strict XML-to-Calcpad translation, subprocess deadline and result validation |
@@ -60,6 +60,7 @@ flowchart LR
 | `batch.py` | Input discovery, bounded process pool, job identity, manifest and resume |
 | `review/` | Advisory review checks as plug-ins, shared by inspect, convert, batch and browser: `api.py` (plug-in contract, standard library only), `view.py` (frozen `ReportView` from the parsed dict), `registry.py` (built-ins and `mcdxkit.review` entry points), `runner.py` (isolated, time-budgeted runs; `review-checks/1` report), `history.py` (past audits for the classifier), `checks/`, `annotate/`, `classify/` |
 | `summary.py` | `mcdxkit summary` input discovery and exclusive CSV write; rows come from `engine.py` |
+| `compare.py` | `mcdxkit compare` text/JSON rendering; the comparison comes from `engine.compare_reports` |
 
 ### Review dependency rule
 

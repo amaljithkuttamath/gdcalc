@@ -34,7 +34,7 @@ mcdxkit checks list                              # id, version, kind, source, on
 mcdxkit checks list --checks default,my_check    # on/off for a --checks value; --json for rows
 ```
 
-`--checks` on `inspect`, `convert` and `batch` takes `default` (the built-in checks, annotators and case-name classifier), `none`, or a comma list of ids such as `default,my_check` or `ratio_outlier`. An unknown id is an error (exit 2). Installed plug-ins (Python entry points in the `mcdxkit.review` group, named by their id) are listed but stay off until named; only named plug-ins are imported. A plug-in that fails to load, raises or exceeds its time budget is reported under `review_checks.errors` as `check_error`; the inspection or conversion still completes. A plug-in that timed out is disabled for the rest of the process (`check_error: disabled after timeout`). `convert` prints `open_checks` (flags without a decision; `null` when no check ran successfully, for example with `--checks none`) and `check_errors` (plug-ins that failed). With no review decisions, `.mcdx`, `.cpd` and `.html` outputs are byte-identical with `--checks none` and `--checks default`.
+`--checks` on `inspect`, `convert`, `batch` and `compare` takes `default` (the built-in checks, annotators and case-name classifier), `none`, or a comma list of ids such as `default,my_check` or `ratio_outlier`. An unknown id is an error (exit 2). Installed plug-ins (Python entry points in the `mcdxkit.review` group, named by their id) are listed but stay off until named; only named plug-ins are imported. A plug-in that fails to load, raises or exceeds its time budget is reported under `review_checks.errors` as `check_error`; the inspection or conversion still completes. A plug-in that timed out is disabled for the rest of the process (`check_error: disabled after timeout`). `convert` prints `open_checks` (flags without a decision; `null` when no check ran successfully, for example with `--checks none`) and `check_errors` (plug-ins that failed). With no review decisions, `.mcdx`, `.cpd` and `.html` outputs are byte-identical with `--checks none` and `--checks default`.
 
 Default loads come from the last summary: axial compression from local pile-top reactions, shears/moments from local pile effects. Use `--load-source reactions` only when local top reactions are the intended basis for all components.
 
@@ -112,6 +112,27 @@ Writes one CSV row per report and final-summary load case. Report inputs use the
 
 Component maxima may come from different piles and cases; they are not concurrent loads. Excluded (for example service) cases are listed but never govern. Report and case names that begin with `=`, `+`, `-`, `@` are prefixed with `'` so spreadsheets do not evaluate them. In the browser, **Download summary** on the Inputs step appears when two or more reports are loaded and includes every report with a resolved case selection, using each report's selected cases and the current load basis.
 
+## Compare two report revisions
+
+```bash
+mcdxkit compare /path/to/rev-A.gp11t /path/to/rev-B.gp11t
+mcdxkit compare /path/to/rev-A.gp11t /path/to/rev-B.gp11t --cases 2,3,4 --json
+```
+
+Compares an earlier (OLD) and a revised (NEW) GROUP run. Read-only and offline; nothing is written. Both reports use the same parser, default case selection and options as `inspect`: `--cases`, `--load-source` and `--checks` apply to both. The plain-text output starts with a one-line headline (the component with the largest envelope change, the case that now governs it if that changed, case and selection changes, and review items that appeared or cleared), then:
+
+| Section | Content |
+| --- | --- |
+| Components | For P, Vy, Vz (kip) and My, Mz (kip-in): OLD and NEW envelope value, change in percent of OLD (`new` when OLD was exactly zero) and the governing case OLD -> NEW, marked `[changed]` when a different case governs |
+| Cases | Cases added, removed or renamed, matched by case ID (a renumbered case shows as removed plus added), and the selected cases OLD -> NEW |
+| Review items | Advisory review flags (rule, case, component) present only in NEW (`new`) or only in OLD (`cleared`), plus the count unchanged; check errors from either report |
+
+Component maxima may come from different piles and cases; they are not concurrent loads. When default selection is unresolved in either report the envelope is not compared (the headline says so); pass `--cases`. An explicit `--cases` must exist in both reports. Errors name the report (`OLD name: …` or `NEW name: …`).
+
+Units are never converted. When the reports' local-reaction headers name different force or moment units the command stops with `Units differ: OLD … uses force KIP, moment KIP-IN; NEW … uses …` (exit 2). Reports must otherwise be in the supported kip/in convention.
+
+`--json` prints schema `report-compare/1`: `{schema, old, new, load_source, units, components, cases, review, headline}`. `old`/`new` are `{source, sha256, cases, selected_cases, selection_required, envelope}`; each `components` row is `{component, unit, old, new, change_pct, governing_old, governing_new, governing_changed}` with governing entries `{case, name}` or `null`; `cases` is `{added, removed, renamed, selection: {old, new, changed}}`; `review` is `{advisory: true, checks, appeared, cleared, unchanged, errors: {old, new}}` with `checks` the enabled `[id, version]` pairs and flags in the `review-checks/1` flag shape. Exit codes: 0 = compared (changes do not change the exit code); 2 = unreadable input, invalid selection, unknown check or unit mismatch.
+
 ## Start and stop the browser
 
 ```bash
@@ -156,6 +177,7 @@ For a host reachable over the network, follow [deployment instructions](../deplo
 | Unknown case names | Supply reviewed `--cases`; `case_suggestions` in `mcdxkit inspect` can suggest them |
 | Output exists | Choose another basename, or verified batch resume |
 | Summary file exists | Choose a new `-o` filename |
+| Compare reports units differ | Rerun GROUP so both reports use the same units; compare does not convert |
 | Port occupied | Use `--port 0` or another port |
 | Hosted login/origin error | Check exact HTTPS origin, secret and proxy Host forwarding; do not disable protections |
 

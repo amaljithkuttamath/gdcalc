@@ -4,6 +4,10 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ## Unreleased
 
+### Added
+
+- Report revision compare: `mcdxkit compare OLD NEW` (and `engine.compare_reports`) shows envelope change and governing case per component, cases added/removed/renamed, selection changes and advisory review flags that appeared or cleared, with a one-line headline and `--json` (schema `report-compare/1`). Reports with different units stop with exit 2 instead of being converted.
+
 ## 0.4.0
 
 - Verify installed SDK origins in release/container tests and include test helpers and synthetic fixtures in source distributions.
