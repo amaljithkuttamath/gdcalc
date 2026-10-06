@@ -11,7 +11,7 @@ else:
 def main(argv=None):
     args=list(sys.argv[1:] if argv is None else argv)
     parser=argparse.ArgumentParser(prog='gdcalc',description='Convert final GROUP local-load summaries to native Mathcad worksheets.')
-    parser.add_argument('--version',action='version',version='gdcalc 0.2.0')
+    parser.add_argument('--version',action='version',version='gdcalc 0.2.1')
     sub=parser.add_subparsers(dest='command',required=True)
     for name,description in [('inspect','Inspect local loads and strength case selection'),
                              ('convert','Generate and calculate open and Mathcad worksheets'),

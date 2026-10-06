@@ -1,4 +1,6 @@
 """Check that a built wheel includes the browser assets and calculator bridge."""
+from email.parser import BytesParser
+import re
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -14,6 +16,12 @@ def main():
         'gdcalc/calcpad_bridge/Program.cs', 'gdcalc/calcpad_bridge/Bridge.csproj',
     }
     with ZipFile(wheels[0]) as wheel:
+        metadata_path = next(name for name in wheel.namelist() if name.endswith('.dist-info/METADATA'))
+        metadata = BytesParser().parsebytes(wheel.read(metadata_path))
+        description = metadata.get_payload()
+        for target in re.findall(r'\]\(([^)]+)\)', description):
+            if not re.match(r'(https?://|mailto:|#)', target):
+                raise SystemExit('PyPI description contains a relative link: ' + target)
         missing = required - set(wheel.namelist())
         if missing:
             raise SystemExit('Missing package assets: ' + ', '.join(sorted(missing)))
