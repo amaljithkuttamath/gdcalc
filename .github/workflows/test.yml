@@ -1,0 +1,33 @@
+name: Test and build
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.lock && pip install --no-deps .
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.112'
+      - run: gdcalc setup-engine
+      - run: python -m unittest discover -s tests -v
+      - run: docker build -t gdcalc:test .
+      - name: Execute conversion tests inside the image
+        run: docker run --rm -v "$PWD:/verify:ro" --entrypoint python gdcalc:test -m unittest discover -s /verify/tests -v
+      - name: Smoke test the container
+        run: |
+          docker run --name gdcalc-test -d -p 127.0.0.1:8765:8765 \
+            -e GDCALC_PUBLIC_URL=http://127.0.0.1:8765 \
+            -e GDCALC_ACCESS_TOKEN=synthetic-ci-token-not-a-deployment-secret gdcalc:test
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:8765/healthz; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:8765/healthz
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8765/api/session)" = 401
+          docker stop gdcalc-test

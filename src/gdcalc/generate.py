@@ -21,13 +21,16 @@ def case_ids(value):
     except ValueError:raise argparse.ArgumentTypeError('Use unique positive cases, e.g. 1-10 or 1,3,7')
 
 
+def default_template():
+    local_template=Path(__file__).resolve().parents[2]/'assets/local/reference.mcdx'
+    installed_template=Path(os.environ.get('CODEX_HOME',str(Path.home()/'.codex')))/'skills/gdcalc/assets/local/reference.mcdx'
+    return Path(os.environ['GDCALC_TEMPLATE']) if os.environ.get('GDCALC_TEMPLATE') else (local_template if local_template.is_file() else installed_template)
+
+
 def main(argv=None,prog=None):
     parser=argparse.ArgumentParser(prog=prog,description=__doc__)
     parser.add_argument('input',type=Path,help='GROUP .gp11t or text report, in kip/in units')
-    local_template=Path(__file__).resolve().parents[2]/'assets/local/reference.mcdx'
-    installed_template=Path(os.environ.get('CODEX_HOME',str(Path.home()/'.codex')))/'skills/gdcalc/assets/local/reference.mcdx'
-    default_template=Path(os.environ['GDCALC_TEMPLATE']) if os.environ.get('GDCALC_TEMPLATE') else (local_template if local_template.is_file() else installed_template)
-    parser.add_argument('--template',type=Path,default=default_template,help='Compatible .mcdx template; also GDCALC_TEMPLATE or installed private template')
+    parser.add_argument('--template',type=Path,default=default_template(),help='Compatible .mcdx template; also GDCALC_TEMPLATE or installed private template')
     parser.add_argument('--output',type=Path,help='New .mcdx output path (never overwritten)')
     parser.add_argument('--inspect',action='store_true',help='Inspect case selection and load envelopes without generating')
     parser.add_argument('--cases',type=case_ids,help='Explicit strength case IDs; default detects STR case names')
@@ -47,7 +50,10 @@ def main(argv=None,prog=None):
             overrides[key]=float(value)
         result=engine.convert(args.input,args.template,args.output,cases=args.cases,load_source=args.load_source,title=args.title,overrides=overrides)
         print(json.dumps({'output':result['output'],'audit':result['audit'],'cases':result['cases'],
-                          'envelope':result['envelope'],'native_execution_verified':False},indent=2))
+                          'envelope':result['envelope'],'open_worksheet':result['open_worksheet'],
+                          'calculated_worksheet':result['calculated_worksheet'],
+                          'calculation':{k:result['calculation'][k] for k in ('engine','calculated','translated_math_regions')},
+                          'native_execution_verified':False},indent=2))
         return 0
     except (ValueError,OSError,KeyError,IndexError,mcdx.E.XMLSyntaxError,mcdx.zipfile.BadZipFile) as exc:
         print('gdcalc: '+str(exc),file=sys.stderr);return 2

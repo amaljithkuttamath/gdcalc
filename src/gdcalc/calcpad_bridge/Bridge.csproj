@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><AssemblyName>gdcalc-calcpad</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="$(CalcpadSource)/Calcpad.Core/Calcpad.Core.csproj" /></ItemGroup>
+</Project>

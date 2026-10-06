@@ -1,0 +1,15 @@
+**
+!pyproject.toml
+!requirements.lock
+!README.md
+!src/
+!src/gdcalc/
+!src/gdcalc/*.py
+!src/gdcalc/web/
+!src/gdcalc/web/*.html
+!src/gdcalc/web/*.css
+!src/gdcalc/web/*.js
+
+!src/gdcalc/calcpad_bridge/
+!src/gdcalc/calcpad_bridge/*.cs
+!src/gdcalc/calcpad_bridge/*.csproj

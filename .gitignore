@@ -12,3 +12,11 @@ outputs/
 build/
 dist/
 *.egg-info/
+.env
+.secrets/
+gdcalc-output/
+
+# Generated open worksheets may contain private engineering values.
+*.cpd
+*.html
+!src/gdcalc/web/*.html

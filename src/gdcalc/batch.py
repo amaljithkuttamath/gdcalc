@@ -1,0 +1,234 @@
+"""Resumable, bounded parallel conversion pipeline around the same core engine."""
+import argparse
+import hashlib
+import json
+import multiprocessing
+import os
+import re
+import shutil
+import sys
+import time
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from contextlib import contextmanager
+from pathlib import Path
+
+from . import engine, calcpad
+from .generate import case_ids, default_template
+
+
+def digest(path):
+    value = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            value.update(block)
+    return value.hexdigest()
+
+
+def discover(inputs, output_dir, *, recursive=False):
+    output_dir = Path(output_dir).resolve()
+    found = set()
+    for value in inputs:
+        path = Path(value).resolve()
+        if not path.exists():
+            raise ValueError(f'Input does not exist: {path}')
+        candidates = path.rglob('*') if path.is_dir() and recursive else path.glob('*') if path.is_dir() else [path]
+        for candidate in candidates:
+            if not candidate.is_file() or candidate.is_symlink():
+                continue
+            candidate = candidate.resolve()
+            if candidate.is_relative_to(output_dir):
+                continue
+            if candidate.suffix.lower() in ('.gp11t', '.txt'):
+                found.add(candidate)
+            elif not path.is_dir():
+                raise ValueError(f'Unsupported report: {path.name}; use .gp11t or .txt')
+    return sorted(found)
+
+
+@contextmanager
+def manifest_lock(root):
+    # OS locks are released after process death; no stale lock recovery flag needed.
+    with (root / '.gdcalc-batch.lock').open('a+b') as handle:
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                handle.write(b'0'); handle.flush(); handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise ValueError('Another batch owns this output directory. Use a separate directory or wait.') from exc
+        try:
+            yield
+        finally:
+            if os.name == 'nt':
+                handle.seek(0); msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def _convert_job(job):
+    started = time.monotonic()
+    row = {k: job[k] for k in ('job_id', 'source', 'source_sha256', 'template_sha256', 'settings', 'output')}
+    row['native_execution_verified'] = False
+    output = Path(job['output']); audit = output.with_suffix('.audit.json')
+    try:
+        identity = {k: row[k] for k in ('job_id', 'source_sha256', 'template_sha256', 'settings')}
+        metadata = output.parent / 'job.json'
+        if output.exists() or audit.exists():
+            if not job['resume']:
+                raise ValueError('Output already exists. Use --resume or a new output directory.')
+            if not output.is_file() or not audit.is_file() or not metadata.is_file():
+                raise ValueError('Incomplete output pair. Preserve it for review and use a new output directory.')
+            previous = json.loads(metadata.read_text())
+            evidence = json.loads(audit.read_text())
+            if (previous != identity or evidence['source_sha256'] != job['source_sha256']
+                    or evidence['template_sha256'] != job['template_sha256']
+                    or evidence['sha256'] != digest(output)):
+                raise ValueError('Existing output failed identity/hash checks. It was not overwritten.')
+            engine.validate(output)
+            calculation = evidence.get('calculation', {})
+            if not calculation.get('calculated') or calculation.get('revision') != calcpad.REVISION:
+                raise ValueError('Saved output has no verified CalcpadCE calculation')
+            for suffix, key in (('.cpd', 'source_sha256'), ('.html', 'html_sha256')):
+                artifact = output.with_suffix(suffix)
+                if not artifact.is_file() or digest(artifact) != calculation.get(key):
+                    raise ValueError('Calculated worksheet failed artifact hash checks')
+            row.update(status='skipped', sha256=evidence['sha256'], audit=str(audit))
+        else:
+            if Path(job['source']).stat().st_size > 16 * 1024 * 1024:
+                raise ValueError('Raw report exceeds 16 MiB')
+            source_dir = output.parent / '_source'
+            source_dir.mkdir(parents=True, exist_ok=True)
+            snapshots = [(Path(job['source']), source_dir / Path(job['source']).name, job['source_sha256']),
+                         (Path(job['template']), source_dir / 'template.mcdx', job['template_sha256'])]
+            for original, snapshot, expected in snapshots:
+                if not snapshot.exists():
+                    # The coordinator lock prevents simultaneous batches from writing here.
+                    with original.open('rb') as src, snapshot.open('xb') as dst:
+                        shutil.copyfileobj(src, dst)
+                if digest(snapshot) != expected:
+                    raise ValueError('Input changed or snapshot is incomplete. Retry in a new output directory.')
+            if metadata.exists():
+                if json.loads(metadata.read_text()) != identity:
+                    raise ValueError('Job identity mismatch. Existing files were not overwritten.')
+            else:
+                with metadata.open('x') as stream:
+                    json.dump(identity, stream, indent=2)
+            result = engine.convert(snapshots[0][1], snapshots[1][1], output, **job['settings'])
+            row.update(status='succeeded', sha256=result['sha256'], audit=str(audit),
+                       cases=result['cases'], envelope=result['envelope'])
+    except Exception as exc:
+        row.update(status='failed', error=f'{type(exc).__name__}: {exc}')
+    if row.get('status') in ('succeeded', 'skipped'):
+        row.update(calculation_engine='CalcpadCE', calculated=True,
+                   open_worksheet=str(output.with_suffix('.cpd')), calculated_worksheet=str(output.with_suffix('.html')))
+    row['elapsed_seconds'] = round(time.monotonic() - started, 3)
+    return row
+
+
+def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, resume=False,
+                  cases=None, load_source='effects', overrides=None, progress=None):
+    """Convert files independently; append durable records and verify outputs on resume."""
+    if not 1 <= workers <= 32:
+        raise ValueError('workers must be between 1 and 32')
+    template = Path(template).resolve(); root = Path(output_dir).resolve()
+    if not template.is_file():
+        raise ValueError('Template not found. Pass --template /path/to/reference.mcdx')
+    if template.is_relative_to(root):
+        raise ValueError('Keep the reference template outside the batch output directory.')
+    files = discover(inputs, root, recursive=recursive)
+    if not files:
+        raise ValueError('No .gp11t or .txt reports found. Use --recursive for subfolders.')
+    root.mkdir(parents=True, exist_ok=True)
+    manifest = root / 'batch-manifest.jsonl'
+    settings = {'cases': cases, 'load_source': load_source, 'overrides': overrides or {}}
+    template_hash = digest(template)
+    counts = {'total': len(files), 'succeeded': 0, 'skipped': 0, 'failed': 0,
+              'manifest': str(manifest), 'workers': workers, 'calculation_engine': 'CalcpadCE', 'native_execution_verified': False}
+    started = time.monotonic()
+    with manifest_lock(root), manifest.open('a', encoding='utf-8') as log:
+        def record(result):
+            result['recorded_at'] = time.time()
+            log.write(json.dumps(result, allow_nan=False) + '\n'); log.flush(); os.fsync(log.fileno())
+            counts[result['status']] += 1
+            if progress:
+                progress(result)
+
+        def jobs():
+            for path in files:
+                try:
+                    if path.stat().st_size > 16 * 1024 * 1024:
+                        raise ValueError('Raw report exceeds 16 MiB')
+                    source_hash = digest(path)
+                    identity = json.dumps([str(path), source_hash, template_hash, settings, calcpad.REVISION, calcpad.TRANSLATOR_VERSION], sort_keys=True, allow_nan=False)
+                    job_id = hashlib.sha256(identity.encode()).hexdigest()[:16]
+                    stem = re.sub(r'[^A-Za-z0-9_-]+', '-', path.stem).strip('-')[:80] or 'worksheet'
+                    yield {'job_id': job_id, 'source': str(path), 'source_sha256': source_hash,
+                           'template': str(template), 'template_sha256': template_hash, 'settings': settings,
+                           'output': str(root / job_id / (stem + '.mcdx')), 'resume': resume}
+                except (ValueError, OSError) as exc:
+                    record({'source': str(path), 'source_sha256': None, 'status': 'failed', 'error': str(exc),
+                            'native_execution_verified': False})
+
+        if workers == 1:
+            for job in jobs():
+                record(_convert_job(job))
+        else:
+            iterator = iter(jobs())
+            with ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context('spawn')) as pool:
+                pending = {}
+                exhausted = False
+                while pending or not exhausted:
+                    while not exhausted and len(pending) < workers * 2:
+                        job = next(iterator, None)
+                        if job is None:
+                            exhausted = True
+                        else:
+                            pending[pool.submit(_convert_job, job)] = job
+                    if not pending:
+                        break
+                    completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+                    for future in completed:
+                        job = pending.pop(future)
+                        try:
+                            result = future.result()
+                        except Exception as exc:
+                            result = {**job, 'status': 'failed', 'error': str(exc), 'native_execution_verified': False}
+                        record(result)
+    counts['elapsed_seconds'] = round(time.monotonic() - started, 3)
+    return counts
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog='gdcalc batch', description=__doc__)
+    parser.add_argument('inputs', nargs='+', type=Path, help='Report files and/or directories')
+    parser.add_argument('--template', type=Path, default=default_template())
+    parser.add_argument('--output-dir', required=True, type=Path)
+    parser.add_argument('--recursive', action='store_true', help='Search all subfolders for reports')
+    parser.add_argument('--workers', type=int, default=min(4, os.cpu_count() or 1), help='Parallel worker processes, 1–32 (default: up to 4)')
+    parser.add_argument('--resume', action='store_true', help='Skip completed outputs after verifying identity, hashes and package structure')
+    parser.add_argument('--cases', type=case_ids)
+    parser.add_argument('--load-source', choices=['effects', 'reactions'], default='effects')
+    parser.add_argument('--set', action='append', default=[], metavar='VARIABLE=VALUE')
+    parser.add_argument('--quiet', action='store_true', help='Suppress per-file progress on stderr')
+    args = parser.parse_args(argv)
+    try:
+        overrides = {}
+        for pair in args.set:
+            key, value = pair.split('=', 1)
+            if key in overrides:
+                raise ValueError('Duplicate override: ' + key)
+            overrides[key] = float(value)
+        def progress(row):
+            if not args.quiet:
+                print(json.dumps({'source': row['source'], 'status': row['status'], 'error': row.get('error')}), file=sys.stderr, flush=True)
+        summary = convert_batch(args.inputs, args.template, args.output_dir, workers=args.workers,
+                                recursive=args.recursive, resume=args.resume, cases=args.cases,
+                                load_source=args.load_source, overrides=overrides, progress=progress)
+        print(json.dumps(summary, indent=2))
+        return 1 if summary['failed'] else 0
+    except (ValueError, OSError) as exc:
+        print('gdcalc: ' + str(exc), file=sys.stderr)
+        return 2

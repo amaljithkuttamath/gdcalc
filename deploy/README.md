@@ -1,0 +1,76 @@
+# Deployment
+
+One service serves the browser and authenticated API through FastAPI/Uvicorn. The Python conversion engine remains independent of HTTP. `service.py` owns file handling and jobs; `inspection.py` provides a read-only worksheet view and expression diff. Only supported worksheet formulas are translated and calculated; arbitrary scripts, macros and includes are rejected.
+
+The current deployment is **one process/replica for one trusted user or team**. Everyone with the access token shares the workspace and saved outputs. It is not a multi-tenant service. Generation is serialized; concurrent conversion requests receive a retryable error. Scaling to separate customers requires per-user authorization/storage and a durable worker queue first.
+
+## Local CLI
+
+```bash
+gdcalc serve --template /path/to/reference.mcdx --output-dir ./outputs
+```
+
+The default binds to `127.0.0.1:8765` and opens a browser. Use `--port 0` for a free port, or `--no-open` to print the URL. Local mode sends no files to a cloud service.
+
+## Docker on your computer
+
+From the repository:
+
+```bash
+python3 scripts/setup_deploy.py
+docker compose up --build -d
+```
+
+Open http://127.0.0.1:8765 and sign in with the contents of `.secrets/access-token`. Select your private template in the browser. The image never includes reports, worksheets, templates, or credentials.
+
+Compose publishes the application port on host loopback only. The app runs as a non-root user with a read-only root filesystem, temporary scratch storage, dropped capabilities, a memory limit, a health check, and a persistent named volume at `/data`. `docker compose stop` preserves that volume. Do not use `down -v` unless you intend to delete the stored files.
+
+## Cloud VM with HTTPS
+
+Use a Linux VM with Docker Compose, a domain pointing to it, and ports 80/443 available. Run `setup_deploy.py`, then update `.env`:
+
+```dotenv
+GDCALC_PUBLIC_URL=https://calc.example.com
+GDCALC_DOMAIN=calc.example.com
+GDCALC_PORT=8765
+```
+
+Start the optional Caddy TLS proxy:
+
+```bash
+docker compose --profile cloud up --build -d
+```
+
+Caddy terminates HTTPS and forwards to the application on the private Compose network. Keep the app's 8765 port private. The app checks the exact configured Host/Origin, requires a deployment token to log in, and uses an HttpOnly, SameSite cookie plus a separate request token. HTTPS origins get Secure cookies. Login expires after eight hours; restarting the service invalidates login sessions. A server deployment uploads selected files to that server, which the interface explicitly states.
+
+## Managed container platforms
+
+Build this Dockerfile, deploy **one instance**, and configure:
+
+| Setting | Value |
+|---|---|
+| `PORT` | Platform's assigned port; default `8765` |
+| `GDCALC_HOST` | `0.0.0.0` |
+| `GDCALC_PUBLIC_URL` | Exact HTTPS origin, without a path |
+| `GDCALC_ACCESS_TOKEN` | Random secret with at least 32 characters, injected by secret manager |
+| `GDCALC_OUTPUT_DIR` | Persistent mounted directory, e.g. `/data/outputs` |
+| Health check | `GET /healthz` |
+
+Alternatively mount a token file and set `GDCALC_ACCESS_TOKEN_FILE`. Use a writable persistent volume owned by UID/GID 10001 and allow temporary `/tmp` storage. The default template can be mounted read-only and set with `GDCALC_TEMPLATE`, or selected in the browser. Configure the TLS proxy to preserve the public Host header, allow 32 MiB requests, and use a sufficiently long request timeout for conversion (e.g. 120 seconds). Never disable authentication to make a deployment work.
+
+## Storage and boundaries
+
+- Upload queue, temporary previews, and selected template are session state and reset on restart. Refreshing the page resets the visible queue.
+- Completed jobs persist as `.mcdx`, `.cpd`, calculated `.html`, audit JSON, and `_source/` snapshots of the original report and template. Saved worksheets restores download links and diffs after restart. Back up the entire output volume; source snapshots are private engineering data too.
+- The source/template snapshots allow an exact expression comparison against the inputs used for that conversion. Preview files remain temporary until Generate is chosen.
+- Reports are limited to 16 MiB, worksheets/templates to 32 MiB, and session uploads to 256 MiB/100 files. ZIP expansion and XML parsing are independently constrained by the engine.
+- Worksheet inspection displays extracted text, images and native equations using a restricted MathML renderer. Unsupported constructs remain labeled text with original XML available. It is not Mathcad's native page renderer or calculator.
+- Linux containers cannot execute Mathcad Prime. Native verification requires a separate licensed Windows/Mathcad installation. No native calculation success is implied by package checks.
+
+See [Docker build guidance](https://docs.docker.com/build/building/best-practices/), [Compose services](https://docs.docker.com/reference/compose-file/services/) and [FastAPI container guidance](https://fastapi.tiangolo.com/deployment/docker/) for the underlying deployment features.
+
+## Required calculation engine
+
+The Docker build compiles the pinned MIT-licensed CalcpadCE source and bundles the self-contained bridge. No calculator setup or network access is needed during conversion. Each worker executes an isolated, time-limited calculator process; size the worker count to available memory. Docker builds need access to GitHub and NuGet. Non-container installs run `gdcalc setup-engine` once with Git and the .NET 10 SDK.
+
+A successful job includes `.cpd`, calculated `.html`, `.mcdx` and audit JSON. Resume checks the calculated artifacts too. The browser shows CalcpadCE results; native Mathcad execution remains a separate check.
