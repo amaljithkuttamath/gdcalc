@@ -8,9 +8,9 @@ An owner must register a [PyPI pending Trusted Publisher](https://docs.pypi.org/
 
 | Field | Value |
 | --- | --- |
-| PyPI project | `gdcalc` |
+| PyPI project | `mcdxkit` |
 | GitHub owner | `amaljithkuttamath` |
-| Repository | `gdcalc` |
+| Repository | `mcdxkit` |
 | Workflow filename | `release.yml` |
 | Environment | `pypi` |
 
@@ -18,11 +18,13 @@ Configure the GitHub `pypi` environment to accept release tags matching `v*`. Th
 
 ## Release procedure
 
-1. Update the version in `pyproject.toml` and `src/gdcalc/cli.py` through an issue/PR. Update versioned install examples. Review compatibility and release notes.
+For the 0.3.0 identity change, register the `mcdxkit` publisher against the renamed repository before publishing. Account-side publisher settings do not follow a GitHub repository rename automatically. This is a clean namespace change: commands, imports, environment variables, configuration directories, browser sessions and calculator installation use `mcdxkit` / `MCDXKIT_*`. Install the calculator again under the new name and configure private template paths explicitly. No aliases, automatic data migration or old-installation cleanup are performed.
+
+1. Update the version in `pyproject.toml` and `src/mcdxkit/cli.py` through an issue/PR. Update versioned install examples. Review compatibility and release notes.
 2. Merge after required checks pass. Check CI on the exact main commit. Private reports, templates and secrets must remain excluded.
 3. Create a GitHub Release with tag `v<version>` targeting that tested main commit. Preview notes as a draft if account configuration is incomplete; publish only when ready to upload.
 4. The workflow builds wheel/sdist, validates metadata/assets, installs the wheel and executes real calculator/SDK/CLI/server tests. A separate job downloads these same artifacts and uses OIDC Trusted Publishing with attestations.
-5. Verify the workflow and `https://pypi.org/project/gdcalc/<version>/`, then install that exact version into a clean environment. Verify the SDK import and CLI before announcing availability.
+5. Verify the workflow and `https://pypi.org/project/mcdxkit/<version>/`, then install that exact version into a clean environment. Verify the SDK import and CLI before announcing availability.
 
 PyPI versions are immutable. Fix a failed publication's setup and rerun only if the version was not uploaded; inspect PyPI first after a partial upload. For a code fix after publication, issue a new version through the normal PR workflow. Never hide an upload failure with `skip-existing`.
 
