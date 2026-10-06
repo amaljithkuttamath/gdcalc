@@ -6,6 +6,7 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ### Added
 
+- Check results: CalcpadCE pass/fail outcomes and demand/capacity ratios are summarised in the audit (`checks`, `check_summary`), the batch check-summary CSV and the Outputs step.
 - CI lint and type-check job: `ruff check` (correctness rules) and `mypy`, pinned in `requirements-dev.txt`.
 
 ## 0.3.0
