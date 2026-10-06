@@ -83,6 +83,21 @@ class ExtractTests(unittest.TestCase):
         found, _ = checks.extract(page('<span class="eq"><var>m</var> = 300 <i>kip</i>·<i>in</i> ≤ 400 <i>kip</i>·<i>in</i> = 1</span>'))
         self.assertEqual((found[0]['ratio'], found[0]['unit']), (0.75, 'kip·in'))
 
+    def test_contradictory_saved_summary_is_not_trusted(self):
+        base = {'status': 'failures', 'total': 1, 'passed': 0, 'failed': 1,
+                'failed_checks': ['axial'], 'governing': None}
+        self.assertTrue(checks.valid_summary(base))
+        for changes in ({'status': 'passed'}, {'status': 'no checks found'},
+                        {'governing': {'name': 'axial', 'ratio': 1.5}},
+                        {'governing': {'name': 'axial', 'ratio': 1.5, 'passed': 'yes', 'region_id': '1'}}):
+            with self.subTest(changes=changes):
+                self.assertFalse(checks.valid_summary({**base, **changes}))
+        empty = {'status': 'no checks found', 'total': 0, 'passed': 0, 'failed': 0,
+                 'failed_checks': [], 'governing': None}
+        self.assertTrue(checks.valid_summary(empty))
+        self.assertFalse(checks.valid_summary({**empty, 'governing': {
+            'name': 'ghost', 'ratio': 0.5, 'passed': True, 'region_id': '1'}}))
+
     def test_non_comparisons_and_string_messages_are_not_checks(self):
         document = page('<span class="eq"><var>n</var> = 1</span>',
                         '<span class="eq"><var>k</var> = <var>a</var> + <var>b</var> = 0 + 1 = 1</span>',
