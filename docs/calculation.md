@@ -8,7 +8,7 @@ The supported worksheet profile is a fixed-head compression-pile template. Geome
 
 ## What executes
 
-CalcpadCE is required for conversion. The adapter translates scalar real arithmetic, `min`/`max`/`abs`, powers/roots, `in`/`ft`/`kip`/`ksi`, comparisons (including chains), conditionals, early returns and string check messages. Mathcad zero comparisons adopt the other operand's units. Strings have distinct internal symbols and are never silently treated as numeric inputs. Other constructs fail explicitly.
+CalcpadCE is required for conversion. The adapter translates scalar real arithmetic, `min`/`max`/`abs`, powers/roots, `in`/`ft`/`kip`/`ksi`, comparisons (including chains), conditionals, programs (the last executed statement is the result; `return` exits early) and string check messages. Literals are emitted as plain decimals and negation is always parenthesized. Mathcad zero comparisons adopt the other operand's units. Strings have distinct internal symbols and are never silently treated as numeric inputs. Other constructs fail explicitly.
 
 These are limits of mcdxkit's current adapter, not the full CalcpadCE language. CalcpadCE executes the translated formulas; it does not execute `.mcdx` directly. The executable `.cpd` can be opened with CalcpadCE to edit and recalculate independently. The `.html` is a result snapshot.
 
