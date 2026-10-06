@@ -48,7 +48,7 @@ def main(argv=None,prog=None):
     parser.add_argument('--title',help='Title on generated source pages; template header remains unchanged')
     parser.add_argument('--set',action='append',default=[],metavar='VARIABLE=VALUE',help='Override a single literal template input, retaining its units')
     parser.add_argument('--checks',default='default',metavar='SPEC',help='Advisory review plug-ins: default (built-ins), none, or a comma list such as default,my_check; see "mcdxkit checks list"')
-    parser.add_argument('--history',type=Path,metavar='OUTPUT_DIR',help='Inspect only: learn case naming from completed conversion audits in this output directory')
+    parser.add_argument('--history',type=Path,metavar='OUTPUT_DIR',help='Inspect only: learn case naming from, and list similar past jobs in, the completed conversion audits of this output directory')
     args=parser.parse_args(argv)
     try:
         if args.inspect:

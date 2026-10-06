@@ -233,7 +233,8 @@ class Session:
             shutil.copyfile(entry['path'], snapshot_report)
             shutil.copyfile(template, snapshot_template)
             result = engine.convert(snapshot_report, snapshot_template, output, cases=cases,
-                                    load_source=basis, title=title, overrides=overrides, checks=self.plan)
+                                    load_source=basis, title=title, overrides=overrides, checks=self.plan,
+                                    template_name=template.name)
             changes = inspection.diff(snapshot_template, output)
         except Exception:
             shutil.rmtree(folder)

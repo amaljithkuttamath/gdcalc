@@ -127,10 +127,12 @@ def empty(load_source: Optional[str]) -> Dict[str, Any]:
 
 
 def review(parsed: Mapping[str, Any], selected: Optional[Sequence[int]] = None, *, plan: Optional[Plan] = None,
-           history: Any = None, budget: Optional[float] = None) -> Dict[str, Any]:
+           history: Any = None, budget: Optional[float] = None,
+           source_sha256: Optional[str] = None) -> Dict[str, Any]:
     """Advisory review of a group_report.parse() dict. Never raises.
 
     ``selected`` is the case selection in use, if any. ``history`` is a HistoryStore or None.
+    ``source_sha256`` identifies the report, so history plug-ins can leave it out.
     """
     plan = plan if plan is not None else prepare('default')
     budget = BUDGET_SECONDS if budget is None else budget
@@ -145,7 +147,7 @@ def review(parsed: Mapping[str, Any], selected: Optional[Sequence[int]] = None, 
         report['errors'].append({'type': 'review_error', 'id': None, 'version': None,
                                  'message': 'review view unavailable: ' + (str(exc) or type(exc).__name__)})
         return report
-    ctx = Context(history=history)
+    ctx = Context(history=history, source_sha256=source_sha256)
     buckets = {'check': 'flags', 'annotator': 'annotations', 'classifier': 'suggestions'}
     for entry in plan.entries:
         plugin = entry.plugin
