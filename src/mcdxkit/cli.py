@@ -44,6 +44,7 @@ def main(argv=None):
                              ('batch','Convert files or folders with parallel workers and resume'),
                              ('checks','List advisory review checks: built-in and installed plug-ins'),
                              ('summary','Write a CSV of per-case loads for several reports or output directories'),
+                             ('compare','Compare two GROUP report revisions: loads, governing cases, review items'),
                              ('standards','Create or inspect a versioned engineering provenance register')]:
         sub.add_parser(name,help=description,add_help=False)
     selected,rest=parser.parse_known_args(args)
@@ -61,6 +62,9 @@ def main(argv=None):
     if selected.command=='summary':
         from .summary import main as summary
         return summary(rest)
+    if selected.command=='compare':
+        from .compare import main as compare
+        return compare(rest)
     if selected.command=='serve':
         from .server import main as serve
         return serve(rest)

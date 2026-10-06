@@ -40,6 +40,7 @@ print(result["calculated_worksheet"])
 | `summarize_report(report, *, cases=None, load_source='effects', origin=None)` | Returns one row dict per final-summary case with per-case loads (kip, kip-in), `selected`, `governs` and `source_sha256`. Unresolved or invalid selection raises `ValueError`. |
 | `summarize_audit(audit, *, origin=None)` | Same rows for a completed conversion, re-parsed from its `_source` snapshot after verifying the audited hash, with the audited cases and load basis. |
 | `summary_key(rows)` | Identity of one summarized input (source hash, load basis, selected cases), used by the CLI and server to skip identical duplicates. |
+| `compare_reports(old, new, *, cases=None, load_source='effects', checks='default')` | Compares two reports (earlier and revised GROUP run) and returns the `report-compare/1` dictionary described in [the compare guide](cli.md#compare-two-report-revisions): envelope and governing case per component, cases added/removed/renamed by ID, selection change, review flags that appeared or cleared, and a `headline`. `cases` and `load_source` apply to both reports. Different unit headers raise `UnitMismatchError` (a `ValueError`); values are never converted. Read-only. |
 | `summary_csv(rows)` | Renders rows as CSV text; columns are listed in [the summary guide](cli.md#summary-csv-across-reports). It does not write files. |
 | `validate(worksheet)` | Returns package integrity results. Does not execute Prime or prove engineering compliance. |
 

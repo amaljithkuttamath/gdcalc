@@ -24,6 +24,27 @@ H = r'[^\S\r\n]'
 LOCAL_UNITS = (r'AXIAL *, *KIP +LAT\. *y *, *KIP +LAT\. *z *, *KIP +MOM *x *, *KIP-IN +MOM *y *, *KIP-IN +MOM *z *, *KIP-IN\b'
                .replace(' *', H + '*').replace(' +', H + '+'))
 
+# Unit names in a local pile-top reaction header ("AXIAL,KIP ... MOM x,KIP-IN ..."), whatever the units.
+_UNIT_HEADER = re.compile('^' + H + r'*AXIAL' + H + r'*,' + H + r'*([^\s,]+)[^\r\n]*?MOM' + H + r'*x' + H + r'*,'
+                          + H + r'*([^\s,]+)', re.I | re.M)
+
+
+def units(text):
+    """Force and moment units named by the final summary's local-reaction headers, as written
+    (upper-cased), e.g. {'force': 'KIP', 'moment': 'KIP-IN'}; None when no header is found.
+    Reads headers only and never converts; parse() still accepts kip and kip-in alone.
+    Raises ValueError when headers in one report disagree."""
+    if MARKER not in text:
+        return None
+    found = {(f.upper(), m.upper()) for f, m in _UNIT_HEADER.findall(text.rsplit(MARKER, 1)[1])}
+    if len(found) > 1:
+        raise ValueError('Local reaction headers use more than one set of units: '
+                         + '; '.join(f + ', ' + m for f, m in sorted(found)))
+    if not found:
+        return None
+    force, moment = found.pop()
+    return {'force': force, 'moment': moment}
+
 
 def _table(block, header, minimum, maximum, columns):
     matches = list(re.finditer(header, block, re.I))
