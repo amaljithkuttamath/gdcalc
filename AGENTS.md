@@ -33,6 +33,8 @@ The server prints its URL. Upload/select a private compatible template in the br
 
 ## Implementation boundaries
 
+Apply the [product and engineering principles](docs/design-principles.md), including visible source evidence, one shared engine, explicit validation states and offline use.
+
 Follow the [monorepo decision](docs/architecture.md#repository-decision-one-monorepo): keep the shared engine, adapters, UI and skill together. Future desktop wrappers reuse the same UI and engine. Preserve existing package paths and public APIs unless a scoped migration requires changes; do not introduce separate repositories or duplicate calculation implementations for each platform.
 
 Reuse before rebuilding. Search existing repository code and established open-source implementations before adding an engine, renderer, parser or framework. In the ticket/PR, record what can be reused, its license and offline fit, and the specific gap that warrants new code. Keep adapters small. Template equations remain authoritative: worksheet outputs and future 3D views must use the same calculated result and provenance, not duplicate formulas in the UI. Rendering geometry is not evidence of a physical simulation; deformation requires actual displacement results or a separately validated solver.

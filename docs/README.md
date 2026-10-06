@@ -24,3 +24,5 @@ These describe direction and requirements, not completed features:
 - [Mathcad Prime feature review](mathcad-prime-review.md): product coverage and the independent calculation architecture.
 - [Engineering standards register](engineering-standards.md): proposed per-value sources, applicable codes, editions and rule validation.
 - [Template-driven 3D reuse research](research/template-driven-3d.md): existing open-source implementations, license considerations and prototype acceptance criteria.
+
+[Product and engineering principles](design-principles.md) explain workflow, evidence, calculation and offline boundaries for contributors.
