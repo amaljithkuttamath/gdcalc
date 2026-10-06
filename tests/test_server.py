@@ -140,6 +140,39 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(b[0], 200, b)
         self.assertNotEqual(a[1]['worksheet']['id'], b[1]['worksheet']['id'])
 
+    def test_review_decisions_reach_the_preview_and_audit_through_http(self):
+        fixture = Path(__file__).parent / 'fixtures' / 'review' / 'seed505_mislabel_str_as_ser.txt'
+        status, uploaded = self.upload('pile-cap.txt', fixture.read_bytes())
+        self.assertEqual(status, 200, uploaded)
+        import hashlib
+        self.assertEqual(uploaded['source_sha256'], hashlib.sha256(fixture.read_bytes()).hexdigest())
+        flag = uploaded['inspection']['review_checks']['flags'][0]
+        self.assertEqual((flag['rule'], flag['case'], flag['component']), ('service_axial_above_strength', 3, 'P'))
+        decision = {'rule': flag['rule'], 'case': 3, 'component': 'P', 'decision': 'included_case',
+                    'note': None, 'decided_at': '2026-10-06T09:30:00.000Z'}
+        base = {'id': uploaded['id'], 'cases': [2, 3, 4], 'overrides': {'n_z': 9}}
+        status, preview = self.request('POST', '/api/preview', {**base, 'review_decisions': [decision]})
+        self.assertEqual(status, 200, preview)
+        self.assertEqual(preview['review_checks']['decisions'], [decision])
+        noted = lambda result: any('Automated input checks' in (r.get('text') or '') for r in
+                                   self.request('POST', '/api/view', {'id': result['worksheet']['id']})[1]['regions'])
+        self.assertTrue(noted(preview))
+        # Without decisions nothing about the review reaches the worksheet or the audit.
+        status, plain = self.request('POST', '/api/convert', base)
+        self.assertEqual(status, 200, plain)
+        self.assertNotIn('decisions', plain['review_checks'])
+        self.assertFalse(noted(plain))
+        status, converted = self.request('POST', '/api/convert', {**base, 'review_decisions': [decision]})
+        self.assertEqual(status, 200, converted)
+        _, audit = self.request('GET', '/api/download/' + converted['audit']['id'])
+        self.assertEqual(json.loads(audit)['review_checks']['decisions'], [decision])
+        # Malformed or unmatched decisions are rejected before any output is written.
+        written = sorted((self.root / 'results').rglob('*.mcdx'))
+        for bad in ([dict(decision, decision='approve')], [dict(decision, case=5)], 'yes'):
+            status, error = self.request('POST', '/api/convert', {**base, 'review_decisions': bad})
+            self.assertEqual(status, 400, error)
+        self.assertEqual(sorted((self.root / 'results').rglob('*.mcdx')), written)
+
     def test_summary_csv_for_uploaded_reports(self):
         _, first = self.upload('a.txt')
         _, second = self.upload('b.gp11t', report().replace('Max. .2 .3 400 180 14 7', 'Max. .2 .3 400 180 14 9').encode())

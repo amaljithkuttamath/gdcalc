@@ -4,6 +4,8 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ## Unreleased
 
+- Browser review decisions on the Inputs step: one card per flagged case that could change the envelope or selection, with **Show in report**, **Add case N to envelope** and **Keep as is…**, Undo, "governs …" captions and a "What was checked" disclosure. Decisions go to `/api/preview` and `/api/convert` as `review_decisions` and are recorded in the audit and worksheet note; Changes and Outputs show what is not reviewed yet. Report uploads return `source_sha256`. Nothing changes without a decision.
+
 ## 0.4.0
 
 - Verify installed SDK origins in release/container tests and include test helpers and synthetic fixtures in source distributions.

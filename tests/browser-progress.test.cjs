@@ -20,7 +20,7 @@ function element() {
   };
 }
 
-async function browser(action, count) {
+async function browser(action, count, setup = '') {
   const html = fs.readFileSync(path.join(web, 'index.html'), 'utf8');
   const nodes = new Map([...html.matchAll(/id="([^"]+)"/g)].map(match => [match[1], element()]));
   nodes.get('basis').value = 'effects';
@@ -47,6 +47,7 @@ async function browser(action, count) {
       inspection:{cases:[{id:1,name:'STR test'}], envelope:{P:10}},
       preview:${action === 'convert' ? '{worksheet:{id:"preview"},diff:{changes:[]}}' : 'null'}
     });
+    ${setup}
   `, context);
   const finished = nodes.get(action === 'convert' ? 'convert-all' : 'compare-next').listeners.click();
   async function respond(index, ok, message = 'Synthetic calculation failure') {
@@ -120,4 +121,26 @@ test('rejected template overrides return to Inputs and stop the activity indicat
   assert.equal(app.nodes.get('step-2').hidden, false);
   assert.equal(app.nodes.get('overrides').attributes['aria-invalid'], 'true');
   assert.match(app.nodes.get('notice').textContent, /Fix the template input overrides/);
+});
+
+// Review decisions are advisory: only a decision the engineer made reaches the request.
+const flag = (rule, c) => `{rule:'${rule}', case:${c}, component:'P', message:'m', impact:{envelope:true, selection:true, magnitude:0.2, components:['P']}}`;
+test('review decisions are sent only after the engineer decides, without undo state', async () => {
+  const app = await browser('preview', 1, `
+    const item = items[0]; item.sha = 'abc';
+    item.inspection.review_checks = {flags:[${flag('service_axial_above_strength', 3)}, ${flag('duplicate_case', 4)}]};
+    item.keepNote = '  checked the factors  ';
+    decide(item, [item.inspection.review_checks.flags[0]], 'kept_service');
+    // An "added" decision for a case that is no longer selected does not stand.
+    decide(item, [item.inspection.review_checks.flags[1]], 'included_case', {item:'r1', selected:[1]});
+  `);
+  const body = JSON.parse(app.requests[0].options.body);
+  assert.equal(body.review_decisions.length, 1);
+  const [sent] = body.review_decisions;
+  assert.deepEqual(Object.keys(sent).sort(), ['case', 'component', 'decided_at', 'decision', 'note', 'rule']);
+  assert.equal(sent.decision, 'kept_service');
+  assert.equal(sent.note, 'checked the factors');
+  assert.match(sent.decided_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  await app.respond(0, true);
+  await app.finished;
 });
