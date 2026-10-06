@@ -457,10 +457,10 @@ class ServerConfigurationTests(unittest.TestCase):
                 session.temp.cleanup()
 
 
-def imported_modules(path):
+def imported_modules(path, source_root=ROOT / "src"):
     """Absolute module names imported by a file under src/mcdxkit/review, resolving relative imports."""
     # The containing package: for both a module and an __init__.py, drop the last part.
-    package = path.relative_to(ROOT / 'src').with_suffix('').parts[:-1]
+    package = path.relative_to(source_root).with_suffix('').parts[:-1]
     found = []
     for node in ast.walk(ast.parse(path.read_text(), str(path))):
         if isinstance(node, ast.Import):
@@ -485,10 +485,12 @@ class DependencyRuleTests(unittest.TestCase):
                     self.assertFalse(parts[0] == 'mcdxkit' and len(parts) > 1 and parts[1] in FORBIDDEN)
 
     def test_rule_catches_relative_and_absolute_imports(self):
-        with tempfile.TemporaryDirectory(dir=REVIEW) as folder:
-            probe = Path(folder) / 'probe.py'
+        with tempfile.TemporaryDirectory() as folder:
+            source_root = Path(folder)
+            probe = source_root / 'mcdxkit' / 'review' / 'synthetic' / 'probe.py'
+            probe.parent.mkdir(parents=True)
             probe.write_text('from ... import engine\nimport mcdxkit.calcpad\nfrom ...group_report import parse\n')
-            names = imported_modules(probe)
+            names = imported_modules(probe, source_root)
         self.assertIn('mcdxkit.engine', names)
         self.assertIn('mcdxkit.calcpad', names)
         self.assertIn('mcdxkit.group_report', names)
