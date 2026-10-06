@@ -6,7 +6,7 @@ import tempfile
 import threading
 import shutil
 from pathlib import Path
-from . import checks, engine, inspection
+from . import checks, engine, inspection, standards
 
 MIB = 1024 * 1024
 
@@ -146,6 +146,20 @@ class Session:
 
     def operation(self, route, data):
         state = self
+        if route == '/api/standards':
+            output = self.get(data.get('id'), ['worksheet'])['path']
+            audit_path = output.with_suffix('.audit.json')
+            if not audit_path.is_file():
+                raise RequestError('Generate outputs first; this worksheet has no calculation audit.')
+            audit = standards.read_json(audit_path)
+            # Inspect only artifacts adjacent to the selected session worksheet, never saved paths.
+            import hashlib
+            for path, expected in ((output, audit.get('sha256')),
+                                   (output.with_suffix('.html'), audit.get('calculation', {}).get('html_sha256'))):
+                if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                    raise RequestError('Calculation artifacts changed; regenerate before inspecting standards.')
+            register = data.get('register') if 'register' in data else standards.from_audit(audit)
+            return {'register': register, 'assessment': standards.assess(register, audit)}
         if route == '/api/view':
             if data.get('id') == 'default-template':
                 if self.template is None or not self.template.is_file():

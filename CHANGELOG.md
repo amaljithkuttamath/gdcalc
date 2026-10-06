@@ -4,6 +4,8 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ## Unreleased
 
+- Add versioned source/standards records in the CLI and browser, with audit linkage, unit checks, stale-review detection and explicit pending engineering review.
+
 ### Added
 
 - Browser-only generation progress and a persistent template shortcut, with clearer sidebar steps and mobile preview navigation.

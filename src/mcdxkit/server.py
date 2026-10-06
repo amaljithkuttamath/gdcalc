@@ -149,7 +149,7 @@ def create_app(*, origin, template=None, output_dir='mcdxkit-output', access_tok
     async def login(request: Request):
         try:
             data = json.loads(await read_body(request, 4096, 'application/json'))
-        except (ValueError, UnicodeError):
+        except (ValueError, UnicodeError, RecursionError):
             raise RequestError('Invalid login request.')
         candidate = data.get('access_token') if isinstance(data, dict) else None
         if not isinstance(candidate, str) or not access_token or not hmac.compare_digest(candidate.encode(), access_token.encode()):
@@ -179,12 +179,12 @@ def create_app(*, origin, template=None, output_dir='mcdxkit-output', access_tok
 
     @app.post('/api/{operation}')
     async def operation(operation: str, request: Request):
-        if operation not in ('inspect', 'convert', 'validate', 'preview', 'view', 'diff', 'summary'):
+        if operation not in ('inspect', 'convert', 'validate', 'preview', 'view', 'diff', 'summary', 'standards'):
             raise RequestError('Not found.', 404)
         try:
             # A summary lists up to 100 report IDs with their selected cases.
-            data = json.loads(await read_body(request, 65536 if operation == 'summary' else 16384, 'application/json'))
-        except (ValueError, UnicodeError):
+            data = json.loads(await read_body(request, 1048576 if operation == 'standards' else 65536 if operation == 'summary' else 16384, 'application/json'))
+        except (ValueError, UnicodeError, RecursionError):
             raise RequestError('Expected a JSON object.')
         if not isinstance(data, dict):
             raise RequestError('Expected a JSON object.')

@@ -64,3 +64,7 @@ Read [references/template-contract.md](references/template-contract.md) when cho
 Generation writes `.cpd`, `.html`, `.mcdx` plus `.audit.json` with selected cases, source extrema, load basis, hashes and retained assumptions. Report the output links and selection basis. The file contains no old result cache and uses native dependencies; open it in Mathcad Prime and press **Ctrl+F5** to calculate.
 
 The `.cpd` contains executable translated formulas; `.html` is the calculated snapshot. CalcpadCE currently supports the scalar arithmetic, units and conditional programs described in the README. A successful calculation may still contain failing design checks. ZIP/XML validation proves package integrity only. Label native opening, layout and execution as unverified until actually tested in Mathcad. Do not equate an independently evaluated formula or stored pass message with successful native execution or engineering approval.
+
+## Source and standards records
+
+After conversion, `mcdxkit standards init output.audit.json --output engineering-register.json` creates a pending provenance register. Use `mcdxkit standards inspect engineering-register.json --audit output.audit.json` to inspect it. The browser provides **Sources & standards** on generated outputs. See [the register guide](docs/engineering-standards.md) for schema, scope and external review records. Never fabricate citations or attestations; software checks are not engineering approval.

@@ -19,9 +19,13 @@ def main(argv=None):
                              ('validate','Check an .mcdx package without executing Mathcad'),
                              ('serve','Start the local browser interface'),
                              ('batch','Convert files or folders with parallel workers and resume'),
-                             ('summary','Write a CSV of per-case loads for several reports or output directories')]:
+                             ('summary','Write a CSV of per-case loads for several reports or output directories'),
+                             ('standards','Create or inspect a versioned engineering provenance register')]:
         sub.add_parser(name,help=description,add_help=False)
     selected,rest=parser.parse_known_args(args)
+    if selected.command=='standards':
+        from .standards import main as standards
+        return standards(rest)
     if selected.command=='setup-engine':
         from .setup_engine import main as setup
         return setup(rest)

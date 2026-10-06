@@ -142,3 +142,7 @@ For a host reachable over the network, follow [deployment instructions](../deplo
 | Summary file exists | Choose a new `-o` filename |
 | Port occupied | Use `--port 0` or another port |
 | Hosted login/origin error | Check exact HTTPS origin, secret and proxy Host forwarding; do not disable protections |
+
+## Source and standards records
+
+After conversion, `mcdxkit standards init output.audit.json --output engineering-register.json` creates a pending provenance register. Use `mcdxkit standards inspect engineering-register.json --audit output.audit.json` to inspect it. The browser provides **Sources & standards** on generated outputs. See [the register guide](engineering-standards.md) for schema, scope and external review records. Never fabricate citations or attestations; software checks are not engineering approval.
