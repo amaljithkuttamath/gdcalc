@@ -9,7 +9,7 @@ from zipfile import ZipFile
 def check_sdist(path):
     required = {'scripts/install_skill.py', 'scripts/audit_repository.py', 'scripts/report_audit.py',
                 'scripts/test_installed.py', 'scripts/cli.py', 'scripts/check_package.py',
-                'tests/test_pipeline.py', 'tests/test_repository_audit.py',
+                'tests/test_pipeline.py', 'tests/test_repository_audit.py', 'tests/evaluate_fixture.py',
                 'tests/fixtures/review/seed529_clean.txt'}
     with tarfile.open(path, 'r:gz') as archive:
         prefix = path.name.removesuffix('.tar.gz') + '/'

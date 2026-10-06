@@ -32,10 +32,10 @@ class DistributionTests(unittest.TestCase):
     def test_source_archive_missing_helper_or_fixture_is_rejected(self):
         names = ['scripts/install_skill.py','scripts/audit_repository.py','scripts/report_audit.py',
                  'scripts/test_installed.py','scripts/cli.py','scripts/check_package.py',
-                 'tests/test_pipeline.py','tests/test_repository_audit.py','tests/fixtures/review/seed529_clean.txt']
+                 'tests/test_pipeline.py','tests/test_repository_audit.py','tests/evaluate_fixture.py','tests/fixtures/review/seed529_clean.txt']
         with tempfile.TemporaryDirectory() as folder:
             archive = Path(folder)/'mcdxkit-test.tar.gz'
-            for omitted in (None, 'scripts/install_skill.py', 'tests/fixtures/review/seed529_clean.txt'):
+            for omitted in (None, 'scripts/install_skill.py', 'tests/evaluate_fixture.py', 'tests/fixtures/review/seed529_clean.txt'):
                 with tarfile.open(archive, 'w:gz') as bundle:
                     for name in names:
                         if name == omitted: continue
