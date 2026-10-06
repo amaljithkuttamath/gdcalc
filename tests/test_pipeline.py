@@ -1,4 +1,5 @@
 """Synthetic fixtures only: no engineering files or project identities."""
+import io
 import sys
 import tempfile
 import time
