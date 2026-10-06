@@ -72,8 +72,13 @@ def plan(report, issues, run_url):
         if chosen:
             body = chosen['body']
             # Keep original acceptance/discussion intact and replace only the last automation evidence block.
-            body = body.split('\n\n<!-- latest-audit-evidence -->')[0]
-            body += '\n\n<!-- latest-audit-evidence -->' + evidence
+            start, end = '<!-- latest-audit-evidence -->', '<!-- /latest-audit-evidence -->'
+            block = start + evidence + end
+            if start in body and end in body.split(start, 1)[1]:
+                prefix, rest = body.split(start, 1)
+                body = prefix + block + rest.split(end, 1)[1]
+            else:
+                body += '\n\n' + block
             actions.append({'action': 'update' if opened else 'reopen', 'number': chosen['number'], 'body': body, 'title': title})
         else:
             actions.append({'action': 'create', 'title': title,

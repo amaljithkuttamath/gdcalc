@@ -39,8 +39,9 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(reporter.plan(report('lint'), [existing], 'https://example.test/1'), [])
         action, = reporter.plan(report('lint'), [existing], 'https://example.test/2')
         self.assertEqual((action['action'], action['number']), ('update', 10))
-        existing['body'] = action['body']
+        existing['body'] = action['body'] + '\nMaintainer acceptance note: preserve this.'
         action, = reporter.plan(report('lint'), [existing], 'https://example.test/3')
+        self.assertIn('Maintainer acceptance note: preserve this.', action['body'])
         self.assertNotIn('https://example.test/2', action['body'])
         self.assertIn('https://example.test/1', action['body'])
         self.assertEqual(action['body'].count('<!-- latest-audit-evidence -->'), 1)
