@@ -1,0 +1,12 @@
+changelog:
+  categories:
+    - title: Fixes
+      labels: [bug]
+    - title: Features
+      labels: [enhancement]
+    - title: Documentation and contribution workflow
+      labels: [documentation]
+    - title: Dependencies
+      labels: [dependencies, github_actions]
+    - title: Other changes
+      labels: ['*']
