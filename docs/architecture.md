@@ -32,6 +32,7 @@ flowchart LR
 | `server.py` | FastAPI/Uvicorn, authentication, origin checks, limits and static assets |
 | `web/` | Browser workflow and file viewer; no independent design solver |
 | `batch.py` | Input discovery, bounded process pool, job identity, manifest and resume |
+| `assist.py` | Optional, advisory Claude case classification and results review; validated, never applied automatically |
 
 ## Public Python API
 

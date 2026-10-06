@@ -47,6 +47,10 @@ The calculator is required, not an optional export. Unsupported expressions, inc
 
 The default uses the **final summary only**: axial load from local pile-top reactions, shear/moments from local pile effects. Strength cases are identified by `STR` names. Use `--cases 1-10` when explicit selection is required, or `--load-source reactions` for a deliberate local top-reaction basis.
 
+## Optional AI assistant
+
+`inspect` reports the governing case for each load component. With `pip install "gdcalc[ai]"` and Anthropic credentials, `gdcalc assist cases` suggests strength cases when names are ambiguous, and `gdcalc assist review` reviews a calculated worksheet: what governs, failed or marginal checks and suspicious inputs, each with evidence. `gdcalc serve --ai` adds both to the browser. Off by default, advisory only, never applied automatically. See [AI assistant](docs/ai-assistant.md) for what data is sent.
+
 ## Bulk conversion pipeline
 
 ```bash

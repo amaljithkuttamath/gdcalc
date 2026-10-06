@@ -98,3 +98,17 @@ def select(parsed, cases=None):
 def envelope(cases):
     return {key:max(max(c['pairs'][key]) if key=='P' else max(map(abs,c['pairs'][key])) for c in cases)
             for key in ['P','Vy','Vz','My','Mz']}
+
+
+def governing(cases):
+    """Name the case behind each envelope component and how far it leads the runner-up case."""
+    result = {}
+    for key in ['P','Vy','Vz','My','Mz']:
+        peaks = sorted(((max(c['pairs'][key]) if key == 'P' else max(map(abs, c['pairs'][key])), c) for c in cases),
+                       key=lambda pair: (-pair[0], pair[1]['id']))
+        value, case = peaks[0]
+        runner = peaks[1] if len(peaks) > 1 else None
+        result[key] = {'value': value, 'case': case['id'], 'case_name': case['name'],
+                       'runner_up_case': runner[1]['id'] if runner else None,
+                       'lead_ratio': value / runner[0] if runner and runner[0] > 0 else None}
+    return result

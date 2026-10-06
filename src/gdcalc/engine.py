@@ -28,6 +28,7 @@ def inspect_report(report, *, cases=None, load_source='effects'):
     return {'source':Path(report).name,'cases':[{'id':c['id'],'name':c['name']} for c in parsed['cases']],
             'selected_cases':[c['id'] for c in selected],'selection_required':issue,
             'load_source':load_source,'envelope':group_report.envelope(selected) if selected else None,
+            'governing':group_report.governing(selected) if selected else None,
             'largest_observed_pile_id':max((p for c in parsed['cases'] for p in c['pile_ids']),default=0)}
 
 
