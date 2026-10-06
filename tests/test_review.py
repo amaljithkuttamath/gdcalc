@@ -1,12 +1,15 @@
 """Phase 1 review flags: planted errors in synthetic reports, clean reports, audit and inspect API.
 
-fixtures/review holds two planted-error reports from the review-flags proof of concept and
-their clean originals. They come from that study's synthetic pile-group generator (seeds 505
-and 529), not from GROUP or any project.
+fixtures/review holds planted-error reports from the review-flags study and their clean
+originals: seed505/seed529 from its round 1 generator and round2_* from its harder round 2
+generator (thermal, 0.9D, extreme-event cases, naming styles, 4 significant figures). They are
+synthetic pile-group models, not GROUP output or any project.
 """
 import json
 import re
+from unittest import mock
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -22,6 +25,11 @@ def fixture(name):
 
 def flags(text, load_source='effects'):
     return review.review(group_report.parse(text, load_source))['flags']
+
+
+ROUND2 = (('320000', 'unit_force_lb'), ('340022', 'mislabel_str_as_ser'), ('360011', 'digit_edit'),
+          ('370001', 'copied_effects'))
+CLEAN = ['seed505_clean.txt', 'seed529_clean.txt'] + [f'round2_seed{seed}_clean.txt' for seed, _ in ROUND2]
 
 
 def summary(found):
@@ -54,8 +62,7 @@ def effects_rows(text, case_id):
 
 class CleanReportTests(unittest.TestCase):
     def test_clean_reports_give_no_flags(self):
-        for name, text in (('pipeline clean', clean_report()), ('seed 505', fixture('seed505_clean.txt')),
-                           ('seed 529', fixture('seed529_clean.txt'))):
+        for name, text in [('pipeline clean', clean_report())] + [(n, fixture(n)) for n in CLEAN]:
             for load_source in ('effects', 'reactions'):
                 with self.subTest(name, load_source=load_source):
                     self.assertEqual(flags(text, load_source), [])
@@ -63,10 +70,12 @@ class CleanReportTests(unittest.TestCase):
     def test_result_is_advisory_and_names_checks_that_could_not_run(self):
         result = review.review(group_report.parse(clean_report(), 'reactions'))
         self.assertEqual((result['advisory'], result['method'], result['version']), (True, review.METHOD, review.VERSION))
-        self.assertEqual(result['checks'], ['service_exceeds_strength', 'duplicate_case'])
-        self.assertEqual({s['rule'] for s in result['skipped']}, {'effects_below_top', 'ratio_outlier', 'unit_slip'})
-        full = review.review(group_report.parse(fixture('seed529_clean.txt')))
-        self.assertEqual(full['skipped'], [])
+        self.assertEqual(result['skipped'], [{'rule': 'effects_below_top', 'reason': 'needs the effects load source'}])
+        two = clean_report().split('LOAD CASE : 7\n*')[0]
+        self.assertEqual({s['rule'] for s in review.review(group_report.parse(two))['skipped']},
+                         {'ratio_outlier', 'gross_magnitude'})
+        unnamed = review.review(group_report.parse(clean_report().replace('SER-I', 'Wind')))
+        self.assertEqual(unnamed['skipped'][0]['rule'], 'service_exceeds_strength')
 
     def test_effects_moment_sign_convention_does_not_matter(self):
         # The POC generator reports pile-effect moments with the opposite sign to the pile-top
@@ -86,27 +95,46 @@ class CleanReportTests(unittest.TestCase):
 class PlantedErrorTests(unittest.TestCase):
     def test_strength_case_relabelled_service(self):
         found = flags(clean_report().replace('CASE NAME : STR-V', 'CASE NAME : SER-V'))
-        self.assertEqual(summary(found), [('service_exceeds_strength', 7, c) for c in ('P', 'Vy', 'Vz', 'My', 'Mz')])
+        self.assertEqual(summary(found), [('service_exceeds_strength', 7, 'P')])
         self.assertEqual(found[0]['values'], {'service': 140, 'strength_max': 120, 'strength_case': 1})
 
-    def test_poc_mislabel_sample(self):
+    def test_aashto_long_names(self):
+        long = (clean_report().replace('STR-I\n', 'Strength I\n').replace('SER-I\n', 'Service I\n')
+                .replace('STR-V\n', 'STRENGTH V\n'))
+        self.assertEqual(flags(long), [])
+        self.assertEqual(summary(flags(long.replace('STRENGTH V\n', 'SERVICE V\n'))),
+                         [('service_exceeds_strength', 7, 'P')])
+        # Default selection still recognizes only the STR/SER prefixes (unchanged behaviour).
+        with self.assertRaisesRegex(ValueError, 'classification unavailable'):
+            group_report.select(group_report.parse(long))
+
+    def test_service_rule_needs_strength_compression(self):
+        text = (clean_report().replace('MINIMUM 90 -20', 'MINIMUM -120 -20').replace('MAXIMUM 120 15', 'MAXIMUM -90 15')
+                .replace('MINIMUM 100 -25', 'MINIMUM -140 -25').replace('MAXIMUM 140 18', 'MAXIMUM -100 18'))
+        parsed = group_report.parse(text)
+        self.assertEqual([group_report.peak(c, 'P') for c in parsed['cases']], [-90, 90, -100])
+        self.assertEqual(review.service_exceeds_strength(parsed['cases']), [])
+
+    def test_poc_mislabel_samples(self):
         clean, planted = fixture('seed505_clean.txt'), fixture('seed505_mislabel_str_as_ser.txt')
         self.assertEqual(planted, clean.replace('CASE NAME : STR-I\n', 'CASE NAME : SER-IX\n'))
-        found = flags(planted)
-        self.assertTrue(found)
-        self.assertEqual({f['rule'] for f in found}, {'service_exceeds_strength'})
-        self.assertIn(3, {f['case'] for f in found})
+        self.assertEqual(summary(flags(planted)), [('service_exceeds_strength', 3, 'P')])
+        found = flags(fixture('round2_seed340022_mislabel_str_as_ser.txt'))
+        self.assertEqual(summary(found), [('service_exceeds_strength', 1, 'P')])
 
     def test_ten_times_pile_top_cell(self):
         found = flags(scale_cell(clean_report(), 1, 'MINIMUM', 5, 10))
-        self.assertEqual(summary(found), [('effects_below_top', 1, 'Mz')])
+        self.assertEqual(summary(found)[0], ('effects_below_top', 1, 'Mz'))
         self.assertEqual(found[0]['values'], {'along_pile': 950, 'pile_top': 9000})
+        self.assertEqual({f['case'] for f in found}, {1})
 
     def test_ten_times_service_cell(self):
         found = flags(scale_cell(clean_report(), 2, 'MAXIMUM', 0, 10), 'reactions')
         self.assertEqual(summary(found), [('service_exceeds_strength', 2, 'P')])
 
-    def test_poc_ten_times_effects_cell(self):
+    def test_ten_times_effects_cell(self):
+        found = flags(scale_cell(clean_report(), 1, 'Max.', 3, 10))
+        self.assertEqual(summary(found), [('ratio_outlier', 1, 'along-pile/top My')])
         clean, planted = fixture('seed529_clean.txt'), fixture('seed529_digit_edit.txt')
         changed = [(a, b) for a, b in zip(clean.splitlines(), planted.splitlines(), strict=True) if a != b]
         self.assertEqual(len(changed), 1)
@@ -115,6 +143,8 @@ class PlantedErrorTests(unittest.TestCase):
         self.assertEqual(summary(found), [('ratio_outlier', 3, 'along-pile/top My')])
         self.assertAlmostEqual(found[0]['values']['ratio'], 10, places=6)
         self.assertGreater(abs(found[0]['values']['z']), review.Z_THRESHOLD)
+        self.assertEqual(summary(flags(fixture('round2_seed360011_digit_edit.txt'))),
+                         [('effects_below_top', 8, 'Vy'), ('ratio_outlier', 8, 'along-pile/top Vy')])
 
     def test_sign_flip(self):
         # A flip that keeps minimum <= maximum leaves every magnitude, the envelope and the
@@ -139,8 +169,11 @@ class PlantedErrorTests(unittest.TestCase):
     def test_effects_copied_from_another_case(self):
         text = clean_report()
         found = flags(text.replace(effects_rows(text, 7), effects_rows(text, 1)))
-        self.assertEqual(summary(found), [('effects_below_top', 7, 'Vy'), ('effects_below_top', 7, 'Vz'),
-                                          ('effects_below_top', 7, 'My')])
+        self.assertEqual(summary(found)[:3], [('effects_below_top', 7, 'Vy'), ('effects_below_top', 7, 'Vz'),
+                                              ('effects_below_top', 7, 'My')])
+        self.assertEqual({f['case'] for f in found}, {7})
+        found = flags(fixture('round2_seed370001_copied_effects.txt'))
+        self.assertIn(('effects_below_top', 4, 'My'), summary(found))
 
     def test_thousand_times_lateral_load(self):
         text = fixture('seed529_clean.txt')
@@ -148,22 +181,70 @@ class PlantedErrorTests(unittest.TestCase):
             text = scale_cell(text, 2, row, 1, 1000)
         for row in ('Min.', 'Max.'):
             text = scale_cell(text, 2, row, 4, 1000)
-        slips = [f for f in flags(text) if f['rule'] == 'unit_slip']
-        self.assertEqual(summary(slips), [('unit_slip', 2, 'Vy')])
-        self.assertIn('possible unit slip (lb vs kip)', slips[0]['detail'])
+        gross = [f for f in flags(text) if f['rule'] == 'gross_magnitude']
+        self.assertEqual(summary(gross), [('gross_magnitude', 2, 'V')])
+        self.assertIn('possible unit slip', gross[0]['detail'])
+        self.assertNotIn('kip-ft', gross[0]['detail'])
+        found = flags(fixture('round2_seed320000_unit_force_lb.txt'))
+        self.assertIn(('gross_magnitude', 3, 'V'), summary(found))
 
-    def test_small_reports_skip_statistics(self):
-        found = flags(scale_cell(clean_report(), 1, 'Max.', 3, 10))
-        self.assertEqual(found, [])
+    def test_negligible_lateral_load_is_not_a_unit_slip(self):
+        # A gravity case with 0.02 kip shear beside wind cases near 15 kip.
+        rows = [(1, 'STR-I', 0.02), (2, 'STR-III-W0', 15), (3, 'STR-III-W90', 14), (4, 'STR-V-W0', 16),
+                (5, 'SER-I', 13), (6, 'SER-IV-W0', 12)]
+        text = ''.join(f'LOAD CASE : {i}\nCASE NAME : {n}\n' for i, n, _ in rows) + 'SUMMARY FOR LOAD CASES AND COMBINATIONS\n'
+        for i, _, v in rows:
+            text += (f'LOAD CASE : {i}\n* PILE TOP REACTIONS, LOCAL *\n'
+                     'AXIAL,KIP LAT. y,KIP LAT. z,KIP MOM x,KIP-IN MOM y,KIP-IN MOM z,KIP-IN\n'
+                     f'MINIMUM 90 0 0 0 0 0\nMAXIMUM 120 {v} 0 0 0 {v * 40}\n')
+        parsed = group_report.parse(text, 'reactions')
+        self.assertEqual(review.gross_magnitude(parsed['cases']), [])
+        self.assertEqual(flags(text, 'reactions'), [])
+
+
+class DominanceTests(unittest.TestCase):
+    def test_dominated_case_is_marked_but_stays_selected(self):
+        result = review.review(group_report.parse(clean_report()), [1, 7])
+        self.assertEqual(result['dominance']['basis'], 'selected')
+        self.assertEqual(result['dominance']['dominated'], [{'case': 1, 'dominated_by': [7]}])
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'r.txt'
+            path.write_text(clean_report())
+            inspected = engine.inspect_report(path)
+        self.assertEqual(inspected['selected_cases'], [1, 7])
+        self.assertEqual(inspected['review_flags']['dominance']['dominated'], [{'case': 1, 'dominated_by': [7]}])
+        self.assertEqual(inspected['envelope']['P'], 140)
+
+    def test_unresolved_selection_uses_review_only_fallback(self):
+        text = (clean_report().replace('STR-I\n', 'Comb 1\n').replace('SER-I\n', 'EQ-1\n')
+                .replace('STR-V\n', 'Comb 7\n'))
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'r.txt'
+            path.write_text(text)
+            inspected = engine.inspect_report(path)
+        self.assertIn('classification unavailable', inspected['selection_required'])
+        self.assertEqual((inspected['selected_cases'], inspected['envelope']), ([], None))
+        dominance = inspected['review_flags']['dominance']
+        self.assertEqual(dominance['basis'], 'fallback_non_extreme')
+        self.assertIn('not a case selection', dominance['note'])
+        self.assertEqual(dominance['cases'], [1, 7])
+        self.assertEqual(dominance['dominated'], [{'case': 1, 'dominated_by': [7]}])
 
 
 class OutputTests(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.root = Path(self.folder.name)
+        template(self.root / 'reference.mcdx')
 
     def tearDown(self):
         self.folder.cleanup()
+
+    def convert(self, text, name):
+        path = self.root / ('source-' + name) / 'r.txt'
+        path.parent.mkdir()
+        path.write_text(text)
+        return engine.convert(path, self.root / 'reference.mcdx', self.root / name / 'w.mcdx')
 
     def test_inspect_api(self):
         path = self.root / 'r.txt'
@@ -173,28 +254,58 @@ class OutputTests(unittest.TestCase):
         self.assertEqual(inspected['selected_cases'], [1])
         result = inspected['review_flags']
         self.assertTrue(result['advisory'])
-        self.assertEqual(summary(result['flags'])[0], ('service_exceeds_strength', 7, 'P'))
-        self.assertEqual(engine.inspect_report(path, cases=[1, 7])['review_flags'], result)
-        self.assertEqual(learn.suggest_cases(path)['review_flags'], result)
+        self.assertEqual(summary(result['flags']), [('service_exceeds_strength', 7, 'P')])
+        self.assertEqual(engine.inspect_report(path, cases=[1, 7])['review_flags']['flags'], result['flags'])
+        self.assertEqual(learn.suggest_cases(path)['review_flags']['flags'], result['flags'])
         path.write_text(clean_report())
         self.assertEqual(engine.inspect_report(path)['review_flags']['flags'], [])
 
     def test_audit_json_records_flags(self):
-        path = self.root / 'r.txt'
-        path.write_text(report())
-        template(self.root / 'reference.mcdx')
-        result = engine.convert(path, self.root / 'reference.mcdx', self.root / 'out' / 'w.mcdx')
+        result = self.convert(report(), 'out')
         audit = json.loads((self.root / 'out' / 'w.audit.json').read_text())
         self.assertEqual(audit['review_flags'], result['review_flags'])
         flagged = audit['review_flags']
         self.assertTrue(flagged['advisory'])
         self.assertIn(('service_exceeds_strength', 2, 'P'), summary(flagged['flags']))
         self.assertIn(('effects_below_top', 1, 'Mz'), summary(flagged['flags']))
+        self.assertEqual(flagged['dominance']['basis'], 'selected')
+        self.assertEqual(flagged['dominance']['cases'], [1, 7])
         for entry in flagged['flags']:
             self.assertEqual(set(entry), {'rule', 'case', 'component', 'detail', 'values'})
         # Advisory only: the selection and envelope are those of the unflagged default.
         self.assertEqual(audit['envelope'], {'P': 140, 'Vy': 24, 'Vz': 8, 'My': 190, 'Mz': 850})
         self.assertIs(audit.get('native_execution_verified', False), False)
+
+    def test_review_failure_never_fails_inspect_or_convert(self):
+        path = self.root / 'r.txt'
+        path.write_text(report())
+        with mock.patch.object(review, 'review', side_effect=RuntimeError('boom')):
+            inspected = engine.inspect_report(path)
+            result = self.convert(report(), 'failed')
+        for value in (inspected['review_flags'], result['review_flags']):
+            self.assertEqual(value['error'], 'review unavailable: boom')
+            self.assertTrue(value['advisory'])
+            self.assertNotIn('flags', value)
+        self.assertEqual(inspected['selected_cases'], [1, 7])
+        audit = json.loads((self.root / 'failed' / 'w.audit.json').read_text())
+        self.assertEqual(audit['review_flags']['error'], 'review unavailable: boom')
+
+    def test_outputs_identical_with_review_on_and_off(self):
+        text = report()  # heavily flagged report: flags must still change nothing
+        # ZIP entries (including nested Xaml packages) carry the wall-clock time; fix it.
+        fixed = mock.patch('time.localtime', return_value=time.struct_time((2020, 1, 1, 0, 0, 0, 2, 1, 0)))
+        with fixed:
+            self.convert(text, 'on')
+        with fixed, mock.patch.object(review, 'review', return_value={}):
+            self.convert(text, 'off')
+        for suffix in ('.mcdx', '.cpd', '.html'):
+            self.assertEqual((self.root / 'on' / ('w' + suffix)).read_bytes(),
+                             (self.root / 'off' / ('w' + suffix)).read_bytes(), suffix)
+        on, off = (json.loads((self.root / n / 'w.audit.json').read_text().replace(f'/{n}/', '/X/'))
+                   for n in ('on', 'off'))
+        self.assertTrue(on.pop('review_flags')['flags'])
+        self.assertEqual(off.pop('review_flags'), {})
+        self.assertEqual(on, off)
 
 
 if __name__ == '__main__':

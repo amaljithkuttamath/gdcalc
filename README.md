@@ -39,7 +39,9 @@ gdcalc batch ./reports --recursive --template reference.mcdx \
 
 The browser guides **Files → Inputs → Changes → Outputs**. Select your report and template, inspect the source, then calculate. [CLI guide](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/cli.md) · [Docker deployment](https://github.com/amaljithkuttamath/gdcalc/blob/main/deploy/README.md)
 
-Built-in [machine learning](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/machine-learning.md), offline with no extra dependencies: a case-name classifier that learns your naming from completed conversions (**Suggest cases**, `gdcalc learn`), advisory review flags for mislabelled cases, misplaced or copied tables and single wrong values, and the governing case behind every envelope value. Advisory only; suggestions are never applied automatically.
+Built-in [machine learning](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/machine-learning.md), offline with no extra dependencies: a case-name classifier that learns your naming from completed conversions (**Suggest cases**, `gdcalc learn`), advisory review flags for mislabelled cases, misplaced or copied tables, single wrong values and possible unit slips, a hint for strength cases that can never govern, and the governing case behind every envelope value.
+
+ML is advisory only, never applied without your click: it never changes inputs, case selection or outputs unless you select **Use cases …**.
 
 ## Python SDK
 

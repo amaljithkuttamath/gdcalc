@@ -6,7 +6,7 @@ or fail verdict: a flag asks the engineer to look at the GROUP input again.
 
 Rules (each one a physical or labelling invariant, with only a 1% rounding tolerance):
 
-* ``service_exceeds_strength``: a SER case exceeds every STR case in a component.
+* ``service_exceeds_strength``: a SER case's axial load exceeds every STR case.
 * ``effects_below_top``: the largest magnitude along the pile is smaller than the
   pile-top reaction for the same quantity. Effects load source only.
 * ``duplicate_case``: two cases have identical numeric tables.
@@ -15,8 +15,10 @@ Statistics (robust, within one report, no history):
 
 * ``ratio_outlier``: Iglewicz-Hoaglin modified z-score of log10 lever arms (M/V) and
   along-pile/top ratios across the report's cases.
-* ``unit_slip``: a component peak about 1000x away from the report's median, the
-  signature of a possible lb/kip slip.
+* ``gross_magnitude``: maximum axial load or lateral resultant about an order of magnitude
+  or more from the report's median, the signature of a possible unit slip.
+
+Case dominance lists strength cases that cannot govern any envelope component.
 
 Parameters come from the planted-error validation described in docs/machine-learning.md.
 """
@@ -25,30 +27,34 @@ import re
 from statistics import median
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-METHOD = 'rules+robust-ratio-z'
-VERSION = 1
+from .group_report import COMPONENTS, limit_state, peak
 
-# Relative rounding tolerance for the invariant rules (GROUP prints 5 significant digits).
+METHOD = 'rules+robust-ratio-z+gross-magnitude'
+VERSION = 2
+
+# Relative rounding tolerance for the invariant rules.
 TOLERANCE = 0.01
-# Modified z-score threshold: 95th percentile of the per-report maximum on clean synthetic
-# reports (5% report-level false positives). Recalibrate on real clean reports.
-Z_THRESHOLD = 4.35
-# Floor on the MAD of log10 ratios, so near-constant ratios do not explode on rounding.
-MAD_FLOOR = 1e-3
-# Smallest report in the validation set: three gravity combinations plus three wind cases.
-MIN_CASES = 6
+# Modified z-score threshold: 95th percentile of the per-report maximum on 300 clean reports
+# of the harder synthetic corpus (5% report-level false positives). Recalibrate on real reports.
+Z_THRESHOLD = 4.64
+# Floor on the MAD of log10 ratios (about 5%); keeps the threshold portable between corpora.
+MAD_FLOOR = 0.02
 # A ratio needs defined values in at least three cases; with fewer, the median/MAD z-score
-# cannot exceed 0.6745 and the check would only look like it ran.
-MIN_FEATURE_VALUES = 3
-# A ratio is undefined when its denominator is below this share of the report's median scale.
+# cannot exceed 0.6745, so the check could not flag anything.
+MIN_CASES = 3
+# A quantity is negligible below this share of the report's median for that quantity:
+# ratios with a negligible denominator are undefined, negligible peaks are not compared.
 NEGLIGIBLE = 0.01
-# unit_slip: departures within half a decade of 1000x (at least 10**2.5, about 316x).
-UNIT_SLIP_DECADES = 2.5
+# gross_magnitude: |log10(x / report median)| above this many decades (97.5th percentile on
+# clean reports of the harder synthetic corpus).
+GROSS_DECADES = 0.95
+# Names treated as extreme events by the review-only fallback basis for case dominance.
+EXTREME_EVENT = re.compile(r'^\s*(ext|extreme|eq|seis)', re.I)
 
-COMPONENTS = ('P', 'Vy', 'Vz', 'My', 'Mz')
 # (component, pile-top reaction column, along-pile effects column) for the same quantity.
 EFFECT_PAIRS = (('Vy', 1, 4), ('Vz', 2, 5), ('My', 4, 3), ('Mz', 5, 2))
 LOCAL_COLUMNS = {'Vy': 1, 'Vz': 2, 'My': 4, 'Mz': 5}
+EFFECT_COLUMNS = {name: column for name, _, column in EFFECT_PAIRS}
 # (feature, numerator, denominator); 'top:' and 'eff:' name the table and component.
 RATIO_FEATURES = (
     ('lever arm Mz/Vy', 'top:Mz', 'top:Vy'),
@@ -58,7 +64,6 @@ RATIO_FEATURES = (
     ('along-pile/top Vy', 'eff:Vy', 'top:Vy'),
     ('along-pile/top Vz', 'eff:Vz', 'top:Vz'),
 )
-EFFECT_COLUMNS = {name: column for name, _, column in EFFECT_PAIRS}
 
 Case = Dict[str, Any]
 Flag = Dict[str, Any]
@@ -69,41 +74,41 @@ def _magnitude(rows: Sequence[Sequence[float]], column: int) -> float:
     return max(abs(rows[0][column]), abs(rows[1][column]))
 
 
-def _peak(case: Case, component: str) -> float:
-    """Envelope peak as gdcalc uses it: maximum axial compression, otherwise largest magnitude."""
-    values = case['pairs'][component]
-    return max(values) if component == 'P' else max(map(abs, values))
-
-
 def _label(case: Case) -> str:
     return 'Case ' + str(case['id']) + (' ' + case['name'] if case['name'] else '')
 
 
 def _limit_state(case: Case) -> Optional[str]:
-    match = re.match(r'^(STR|SER)(?:\b|[-_])', case['name'] or '', re.I)
-    return match.group(1).upper() if match else None
+    return limit_state(case['name'], long_names=True)
 
 
 def _flag(rule: str, case: Optional[int], component: Optional[str], detail: str, values: Dict[str, Any]) -> Flag:
     return {'rule': rule, 'case': case, 'component': component, 'detail': detail, 'values': values}
 
 
+def _positive_median(values: Sequence[float]) -> float:
+    positive = [v for v in values if v > 0]
+    return median(positive) if positive else 0.0
+
+
 def service_exceeds_strength(cases: List[Case]) -> List[Flag]:
+    """Axial load only: service lateral loads legitimately exceed strength (e.g. 1.2 TU vs 0.5 TU)."""
     strength = [c for c in cases if _limit_state(c) == 'STR']
     service = [c for c in cases if _limit_state(c) == 'SER']
+    governing = max(strength, key=lambda c: peak(c, 'P'))
+    limit = peak(governing, 'P')
+    if limit <= NEGLIGIBLE * _positive_median([peak(c, 'P') for c in cases]):
+        return []  # no strength compression to compare against
     flags = []
-    for component in COMPONENTS:
-        governing = max(strength, key=lambda c: _peak(c, component))
-        limit = _peak(governing, component)
-        for case in service:
-            value = _peak(case, component)
-            if value > 0 and value > limit * (1 + TOLERANCE):
-                flags.append(_flag(
-                    'service_exceeds_strength', case['id'], component,
-                    f'{_label(case)} {component} {value:.4g} exceeds every STR case '
-                    f'(largest {limit:.4g}, case {governing["id"]}). Check the case name and load factors.',
-                    {'service': value, 'strength_max': limit, 'strength_case': governing['id']}))
-    return sorted(flags, key=lambda f: f['case'])
+    for case in service:
+        value = peak(case, 'P')
+        if value > limit * (1 + TOLERANCE):
+            flags.append(_flag(
+                'service_exceeds_strength', case['id'], 'P',
+                f'{_label(case)} axial load {value:.4g} exceeds every STR case '
+                f'(largest {limit:.4g}, case {governing["id"]}). Check the case name and load factors.',
+                {'service': value, 'strength_max': limit, 'strength_case': governing['id']}))
+    return flags
 
 
 def effects_below_top(cases: List[Case]) -> List[Flag]:
@@ -153,11 +158,8 @@ def _robust_z(values: Sequence[float]) -> Tuple[float, List[float]]:
 
 def ratio_outlier(cases: List[Case], features: Sequence[Tuple[str, str, str]]) -> List[Flag]:
     """One flag per case: the feature with the largest |z| when it exceeds Z_THRESHOLD."""
-    scale = {}
-    for _, _, denominator in features:
-        sizes = [_quantity(c, denominator) for c in cases]
-        sizes = [s for s in sizes if s > 0]
-        scale[denominator] = median(sizes) if sizes else 0.0
+    scale = {denominator: _positive_median([_quantity(c, denominator) for c in cases])
+             for _, _, denominator in features}
     worst: Dict[int, Dict[str, Any]] = {}
     for feature, numerator, denominator in features:
         logs = []
@@ -165,7 +167,7 @@ def ratio_outlier(cases: List[Case], features: Sequence[Tuple[str, str, str]]) -
             top, bottom = _quantity(case, numerator), _quantity(case, denominator)
             if top > 0 and bottom > NEGLIGIBLE * scale[denominator]:
                 logs.append((case, math.log10(top / bottom)))
-        if len(logs) < MIN_FEATURE_VALUES:
+        if len(logs) < MIN_CASES:
             continue
         centre, scores = _robust_z([value for _, value in logs])
         for (case, value), score in zip(logs, scores, strict=True):
@@ -184,47 +186,81 @@ def ratio_outlier(cases: List[Case], features: Sequence[Tuple[str, str, str]]) -
     return flags
 
 
-def unit_slip(cases: List[Case]) -> List[Flag]:
+def _lateral_resultant(case: Case) -> float:
+    local = case['tables']['local']
+    return math.hypot(_magnitude(local, 1), _magnitude(local, 2))
+
+
+def gross_magnitude(cases: List[Case]) -> List[Flag]:
+    """Maximum axial load and pile-top lateral resultant against the report's median."""
+    quantities = (('P', 'maximum axial load', lambda c: peak(c, 'P')),
+                  ('V', 'lateral resultant', _lateral_resultant))
     flags = []
-    for component in COMPONENTS:
-        logs = [(c, math.log10(_peak(c, component))) for c in cases if _peak(c, component) > 0]
+    for component, label, get in quantities:
+        values = [(c, get(c)) for c in cases]
+        centre = _positive_median([v for _, v in values])
+        # Negligible values (a gravity case's 0.02 kip shear beside 15 kip wind cases) are not compared.
+        logs = [(c, math.log10(v)) for c, v in values if v > NEGLIGIBLE * centre and v > 0]
         if len(logs) < MIN_CASES:
             continue
-        centre = median(value for _, value in logs)
+        middle = median(value for _, value in logs)
         for case, value in logs:
-            if abs(value - centre) >= UNIT_SLIP_DECADES:
-                factor = 10 ** (value - centre)
+            if abs(value - middle) > GROSS_DECADES:
+                factor = 10 ** (value - middle)
                 flags.append(_flag(
-                    'unit_slip', case['id'], component,
-                    f'{_label(case)} {component} {10 ** value:.4g} is {factor:.3g}x the report median '
-                    f'{10 ** centre:.4g}: possible unit slip (lb vs kip).',
-                    {'peak': 10 ** value, 'median': 10 ** centre, 'factor': factor}))
+                    'gross_magnitude', case['id'], component,
+                    f'{_label(case)} {label} {10 ** value:.4g} is {factor:.3g}x the report median '
+                    f'{10 ** middle:.4g}: possible unit slip. Check the units of this case.',
+                    {'value': 10 ** value, 'median': 10 ** middle, 'factor': factor, 'threshold_decades': GROSS_DECADES}))
     return flags
 
 
-def review(parsed: Dict[str, Any]) -> Dict[str, Any]:
+def dominance(cases: List[Case], selected: Optional[Sequence[int]]) -> Dict[str, Any]:
+    """Cases that cannot govern: another considered case is at least as large in every component.
+
+    With no selection, the review considers all cases except extreme-event names. That basis is
+    for this advisory hint only; it is never applied as a case selection.
+    """
+    if selected:
+        basis, note = 'selected', 'Selected cases.'
+        considered = [c for c in cases if c['id'] in set(selected)]
+    else:
+        basis = 'fallback_non_extreme'
+        note = ('No case selection: review-only fallback of all cases except extreme-event names. '
+                'This is not a case selection.')
+        considered = [c for c in cases if not EXTREME_EVENT.match(c['name'] or '')]
+    peaks = {c['id']: [peak(c, key) for key in COMPONENTS] for c in considered}
+    dominated = []
+    for case in considered:
+        mine = peaks[case['id']]
+        by = [other['id'] for other in considered
+              if peaks[other['id']] != mine and all(o >= m for o, m in zip(peaks[other['id']], mine, strict=True))]
+        if by:
+            dominated.append({'case': case['id'], 'dominated_by': by})
+    return {'basis': basis, 'note': note, 'cases': [c['id'] for c in considered], 'dominated': dominated}
+
+
+def review(parsed: Dict[str, Any], selected: Optional[Sequence[int]] = None) -> Dict[str, Any]:
     """Return advisory review flags for a group_report.parse result.
 
+    ``selected`` is the case selection in use, if any; it only sets the dominance basis.
     Checks that cannot run on this report are listed under ``skipped`` with the reason;
     they are not reported as clean.
     """
     cases = parsed['cases']
     effects = parsed['load_source'] == 'effects'
     named = {_limit_state(c) for c in cases}
+    few = None if len(cases) >= MIN_CASES else f'needs at least {MIN_CASES} cases; the report has {len(cases)}'
     plan: List[Tuple[str, Optional[str], Callable[[], List[Flag]]]] = [
         ('service_exceeds_strength',
-         None if {'STR', 'SER'} <= named else 'needs both STR and SER case names',
+         None if {'STR', 'SER'} <= named else 'needs both strength and service case names',
          lambda: service_exceeds_strength(cases)),
         ('effects_below_top',
          None if effects else 'needs the effects load source',
          lambda: effects_below_top(cases)),
         ('duplicate_case', None, lambda: duplicate_case(cases)),
-        ('ratio_outlier',
-         None if len(cases) >= MIN_CASES else f'needs at least {MIN_CASES} cases; the report has {len(cases)}',
-         lambda: ratio_outlier(cases, RATIO_FEATURES if effects else RATIO_FEATURES[:2])),
-        ('unit_slip',
-         None if len(cases) >= MIN_CASES else f'needs at least {MIN_CASES} cases; the report has {len(cases)}',
-         lambda: unit_slip(cases)),
+        ('ratio_outlier', few, lambda: ratio_outlier(cases, RATIO_FEATURES if effects else RATIO_FEATURES[:2])),
+        ('gross_magnitude', few, lambda: gross_magnitude(cases)),
     ]
     flags: List[Flag] = []
     checks, skipped = [], []
@@ -235,4 +271,4 @@ def review(parsed: Dict[str, Any]) -> Dict[str, Any]:
         checks.append(rule)
         flags.extend(run())
     return {'advisory': True, 'method': METHOD, 'version': VERSION, 'load_source': parsed['load_source'],
-            'checks': checks, 'skipped': skipped, 'flags': flags}
+            'checks': checks, 'skipped': skipped, 'flags': flags, 'dominance': dominance(cases, selected)}

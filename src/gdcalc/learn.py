@@ -11,7 +11,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from . import engine, group_report, review
+from . import engine, group_report
 
 LABELS = ('strength', 'service', 'extreme', 'fatigue', 'other')
 CONFIDENCE = 0.8
@@ -159,7 +159,7 @@ def suggest_cases(report, *, load_source='effects', output_dir=None):
     return {'model': 'naive-bayes', 'trained_on': {'seed': len(SEED), 'history': model.history_examples},
             'cases': rows, 'recommended_cases': recommended, 'selection_issue': issue,
             'unresolved_case_ids': [r['id'] for r in rows if r['category'] == 'unknown'],
-            'review_flags': review.review(parsed)}
+            'review_flags': engine.review_flags(parsed)}
 
 
 def main(argv=None, prog='gdcalc learn'):

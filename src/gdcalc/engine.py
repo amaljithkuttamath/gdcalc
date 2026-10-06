@@ -17,6 +17,15 @@ def _read_report(path, load_source):
     return raw,group_report.parse(text,load_source)
 
 
+def review_flags(parsed, selected=None):
+    """Advisory review of a parsed report. Never fails the caller: advisory code must not block work."""
+    try:
+        return review.review(parsed, selected)
+    except Exception as exc:  # noqa: BLE001 - recorded explicitly, never presented as clean
+        return {'advisory': True, 'method': review.METHOD, 'version': review.VERSION,
+                'error': 'review unavailable: ' + (str(exc) or type(exc).__name__)}
+
+
 def inspect_report(report, *, cases=None, load_source='effects'):
     """Inspect available cases; selection_required explains unresolved classification."""
     _,parsed=_read_report(report,load_source)
@@ -29,7 +38,7 @@ def inspect_report(report, *, cases=None, load_source='effects'):
             'selected_cases':[c['id'] for c in selected],'selection_required':issue,
             'load_source':load_source,'envelope':group_report.envelope(selected) if selected else None,
             'governing':group_report.governing(selected) if selected else None,
-            'review_flags':review.review(parsed),
+            'review_flags':review_flags(parsed,[c['id'] for c in selected] or None),
             'largest_observed_pile_id':max((p for c in parsed['cases'] for p in c['pile_ids']),default=0)}
 
 
@@ -53,7 +62,7 @@ def convert(report, template, output, *, cases=None, load_source='effects', titl
         result.update({'output':str(output),'audit':str(audit),'source_sha256':hashlib.sha256(raw).hexdigest(),
                        'geometry_case_ids':[c['id'] for c in parsed['cases']],
                        'case_names':{str(c['id']):c['name'] for c in parsed['cases']},
-                       'review_flags':review.review(parsed)})
+                       'review_flags':review_flags(parsed,[c['id'] for c in selected])})
         cpd_staged=Path(folder)/'worksheet.cpd'; html_staged=Path(folder)/'worksheet.html'
         calculation=calcpad.calculate(staged,cpd_staged,html_staged)
         result.update({'calculation':calculation,'open_worksheet':str(cpd),'calculated_worksheet':str(calculated)})

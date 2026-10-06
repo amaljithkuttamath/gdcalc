@@ -21,7 +21,7 @@ gdcalc inspect /path/to/report.gp11t
 gdcalc inspect /path/to/report.gp11t --cases 1,3,7
 ```
 
-Inspection returns cases, selected cases, load basis and an envelope where selection is resolved. Default selection recognizes `STR` case names and excludes service cases. If classification is unresolved, obtain the intended case IDs; do not guess. Inspection, conversion audits and batch audits also include advisory `review_flags` (`{advisory, method, version, load_source, checks, skipped, flags}`, replacing the earlier `anomalies`): a flag asks you to check the GROUP input and never changes the selection or result. See [review flags](machine-learning.md#review-flags). Reports must be GROUP text in the supported kip/in convention, not Excel binaries.
+Inspection returns cases, selected cases, load basis and an envelope where selection is resolved. Default selection recognizes `STR` case names and excludes service cases. If classification is unresolved, obtain the intended case IDs; do not guess. Inspection, conversion audits and batch audits also include advisory `review_flags` (`{advisory, method, version, load_source, checks, skipped, flags, dominance}`, replacing the earlier `anomalies`): a flag asks you to check the GROUP input and never changes the selection or result. See [review flags](machine-learning.md#review-flags). Reports must be GROUP text in the supported kip/in convention, not Excel binaries.
 
 Default loads come from the last summary: axial compression from local pile-top reactions, shears/moments from local pile effects. Use `--load-source reactions` only when local top reactions are the intended basis for all components.
 
@@ -86,7 +86,7 @@ gdcalc serve --no-open --port 8765 \
 
 Open the printed URL. Omit `--template` to select it in the browser; omit `--no-open` to launch the browser automatically. `--port 0` chooses an available port. `GET /healthz` reports service health. Ctrl+C stops the server while retaining completed outputs.
 
-Workflow: Files → Inputs → Changes → Outputs. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Inputs and Changes list advisory review flags as "Review: …" items to check; they are never shown as a pass or fail. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
+Workflow: Files → Inputs → Changes → Outputs. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Inputs and Changes list advisory review flags as "Review: …" items to check; they are never shown as a pass or fail. Inputs greys strength cases that can never govern; they stay selected. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
 
 ## Suggest cases and review flags
 

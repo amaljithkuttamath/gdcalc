@@ -273,3 +273,5 @@ main .case-caption, .queue-heading, .template-panel > p { color: var(--text-seco
   .review-flags .advice-list li small { grid-column: 1; }
   .review-flags .advice-tag { justify-self: start; }
 }
+.case-label.dominated { color: var(--muted); }
+.dominance-note { margin: 8px 0 0; color: var(--muted); }
