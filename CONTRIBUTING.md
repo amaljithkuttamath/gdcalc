@@ -71,7 +71,7 @@ For container changes:
 ```bash
 docker build -t mcdxkit:test .
 docker run --rm -v "$PWD:/verify:ro" --entrypoint python \
-  mcdxkit:test -m unittest discover -s /verify/tests -v
+  mcdxkit:test /verify/scripts/test_installed.py --tests /verify/tests
 ```
 
 The Actions workflow also starts the container, checks health, checks bundled fonts and confirms that unauthenticated API access is rejected.

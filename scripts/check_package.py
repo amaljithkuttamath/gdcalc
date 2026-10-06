@@ -1,8 +1,25 @@
 """Check that a built wheel includes the browser assets and calculator bridge."""
 from email.parser import BytesParser
 import re
+import tarfile
 from pathlib import Path
 from zipfile import ZipFile
+
+
+def check_sdist(path):
+    required = {'scripts/install_skill.py', 'scripts/audit_repository.py', 'scripts/report_audit.py',
+                'scripts/test_installed.py', 'scripts/cli.py', 'scripts/check_package.py',
+                'tests/test_pipeline.py', 'tests/test_repository_audit.py', 'tests/evaluate_fixture.py',
+                'tests/fixtures/review/seed529_clean.txt'}
+    with tarfile.open(path, 'r:gz') as archive:
+        prefix = path.name.removesuffix('.tar.gz') + '/'
+        members = {m.name.removeprefix(prefix): m for m in archive.getmembers() if m.isfile()}
+        missing = required - members.keys()
+        if missing:
+            raise ValueError('Source archive omits test helpers/fixtures: ' + ', '.join(sorted(missing)))
+        if any(members[name].size == 0 for name in required):
+            raise ValueError('Source archive has an empty required test helper/fixture')
+    print(path.name + ': test helpers and synthetic fixtures included')
 
 
 def main():
@@ -38,6 +55,10 @@ def main():
         if any(not wheel.read(name) for name in required):
             raise SystemExit('Package contains an empty required asset')
     print(f'{wheels[0].name}: browser assets, licenses and bridge included')
+    archives = list(Path('dist').glob('mcdxkit-*.tar.gz'))
+    if len(archives) != 1:
+        raise SystemExit('Expected exactly one mcdxkit source archive in dist/')
+    check_sdist(archives[0])
 
 
 if __name__ == '__main__':

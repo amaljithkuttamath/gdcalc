@@ -4,6 +4,10 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ## Unreleased
 
+## 0.4.0
+
+- Verify installed SDK origins in release/container tests and include test helpers and synthetic fixtures in source distributions.
+
 - Run synthetic repository audits after releases and weekly, with bounded evidence and deduplicated improvement tickets.
 - Add versioned source/standards records in the CLI and browser, with audit linkage, unit checks, stale-review detection and explicit pending engineering review.
 
@@ -16,7 +20,7 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 - Check results: CalcpadCE pass/fail outcomes and demand/capacity ratios are summarised in the audit (`checks`, `check_summary`), the batch check-summary CSV and the Outputs step.
 - Agent-neutral skill installer with an optional local workflow interview and task-specific review guidance.
 
-- Multi-report summary export: `mcdxkit summary`, `/api/summary` and a **Download summary** button write one CSV row per report with envelopes, governing cases and status.
+- Multi-report summary export: `mcdxkit summary`, `/api/summary` and a **Download summary** button write one CSV row per report and load case, with governing cases and selection status.
 - CI lint and type-check job: `ruff check` (correctness rules) and `mypy`, pinned in `requirements-dev.txt`.
 
 ## 0.3.0

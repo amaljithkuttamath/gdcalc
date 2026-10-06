@@ -58,7 +58,9 @@ jobs:
       - name: Test installed SDK, CLI, calculator and server
         run: |
           mcdxkit setup-engine
-          python -m unittest discover -s tests -v
+          mkdir verify-source
+          tar -xzf dist/mcdxkit-*.tar.gz -C verify-source --strip-components=1
+          python verify-source/scripts/test_installed.py --tests verify-source/tests
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: python-release

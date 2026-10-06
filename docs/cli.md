@@ -7,7 +7,7 @@ All commands use the same conversion engine. No Codex or Mathcad installation is
 For command-line use:
 
 ```bash
-uv tool install mcdxkit==0.3.0
+uv tool install mcdxkit==0.4.0
 mcdxkit --version
 mcdxkit setup-engine
 ```

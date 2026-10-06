@@ -24,7 +24,7 @@ For the 0.3.0 identity change, register the `mcdxkit` publisher against the rena
 2. Merge after required checks pass. Check CI on the exact main commit. Private reports, templates and secrets must remain excluded.
 3. Create a GitHub Release with tag `v<version>` targeting that tested main commit. Preview notes as a draft if account configuration is incomplete; publish only when ready to upload.
 4. The workflow builds wheel/sdist, validates metadata/assets, installs the wheel and executes real calculator/SDK/CLI/server tests. A separate job downloads these same artifacts and uses OIDC Trusted Publishing with attestations.
-5. Verify the workflow and `https://pypi.org/project/mcdxkit/<version>/`, then install that exact version into a clean environment. Verify the SDK import and CLI before announcing availability.
+5. Verify the release-triggered repository audit and resolve any confirmed regression tickets. Verify the publishing workflow and `https://pypi.org/project/mcdxkit/<version>/`, then install that exact version into a clean environment. Verify the SDK import and CLI before announcing availability.
 
 PyPI versions are immutable. Fix a failed publication's setup and rerun only if the version was not uploaded; inspect PyPI first after a partial upload. For a code fix after publication, issue a new version through the normal PR workflow. Never hide an upload failure with `skip-existing`.
 

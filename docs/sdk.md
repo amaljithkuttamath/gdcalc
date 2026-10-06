@@ -5,7 +5,7 @@ The `mcdxkit` Python distribution contains the SDK, `mcdxkit` command and browse
 Install the published SDK from PyPI in an isolated Python environment:
 
 ```bash
-python -m pip install mcdxkit==0.3.0
+python -m pip install mcdxkit==0.4.0
 ```
 
 For source development, install a clone with `python -m pip install -e .`. Installation includes web assets and calculator bridge source, but not a compiled Calcpad runtime, Mathcad, engineering standards or a private template. Run `mcdxkit setup-engine` once with Git and .NET 10 SDK available, or point `MCDXKIT_CALCPAD` at a compatible existing calculator. Conversion requires the [supported template](../references/template-contract.md).

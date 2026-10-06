@@ -34,7 +34,7 @@ def checks(argv=None):
 def main(argv=None):
     args=list(sys.argv[1:] if argv is None else argv)
     parser=argparse.ArgumentParser(prog='mcdxkit',description='Convert final GROUP local-load summaries to native Mathcad worksheets.')
-    parser.add_argument('--version',action='version',version='mcdxkit 0.3.0')
+    parser.add_argument('--version',action='version',version='mcdxkit 0.4.0')
     sub=parser.add_subparsers(dest='command',required=True)
     for name,description in [('inspect','Inspect local loads and strength case selection'),
                              ('convert','Generate and calculate open and Mathcad worksheets'),
