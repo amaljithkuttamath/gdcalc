@@ -16,7 +16,7 @@ from lxml import etree as E, html as H
 from . import mcdx
 
 REVISION = '0b20dba11ebd50b303eedb57e8ec042c272c68ab'
-TRANSLATOR_VERSION = 1
+TRANSLATOR_VERSION = 2
 OPS = {'mult': '*', 'scale': '*', 'plus': '+', 'minus': '-', 'div': '/', 'pow': '^',
        'lessThan': '<', 'lessOrEqual': '≤', 'greaterThan': '>', 'greaterOrEqual': '≥',
        'equal': '≡', 'and': '∧'}
