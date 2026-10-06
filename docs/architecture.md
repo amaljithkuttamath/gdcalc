@@ -10,10 +10,10 @@ Use the existing paths until a concrete build or dependency requirement justifie
 
 | Component | Location | Dependency boundary |
 | --- | --- | --- |
-| Engine and SDK | `src/gdcalc/engine.py` and calculation/parser modules | Independent of HTTP, browser, desktop and AI integrations |
-| CLI and batch | `src/gdcalc/cli.py`, `src/gdcalc/batch.py` | Call the shared engine; own arguments, scheduling and progress |
-| HTTP adapter | `src/gdcalc/server.py`, `src/gdcalc/service.py` | Own sessions, authentication and file access; call the shared engine |
-| Shared UI | `src/gdcalc/web/` | Use the server API; no duplicated calculation logic |
+| Engine and SDK | `src/mcdxkit/engine.py` and calculation/parser modules | Independent of HTTP, browser, desktop and AI integrations |
+| CLI and batch | `src/mcdxkit/cli.py`, `src/mcdxkit/batch.py` | Call the shared engine; own arguments, scheduling and progress |
+| HTTP adapter | `src/mcdxkit/server.py`, `src/mcdxkit/service.py` | Own sessions, authentication and file access; call the shared engine |
+| Shared UI | `src/mcdxkit/web/` | Use the server API; no duplicated calculation logic |
 | Portable skill | `SKILL.md`, `references/`, `scripts/` | Instruct agents to use the public CLI/SDK |
 | Desktop wrapper (planned) | Future `desktop/` directory | Reuse the shared UI; own window, file dialogs and local backend lifecycle |
 
@@ -61,7 +61,7 @@ flowchart LR
 ## Public Python API
 
 ```python
-from gdcalc.engine import inspect_report, convert, validate
+from mcdxkit.engine import inspect_report, convert, validate
 
 inspection = inspect_report('report.gp11t', cases=[1, 3, 7])
 result = convert(

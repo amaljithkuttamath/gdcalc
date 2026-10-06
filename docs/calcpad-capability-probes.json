@@ -1,6 +1,6 @@
 {
   "date": "2026-10-06",
-  "engine": "installed CalcpadCE gdcalc bridge",
+  "engine": "installed CalcpadCE bridge",
   "scope": "Synthetic engine probes; bypasses the Mathcad translator. Does not establish Prime compatibility or browser editing.",
   "results": [
     {

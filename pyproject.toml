@@ -1,26 +1,28 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gdcalc"
-version = "0.2.1"
-description = "Engineering worksheet conversion SDK, CLI and local browser server"
+name = "mcdxkit"
+version = "0.3.0"
+description = "Open-source Mathcad workflow toolkit: worksheet generation, calculation, CLI and SDK"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY.md"]
 requires-python = ">=3.10"
 dependencies = ["lxml>=5.3,<7", "fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
 
 [project.urls]
-Homepage = "https://github.com/amaljithkuttamath/gdcalc"
-Documentation = "https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/sdk.md"
-Issues = "https://github.com/amaljithkuttamath/gdcalc/issues"
-Source = "https://github.com/amaljithkuttamath/gdcalc"
+Homepage = "https://github.com/amaljithkuttamath/mcdxkit"
+Documentation = "https://github.com/amaljithkuttamath/mcdxkit/blob/main/docs/sdk.md"
+Issues = "https://github.com/amaljithkuttamath/mcdxkit/issues"
+Source = "https://github.com/amaljithkuttamath/mcdxkit"
 
 [project.scripts]
-gdcalc = "gdcalc.cli:main"
+mcdxkit = "mcdxkit.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-gdcalc = ["web/*.html", "web/*.css", "web/*.js", "web/fonts/*.ttf", "web/fonts/OFL.txt", "calcpad_bridge/*.cs", "calcpad_bridge/*.csproj"]
+mcdxkit = ["web/*.html", "web/*.css", "web/*.js", "web/fonts/*.ttf", "web/fonts/OFL.txt", "calcpad_bridge/*.cs", "calcpad_bridge/*.csproj"]
