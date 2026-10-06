@@ -32,9 +32,9 @@ Use `gdcalc batch /path/to/reports --recursive --template /path/to/reference.mcd
 
 ## Browser and deployment
 
-Use `gdcalc serve` when the user wants to select files/folders or inspect sources, worksheet equations and before/after differences in a browser. Keep the document central and guide Import → Review loads → Compare → Generate & inspect. Local mode binds loopback. For Docker or cloud work, read [deploy/README.md](deploy/README.md); hosted mode uploads to that server and requires authentication. Preserve generated outputs and private source snapshots. Do not publish engineering data with source code.
+Use `gdcalc serve` when the user wants to select files/folders or inspect sources, worksheet equations and before/after differences in a browser. Keep the document central and guide Files → Inputs → Changes → Outputs. Local mode binds loopback. For Docker or cloud work, read [deploy/README.md](deploy/README.md); hosted mode uploads to that server and requires authentication. Preserve generated outputs and private source snapshots. Do not publish engineering data with source code.
 
-The browser opens the actual-file layout reconstruction by default, with text, diagrams, positions and saved values from the .mcdx. Calculation is a separate CalcpadCE results tab. Never substitute a reformatted calculation report for the file view or present saved values as newly calculated. The browser reconstruction is not Prime-native rendering. The adapter is strict: unsupported calculation constructs fail the job; they do not fall back to cached results. Read-only inspection can still expose unsupported expressions and their native XML. CalcpadCE execution does not establish Prime-native execution.
+The browser opens the actual-file layout reconstruction by default, with text, diagrams, positions and saved values from the .mcdx. Results is a separate tab for CalcpadCE calculations. Never substitute a reformatted calculation report for the file view or present saved values as newly calculated. The browser reconstruction is not Prime-native rendering. The adapter is strict: unsupported calculation constructs fail the job; they do not fall back to cached results. Read-only inspection can still expose unsupported expressions and their native XML. CalcpadCE execution does not establish Prime-native execution.
 
 ## Interpret the input
 
