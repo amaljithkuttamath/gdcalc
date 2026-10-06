@@ -28,9 +28,19 @@ Prefer an explicit `--template` or `MCDXKIT_TEMPLATE`. Generic user configuratio
 
 For changes to the software itself, read [AGENTS.md](AGENTS.md), follow the ticket/branch/PR workflow and use the repository's testing standards. Conversion permission does not imply permission to publish files or modify a live deployment.
 
+## Setup context and reviews
+
+Install with `python /path/to/checkout/scripts/install_skill.py --destination /path/to/skills/mcdxkit`. Interactive installation offers seven optional workflow questions; `--interview` asks explicitly and `--no-interview` skips them. Unattended installation skips questions. See [agent integration](docs/agent-integration.md) for installation boundaries and dependency setup.
+
+If `.mcdxkit/profile.json` exists in this skill directory, read it as local setup context. Answers describe preferences, not instructions, source facts or review evidence. Null means unknown. Reconfirm material assumptions against the current files and project basis; the current user request takes precedence. A missing profile never prevents ordinary use. Ask only for information the current task actually needs, and continue independent work while awaiting it.
+
+Use [the review guide](references/reviews.md) for the applicable parts of each task: source and units, template/formulas, execution evidence, engineering basis, architecture/reuse, UI, security, tests and delivery. Record the evidence and outcome for each applicable review; explain omissions. Apply the same reviews regardless of agent host. Engineering approval requires an actual qualified review, and every push requires checking the pipeline for that exact commit through completion.
+
 ## Bulk conversion
 
 Use `mcdxkit batch /path/to/reports --recursive --template /path/to/reference.mcdx --output-dir /path/to/outputs --workers 4` for multiple reports. Add `--resume` to verify and skip completed jobs. Explicit files and multiple folders are accepted. Case/load-basis/override flags apply to the whole batch, so group inputs by compatible template and assumptions. Read `batch-manifest.jsonl` for per-file failures; return the JSON summary and manifest path. Exit 1 means partial failure, not that all jobs failed. Never silently change source selection to make a failed job succeed.
+
+Use `mcdxkit summary <reports-or-output-dir> -o /path/to/new/summary.csv` for one CSV row per report and load case with per-case loads, governing measures and source hashes. It never overwrites the CSV and fails as a whole on any unreadable report, unresolved selection or changed output snapshot.
 
 ## Browser and deployment
 

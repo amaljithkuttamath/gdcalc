@@ -46,7 +46,7 @@ flowchart LR
 | Module | Responsibility |
 | --- | --- |
 | `cli.py`, `generate.py`, `validate.py` | Commands, arguments, output and exit codes |
-| `engine.py` | Transport-independent inspect/convert/validate API and staged publication |
+| `engine.py` | Transport-independent inspect/convert/validate/summary API and staged publication |
 | `group_report.py` | Final summary parsing, case selection and envelopes |
 | `mcdx.py` | Package safety checks and constrained native template modifications |
 | `calcpad.py` | Strict XML-to-Calcpad translation, subprocess deadline and result validation |
@@ -58,6 +58,7 @@ flowchart LR
 | `server.py` | FastAPI/Uvicorn, authentication, origin checks, limits and static assets |
 | `web/` | Browser workflow and file viewer; no independent design solver |
 | `batch.py` | Input discovery, bounded process pool, job identity, manifest and resume |
+| `summary.py` | `mcdxkit summary` input discovery and exclusive CSV write; rows come from `engine.py` |
 
 ## Public Python API
 
