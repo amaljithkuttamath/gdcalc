@@ -6,6 +6,8 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ### Added
 
+- Browser-only generation progress and a persistent template shortcut, with clearer sidebar steps and mobile preview navigation.
+
 - Check results: CalcpadCE pass/fail outcomes and demand/capacity ratios are summarised in the audit (`checks`, `check_summary`), the batch check-summary CSV and the Outputs step.
 - Agent-neutral skill installer with an optional local workflow interview and task-specific review guidance.
 - Multi-report summary export: `mcdxkit summary`, `/api/summary` and a **Download summary** button write one CSV row per report with envelopes, governing cases and status.
