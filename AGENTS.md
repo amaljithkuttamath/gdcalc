@@ -33,6 +33,8 @@ The server prints its URL. Upload/select a private compatible template in the br
 
 ## Implementation boundaries
 
+Follow the [monorepo decision](docs/architecture.md#repository-decision-one-monorepo): keep the shared engine, adapters, UI and skill together. Future desktop wrappers reuse the same UI and engine. Preserve existing package paths and public APIs unless a scoped migration requires changes; do not introduce separate repositories or duplicate calculation implementations for each platform.
+
 Use `engine.py` for conversion logic shared by CLI and server. Keep HTTP/session concerns in `server.py` and `service.py`; source parsing in `group_report.py`; package editing in `mcdx.py`; translation/execution in `calcpad.py`; inspection in `inspection.py`; scheduling/resume in `batch.py`. Do not create a separate calculation implementation in the UI or skill scripts.
 
 CalcpadCE itself has more capabilities than the current translator. Broader input execution changes the trust boundary: preserve timeouts, file-access controls and HTML isolation. Keep network authentication, Host/Origin checks, CSRF protections and upload/package limits intact. Current hosting is a shared trusted workspace, not tenant-isolated storage.
