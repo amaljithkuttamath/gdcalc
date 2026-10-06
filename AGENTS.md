@@ -65,3 +65,5 @@ git diff --check
 Tests execute the real calculator and start loopback HTTP servers. Use synthetic fixtures from `tests/test_pipeline.py`; do not commit private reports/templates. For UI changes, exercise the affected workflow in a browser and distinguish tested behavior from unverified behavior.
 
 The Actions workflow tests Python 3.10/3.12, builds packages and tests the actual container before publishing it on `main`. Check the run for the exact pushed commit. A local test pass is not a successful remote image publish. Follow the user's requested publication scope; cloud hosting is separate from GitHub publication.
+
+After **every push**, inspect the workflows for that exact commit SHA, including branch updates and post-merge publication. Follow pending runs to completion, read failed job logs, fix regressions and check the replacement commit. Never use an earlier green run as evidence for a newer push. Record the run URL and any explicitly unverified checks in the PR handoff.

@@ -96,3 +96,5 @@ When intentionally releasing a new application version, keep `pyproject.toml` an
 Versioned Python releases use the separate [PyPI release workflow](docs/releasing.md), which tests the installed wheel before Trusted Publishing. Ordinary main CI artifacts are not a PyPI upload.
 
 See [GitHub workflow](docs/github-workflow.md) for the roadmap, triage and security controls. Contributions are distributed under the repository's [MIT license](LICENSE); dependencies keep their own terms and attribution.
+
+After **every push**, inspect the workflows for that exact commit SHA, including branch updates and post-merge publication. Follow pending runs to completion, read failed job logs, fix regressions and check the replacement commit. Never use an earlier green run as evidence for a newer push. Record the run URL and any explicitly unverified checks in the PR handoff.
