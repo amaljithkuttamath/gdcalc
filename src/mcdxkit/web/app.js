@@ -84,6 +84,7 @@ function render(){
   $('view-report').disabled=!activeItem?.id;$('view-template').disabled=!hasTemplate;$('view-worksheet').disabled=!activeItem?.preview&&!activeItem?.result&&!currentWorksheetId;$('view-diff').disabled=$('view-worksheet').disabled;
   $('file-count').textContent=items.length+' FILE'+(items.length===1?'':'S');$('count').textContent=items.length;
   $('queue-summary').textContent=ready().length+' ready';
+  $('download-summary').hidden=items.filter(i=>i.inspection).length<2;$('download-summary').disabled=ready().length<2;
   $('review-next').disabled=!items.length;$('compare-next').disabled=!hasTemplate||!ready().length;
   $('convert-all').disabled=!items.some(i=>i.preview&&!i.result);
   $('inspect-template').disabled=!hasTemplate;$('choose-template').textContent=hasTemplate?'Change template':'Choose template';$('inspect-template-review').disabled=!hasTemplate;
@@ -108,10 +109,30 @@ function resultCard(result,name){
   if(result.calculated_worksheet)actions.append(button('Calculated results',()=>run(()=>inspect(result.worksheet.id,'calculated'))));
   actions.append(button('Download Mathcad',()=>run(()=>download(result.worksheet))));
   if(result.open_worksheet)actions.append(button('Download Calcpad',()=>run(()=>download(result.open_worksheet))));
-  card.append(actions);const details=el('details');details.append(el('summary','File details'));
+  card.append(checkPanel(result),actions);const details=el('details');details.append(el('summary','File details'));
   if(result.validation)validation(details,result.validation,result.calculation);details.append(el('p',result.output,'path'));
   const more=el('div',undefined,'card-actions');more.append(button('View changes',()=>run(()=>inspectDiff(result.worksheet.id))),button('Download audit',()=>run(()=>download(result.audit))),button('Check file structure',()=>run(async()=>{result.validation=await api('/api/validate',{id:result.worksheet.id});notice('File structure checked. Native calculation requires Mathcad.');})));
   if(result.calculated_worksheet)more.append(button('Download results page',()=>run(()=>download(result.calculated_worksheet))));details.append(more);card.append(details);return card;
+}
+function ratioText(value){return value===null||value===undefined?'—':Number(value).toFixed(3);}
+function checkPanel(result){
+  // Outcomes are read by the server from the calculated CalcpadCE page; nothing is recalculated here.
+  const summary=result.check_summary,panel=el('section',undefined,'check-panel');panel.setAttribute('aria-label','Worksheet checks');
+  const head=el('div',undefined,'check-head');head.append(el('h4','Worksheet checks'));panel.append(head);
+  if(!summary){head.append(el('span','Not recorded','check-state none'));panel.append(el('p','This output was created before check results were recorded. Open Calculated results to review it.','check-note'));return panel;}
+  if(!summary.total){head.append(el('span','No checks found','check-state none'));panel.append(el('p','No rendered comparisons in the calculated page. Review the calculated results directly.','check-note'));return panel;}
+  head.append(el('span',summary.failed?`${summary.failed} failed`:`All ${summary.total} passed`,'check-state '+(summary.failed?'fail':'pass')));
+  const stats=el('dl',undefined,'check-stats');const stat=(label,value)=>{const cell=el('div');cell.append(el('dt',label),el('dd',value));stats.append(cell);};
+  stat('Governing D/C',summary.governing?ratioText(summary.governing.ratio):'—');stat('Governing check',summary.governing?.name||'No ratio form');stat('Passed',`${summary.passed} of ${summary.total}`);panel.append(stats);
+  const list=(rows)=>{const ul=el('ul',undefined,'check-list');for(const c of rows){const li=el('li',undefined,c.passed?'pass':'fail');li.append(el('span',c.passed?'Pass':'Fail','check-mark'),el('b',c.name),el('span',ratioText(c.ratio),'check-ratio'),el('code',c.expression,'check-expression'));li.title=c.substituted;ul.append(li);}return ul;};
+  if(result.checks){const failed=result.checks.filter(c=>!c.passed);if(failed.length)panel.append(list(failed));
+    if(result.checks.length){const all=el('details',undefined,'check-details');all.append(el('summary',`All ${result.checks.length} checks`),list(result.checks));panel.append(all);}}
+  else{
+    // Saved outputs carry the summary only; expressions and ratios are in the downloadable audit.
+    if(summary.failed_checks.length){const ul=el('ul',undefined,'check-list');for(const name of summary.failed_checks){const li=el('li',undefined,'fail');li.append(el('span','Fail','check-mark'),el('b',name));ul.append(li);}panel.append(ul);}
+    panel.append(el('p','Download the audit for every check expression and ratio.','check-note'));
+  }
+  panel.append(el('p','Conditions as rendered by CalcpadCE (1 = pass, 0 = fail). Not an engineering approval.','check-note'));return panel;
 }
 function markView(mode){viewerMode=mode;for(const name of ['report','template','worksheet','calculation','diff'])$('view-'+name).setAttribute('aria-current',String(name===mode));}
 function dialog(title,type,note){if(!$('inspector').open)viewerOpener=focusKey(document.activeElement)||lastAction;markView(null);$('preview-summary').textContent='About this preview';$('inspector-title').textContent=title;$('inspector-type').textContent=type;$('inspector-note').textContent=note;$('inspector-content').replaceChildren();$('inspector-content').className='';currentDocument=null;$('inspector-search').value='';$('inspector-search').hidden=false;document.body.classList.add('document-open');if(!$('inspector').open)$('inspector').show();}
@@ -126,6 +147,8 @@ for(const id of ['inspect-template','inspect-template-review'])$(id).addEventLis
 $('basis').addEventListener('change',()=>run(async()=>{for(const item of items.filter(i=>i.inspection))await refresh(item);notice('Local load source updated. Review the refreshed envelopes.');}));
 $('overrides').addEventListener('input',()=>{$('override-error').hidden=true;$('overrides').removeAttribute('aria-invalid');invalidate();render();});
 $('review-next').addEventListener('click',()=>setStep(2));
+async function downloadSummary(){const included=ready(),excluded=items.filter(i=>i.inspection&&!included.includes(i));const unselected=excluded.filter(i=>!i.selected.length).length,failed=excluded.length-unselected;const value=await api('/api/summary',{reports:included.map(i=>({id:i.id,cases:i.selected})),load_source:$('basis').value});const url=URL.createObjectURL(new Blob(['\ufeff'+value.csv],{type:'text/csv;charset=utf-8'}));const a=el('a');a.href=url;a.download=value.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);const plural=n=>n+' report'+(n===1?'':'s');notice(`Summary downloaded: ${plural(value.reports)}, ${value.rows} load cases.`+(unselected?` Not included: ${plural(unselected)} without a load case selection.`:'')+(failed?` Not included: ${plural(failed)} whose load refresh failed; see the report card.`:'')+(value.duplicates_skipped.length?` Identical duplicates skipped: ${value.duplicates_skipped.join(', ')}.`:''));}
+$('download-summary').addEventListener('click',()=>run(downloadSummary));
 $('compare-next').addEventListener('click', () => run(async () => {
   const pending = ready();
   let rejected = null;
@@ -171,6 +194,7 @@ $('convert-all').addEventListener('click', () => run(async () => {
   notice(`${result.ready} output${result.ready === 1 ? '' : 's'} created`
     + (result.failed ? ` · ${result.failed} failed` : '') + '.', result.failed > 0);
 }));
+
 for(const n of document.querySelectorAll('[data-step]'))n.addEventListener('click',()=>setStep(Number(n.dataset.step)));
 for(const n of document.querySelectorAll('[data-back]'))n.addEventListener('click',()=>setStep(Number(n.dataset.back)));
 for(const id of ['open-history','refresh-history'])$(id).addEventListener('click',()=>{if(session)run(history);});

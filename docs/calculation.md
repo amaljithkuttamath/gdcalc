@@ -8,11 +8,29 @@ The supported worksheet profile is a fixed-head compression-pile template. Geome
 
 ## What executes
 
-CalcpadCE is required for conversion. The adapter translates scalar real arithmetic, `min`/`max`/`abs`, powers/roots, `in`/`ft`/`kip`/`ksi`, comparisons (including chains), conditionals, early returns and string check messages. Mathcad zero comparisons adopt the other operand's units. Strings have distinct internal symbols and are never silently treated as numeric inputs. Other constructs fail explicitly.
+CalcpadCE is required for conversion. The adapter translates scalar real arithmetic, `min`/`max`/`abs`, powers/roots, `in`/`ft`/`kip`/`ksi`, comparisons (including chains), conditionals, programs (the last executed statement is the result; `return` exits early) and string check messages. Literals are emitted as plain decimals and negation is always parenthesized. Mathcad zero comparisons adopt the other operand's units. Strings have distinct internal symbols and are never silently treated as numeric inputs. Other constructs fail explicitly.
 
 These are limits of mcdxkit's current adapter, not the full CalcpadCE language. CalcpadCE executes the translated formulas; it does not execute `.mcdx` directly. The executable `.cpd` can be opened with CalcpadCE to edit and recalculate independently. The `.html` is a result snapshot.
 
 Native `.mcdx` files retain formulas and dependencies; stale result caches are removed. Open in Mathcad Prime and press **Ctrl+F5** to calculate there. Native opening, rendering and calculation remain unverified until tested in Prime. ZIP/XML validation does not establish native compatibility or engineering adequacy. A successful calculation can contain failing design checks; general code-compliance validation is not implemented. See the proposed [standards register](engineering-standards.md).
+
+## Check results
+
+After calculation, MCDXKit reads check outcomes from the published calculated `.html`; nothing is recalculated. CalcpadCE renders a comparison (`<`, `≤`, `>`, `≥`, `≡`, `≠`, or a chain joined by `and`) as `name = symbolic = substituted = 1` (condition holds) or `= 0` (condition does not hold). Each rendered comparison becomes one entry in the audit's `checks` list:
+
+| Field | Meaning |
+| --- | --- |
+| `name` | Defined variable, or the preceding label (`Expression`) for an evaluated comparison |
+| `expression` / `substituted` | Symbolic and numeric forms as rendered |
+| `result`, `passed` | The printed 1/0 and `passed = result == 1` |
+| `ratio`, `demand`, `capacity`, `unit` | Demand/capacity, only when both substituted operands are single non-negative numbers with identical unit text and a positive capacity; otherwise `null` |
+| `region_id`, `line` | Source Mathcad region and calculated-page line |
+
+For `≤`/`<` the left operand is the demand; for `≥`/`>` the right operand is. No ratio is derived for compound operands (`0.75 · 200 kip`), different units (`in` versus `ft`), chains or equality. `check_summary` records totals, failed check names and the governing (largest) ratio. When the page contains no rendered comparisons the status is `no checks found`; MCDXKit does not infer checks from other values.
+
+Limits: comparisons hidden inside conditionals and string messages such as `OK`/`NG` are not interpreted, and a displayed stored check variable (`check = 1`) is not a separate check. "Pass" means the rendered condition holds; write checks as conditions that must hold. Outputs created before this feature report checks as not recorded. Saved outputs in the browser show the summary only; the full list is in the convert response and the `.audit.json`. Check outcomes are not engineering approval.
+
+Detection depends on how CalcpadCE renders results at the pinned revision (`calcpad.REVISION`): the `eq` span, ` = ` separators, operator glyphs and the final `1`/`0`. A test pins the exact rendered markup from the real engine, so a rendering change after an engine upgrade fails loudly instead of silently reporting no checks. A future translator could emit check metadata directly; that is not implemented.
 
 ## Original file and results
 

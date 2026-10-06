@@ -11,6 +11,7 @@ Tests should demonstrate externally meaningful behavior. Use independently known
 | Template/package generation | Expected native expression dependencies, original-source preservation, stale-cache removal, ambiguous/missing definitions, unsupported layout and invalid ZIP/XML relationships |
 | Calculation translation | Independent numerical expectations with units/tolerances; each new construct and unsupported neighbor; dimensional/type mismatch; hidden errors; no stale or partial results published |
 | Engine execution | Real calculator integration for supported operations; timeout/error/incomplete output handling; mocks only for hard-to-produce boundary failures and never as the sole calculation proof |
+| Check extraction | Real-engine comparisons with independent expected ratios; failing and passing outcomes; no-checks pages; compound/mismatched operands yield no ratio; older audits reported as unrecorded |
 | Artifact publication | Existing-file collisions, failure rollback, source preservation, complete four-file bundle and audit-last semantics |
 | Batch/resume | Mixed successful/failed inputs, changed source/template/settings, corrupted/missing artifacts, duplicate basenames and concurrency/locking |
 | HTTP/auth/storage | Real loopback requests, unauthenticated access, login/session behavior, CSRF/origin/Host checks, traversal/file ID restrictions, upload limits and error statuses |
@@ -33,6 +34,11 @@ python -m unittest discover -s tests -p 'test_server.py' -v
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
 node --test tests/*.test.cjs
+
+# Lint and type checks (pinned in requirements-dev.txt):
+python -m pip install -r requirements-dev.txt
+ruff check src tests scripts
+mypy
 
 # Distribution checks:
 python -m pip install build

@@ -18,7 +18,7 @@ def case_ids(value):
             else:result.append(int(word))
         if any(i<1 for i in result) or len(set(result))!=len(result):raise ValueError
         return result
-    except ValueError:raise argparse.ArgumentTypeError('Use unique positive cases, e.g. 1-10 or 1,3,7')
+    except ValueError:raise argparse.ArgumentTypeError('Use unique positive cases, e.g. 1-10 or 1,3,7') from None
 
 
 def default_template():
@@ -62,6 +62,7 @@ def main(argv=None,prog=None):
                           'envelope':result['envelope'],'open_worksheet':result['open_worksheet'],
                           'calculated_worksheet':result['calculated_worksheet'],
                           'calculation':{k:result['calculation'][k] for k in ('engine','calculated','translated_math_regions')},
+                          'check_summary':result['check_summary'],
                           'native_execution_verified':False},indent=2))
         return 0
     except (ValueError,OSError,KeyError,IndexError,mcdx.E.XMLSyntaxError,mcdx.zipfile.BadZipFile) as exc:

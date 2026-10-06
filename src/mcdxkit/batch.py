@@ -1,5 +1,6 @@
 """Resumable, bounded parallel conversion pipeline around the same core engine."""
 import argparse
+import csv
 import hashlib
 import json
 import multiprocessing
@@ -12,7 +13,7 @@ from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import engine, calcpad
+from . import engine, calcpad, checks
 from .generate import case_ids, default_template
 
 
@@ -91,11 +92,16 @@ def _convert_job(job):
             calculation = evidence.get('calculation', {})
             if not calculation.get('calculated') or calculation.get('revision') != calcpad.REVISION:
                 raise ValueError('Saved output has no verified CalcpadCE calculation')
-            for suffix, key in (('.cpd', 'source_sha256'), ('.html', 'html_sha256')):
-                artifact = output.with_suffix(suffix)
-                if not artifact.is_file() or digest(artifact) != calculation.get(key):
-                    raise ValueError('Calculated worksheet failed artifact hash checks')
-            row.update(status='skipped', sha256=evidence['sha256'], audit=str(audit))
+            artifact = output.with_suffix('.cpd')
+            if not artifact.is_file() or digest(artifact) != calculation.get('source_sha256'):
+                raise ValueError('Calculated worksheet failed artifact hash checks')
+            # Hash and parse the same bytes so check outcomes come only from the verified page.
+            rendered = output.with_suffix('.html')
+            page = rendered.read_bytes() if rendered.is_file() else None
+            if page is None or hashlib.sha256(page).hexdigest() != calculation.get('html_sha256'):
+                raise ValueError('Calculated worksheet failed artifact hash checks')
+            row.update(status='skipped', sha256=evidence['sha256'], audit=str(audit),
+                       check_summary=resumed_checks(page, calculation.get('region_lines')))
         else:
             if Path(job['source']).stat().st_size > 16 * 1024 * 1024:
                 raise ValueError('Raw report exceeds 16 MiB')
@@ -118,7 +124,7 @@ def _convert_job(job):
                     json.dump(identity, stream, indent=2)
             result = engine.convert(snapshots[0][1], snapshots[1][1], output, **job['settings'])
             row.update(status='succeeded', sha256=result['sha256'], audit=str(audit),
-                       cases=result['cases'], envelope=result['envelope'])
+                       cases=result['cases'], envelope=result['envelope'], check_summary=result['check_summary'])
     except Exception as exc:
         row.update(status='failed', error=f'{type(exc).__name__}: {exc}')
     if row.get('status') in ('succeeded', 'skipped'):
@@ -128,9 +134,95 @@ def _convert_job(job):
     return row
 
 
+def resumed_checks(page, region_lines):
+    """Check summary re-read from a verified page; None (not recorded) without region lines."""
+    if not isinstance(region_lines, dict) or not all(type(v) is int for v in region_lines.values()):
+        return None
+    return checks.extract(page.decode('utf-8'), region_lines)[1]
+
+
+CHECK_COLUMNS = ('source', 'status', 'checks', 'passed', 'failed', 'governing_dc', 'governing_check',
+                 'failed_checks', 'note')
+
+
+def source_label(source, base=None):
+    """Report path relative to the batch input root, so equal basenames stay distinct."""
+    path = Path(source)
+    if base is not None and path.is_relative_to(base):
+        return path.relative_to(base).as_posix()
+    return path.as_posix()
+
+
+def input_root(inputs):
+    """Deepest folder containing every input; files count by their parent folder."""
+    folders = [str(p if p.is_dir() else p.parent) for p in (Path(i).resolve() for i in inputs)]
+    try:
+        return Path(os.path.commonpath(folders))
+    except ValueError:  # e.g. inputs on different Windows drives
+        return None
+
+
+def check_row(result, base=None):
+    """One table row per report; outcomes come only from validated check summaries."""
+    row = dict.fromkeys(CHECK_COLUMNS, '')
+    row.update(source=source_label(result['source'], base), status=result['status'])
+    summary = result.get('check_summary')
+    if result['status'] == 'failed':
+        row['note'] = 'conversion failed'
+    elif not checks.valid_summary(summary):
+        row['note'] = 'checks not recorded for this output'
+    elif not summary.get('total'):
+        row['note'] = 'no checks found'
+    else:
+        governing = summary.get('governing')
+        row.update(checks=summary['total'], passed=summary['passed'], failed=summary['failed'],
+                   failed_checks='; '.join(summary.get('failed_checks', [])),
+                   governing_dc=f"{governing['ratio']:.3f}" if governing else '',
+                   governing_check=governing['name'] if governing else '',
+                   note='FAILURES' if summary['failed'] else 'all checks passed')
+    return row
+
+
+def _cell(value):
+    # Worksheet variable names reach this table; stop spreadsheet formula injection.
+    value = str(value)
+    return "'" + value if value[:1] in ('=', '+', '-', '@', '\t', '\r') else value
+
+
+def write_check_table(root, rows):
+    """Write a new timestamped CSV; earlier tables are never overwritten."""
+    stamp = time.strftime('%Y%m%dT%H%M%S')
+    for attempt in range(100):
+        path = root / (f'check-summary-{stamp}' + (f'-{attempt}' if attempt else '') + '.csv')
+        try:
+            stream = path.open('x', newline='', encoding='utf-8')
+        except FileExistsError:
+            continue
+        with stream:
+            writer = csv.DictWriter(stream, fieldnames=CHECK_COLUMNS)
+            writer.writeheader()
+            writer.writerows({k: _cell(v) for k, v in row.items()} for row in rows)
+        return path
+    raise ValueError('Could not create a new check summary table')
+
+
+def format_check_table(rows):
+    """Plain-text per-report table: governing D/C and any failed checks."""
+    columns = ('source', 'status', 'checks', 'failed', 'governing_dc', 'governing_check', 'note')
+    widths = {c: max([len(c)] + [len(str(r[c])) for r in rows]) for c in columns}
+    lines = ['  '.join(c.upper().ljust(widths[c]) for c in columns)]
+    lines += ['  '.join(str(r[c]).ljust(widths[c]) for c in columns) for r in rows]
+    lines += [f"{r['source']}: failed {r['failed_checks']}" for r in rows if r['failed_checks']]
+    return '\n'.join(line.rstrip() for line in lines)
+
+
 def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, resume=False,
-                  cases=None, load_source='effects', overrides=None, progress=None):
-    """Convert files independently; append durable records and verify outputs on resume."""
+                  cases=None, load_source='effects', overrides=None, progress=None, check_rows=None):
+    """Convert files independently; append durable records and verify outputs on resume.
+
+    The per-report check table is written to a new CSV; pass a list as
+    ``check_rows`` to also receive its rows.
+    """
     if not 1 <= workers <= 32:
         raise ValueError('workers must be between 1 and 32')
     template = Path(template).resolve(); root = Path(output_dir).resolve()
@@ -139,19 +231,33 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
     if template.is_relative_to(root):
         raise ValueError('Keep the reference template outside the batch output directory.')
     files = discover(inputs, root, recursive=recursive)
+    base = input_root(inputs)
     if not files:
         raise ValueError('No .gp11t or .txt reports found. Use --recursive for subfolders.')
     root.mkdir(parents=True, exist_ok=True)
     manifest = root / 'batch-manifest.jsonl'
-    settings = {'cases': cases, 'load_source': load_source, 'overrides': overrides or {}}
+    # Normalise once (tuples become lists) so identity matches the JSON saved in job.json.
+    settings = json.loads(json.dumps({'cases': cases, 'load_source': load_source, 'overrides': overrides or {}}, allow_nan=False))
     template_hash = digest(template)
     counts = {'total': len(files), 'succeeded': 0, 'skipped': 0, 'failed': 0,
               'manifest': str(manifest), 'workers': workers, 'calculation_engine': 'CalcpadCE', 'native_execution_verified': False}
     started = time.monotonic()
+    table = []
     with manifest_lock(root), manifest.open('a', encoding='utf-8') as log:
         def record(result):
             result['recorded_at'] = time.time()
-            log.write(json.dumps(result, allow_nan=False) + '\n'); log.flush(); os.fsync(log.fileno())
+            try:
+                line = json.dumps(result, allow_nan=False)
+            except (TypeError, ValueError):
+                # Never drop the manifest line over an unserializable check summary.
+                result['check_summary'] = None
+                line = json.dumps(result, allow_nan=False)
+            log.write(line + '\n'); log.flush(); os.fsync(log.fileno())
+            # The durable manifest line is written first; a bad summary only degrades the table row.
+            try:
+                table.append(check_row(result, base))
+            except Exception:
+                table.append(check_row({**result, 'check_summary': None}, base))
             counts[result['status']] += 1
             if progress:
                 progress(result)
@@ -197,6 +303,13 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
                         except Exception as exc:
                             result = {**job, 'status': 'failed', 'error': str(exc), 'native_execution_verified': False}
                         record(result)
+        table.sort(key=lambda r: tuple(str(r[c]) for c in CHECK_COLUMNS))
+        if check_rows is not None:
+            check_rows.extend(table)
+        counts['checks'] = {'table': str(write_check_table(root, table)),
+                            'reports_with_failures': sum(1 for r in table if r['failed'] not in ('', 0)),
+                            'reports_without_checks': sum(1 for r in table if r['note'] == 'no checks found'),
+                            'reports_not_recorded': sum(1 for r in table if r['note'] == 'checks not recorded for this output')}
     counts['elapsed_seconds'] = round(time.monotonic() - started, 3)
     return counts
 
@@ -224,9 +337,13 @@ def main(argv=None):
         def progress(row):
             if not args.quiet:
                 print(json.dumps({'source': row['source'], 'status': row['status'], 'error': row.get('error')}), file=sys.stderr, flush=True)
+        rows = []
         summary = convert_batch(args.inputs, args.template, args.output_dir, workers=args.workers,
                                 recursive=args.recursive, resume=args.resume, cases=args.cases,
-                                load_source=args.load_source, overrides=overrides, progress=progress)
+                                load_source=args.load_source, overrides=overrides, progress=progress,
+                                check_rows=rows)
+        print(format_check_table(rows), file=sys.stderr)
+        print('Check summary table: ' + summary['checks']['table'], file=sys.stderr, flush=True)
         print(json.dumps(summary, indent=2))
         return 1 if summary['failed'] else 0
     except (ValueError, OSError) as exc:

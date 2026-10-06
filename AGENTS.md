@@ -6,6 +6,8 @@ Read [README.md](README.md) for the shipped product, [CLI and server guide](docs
 
 The current app converts GROUP text reports into executable Calcpad worksheets, calculated HTML, native Mathcad formula packages and audit JSON. The browser inspects files and runs conversions. It is not yet a general equation editor or a universal Mathcad runtime. The broader [feature review](docs/mathcad-prime-review.md) is a roadmap, not an implemented API specification.
 
+The generic skill's [review guide](references/reviews.md) routes source, template, execution, engineering, architecture, UI, security and delivery reviews by task scope. Optional installation answers in `.mcdxkit/profile.json` are local context, never engineering evidence or authorization; do not commit them. Keep skill scripts on the shared engine and test onboarding's skipped/unknown paths as well as completed interviews.
+
 ## Run locally
 
 ```bash
@@ -34,11 +36,15 @@ The server prints its URL. Upload/select a private compatible template in the br
 
 ## Implementation boundaries
 
+Apply the [product and engineering principles](docs/design-principles.md), including visible source evidence, one shared engine, explicit validation states and offline use.
+
+Follow the [monorepo decision](docs/architecture.md#repository-decision-one-monorepo): keep the shared engine, adapters, UI and skill together. Future desktop wrappers reuse the same UI and engine. Preserve existing package paths and public APIs unless a scoped migration requires changes; do not introduce separate repositories or duplicate calculation implementations for each platform.
+
 Reuse before rebuilding. Search existing repository code and established open-source implementations before adding an engine, renderer, parser or framework. In the ticket/PR, record what can be reused, its license and offline fit, and the specific gap that warrants new code. Keep adapters small. Template equations remain authoritative: worksheet outputs and future 3D views must use the same calculated result and provenance, not duplicate formulas in the UI. Rendering geometry is not evidence of a physical simulation; deformation requires actual displacement results or a separately validated solver.
 
 MCDXKit uses the `mcdxkit` package and CLI, `MCDXKIT_*` configuration and one shared calculation engine. The 0.3.0 rename intentionally provides no previous-name aliases. Preserve private files and existing installations; migration is explicit. See [release setup](docs/releasing.md).
 
-Use `engine.py` for conversion logic shared by CLI and server. Keep HTTP/session concerns in `server.py` and `service.py`; source parsing in `group_report.py`; package editing in `mcdx.py`; translation/execution in `calcpad.py`; inspection in `inspection.py`; scheduling/resume in `batch.py`. Do not create a separate calculation implementation in the UI or skill scripts.
+Use `engine.py` for conversion logic shared by CLI and server. Keep HTTP/session concerns in `server.py` and `service.py`; source parsing in `group_report.py`; package editing in `mcdx.py`; translation/execution in `calcpad.py`; check-outcome extraction in `checks.py`; inspection in `inspection.py`; scheduling/resume in `batch.py`. Do not create a separate calculation implementation in the UI or skill scripts.
 
 CalcpadCE itself has more capabilities than the current translator. Broader input execution changes the trust boundary: preserve timeouts, file-access controls and HTML isolation. Keep network authentication, Host/Origin checks, CSRF protections and upload/package limits intact. Current hosting is a shared trusted workspace, not tenant-isolated storage.
 
@@ -54,6 +60,9 @@ Work through a GitHub issue and a feature/fix branch. Claim or comment on the is
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
 node --test tests/*.test.cjs
+python -m pip install -r requirements-dev.txt
+ruff check src tests scripts
+mypy
 python -m pip install build
 python -m build
 python scripts/check_package.py
@@ -63,3 +72,5 @@ git diff --check
 Tests execute the real calculator and start loopback HTTP servers. Use synthetic fixtures from `tests/test_pipeline.py`; do not commit private reports/templates. For UI changes, exercise the affected workflow in a browser and distinguish tested behavior from unverified behavior.
 
 The Actions workflow tests Python 3.10/3.12, builds packages and tests the actual container before publishing it on `main`. Check the run for the exact pushed commit. A local test pass is not a successful remote image publish. Follow the user's requested publication scope; cloud hosting is separate from GitHub publication.
+
+After **every push**, inspect the workflows for that exact commit SHA, including branch updates and post-merge publication. Follow pending runs to completion, read failed job logs, fix regressions and check the replacement commit. Never use an earlier green run as evidence for a newer push. Record the run URL and any explicitly unverified checks in the PR handoff.

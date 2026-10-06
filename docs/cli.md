@@ -48,9 +48,9 @@ Four files are published together, with audit JSON written last as the completio
 | `.mcdx` | Native input/formula package; Prime execution unverified |
 | `.cpd` | Executable translated Calcpad worksheet |
 | `.html` | Fresh Calcpad result snapshot |
-| `.audit.json` | Source selection, hashes, assumptions and calculation evidence |
+| `.audit.json` | Source selection, hashes, assumptions, calculation evidence and [check results](calculation.md#check-results) |
 
-Existing artifacts are never overwritten. Choose a new basename for a new run. A successfully calculated worksheet may contain failing design checks.
+Existing artifacts are never overwritten. Choose a new basename for a new run. A successfully calculated worksheet may contain failing design checks; `convert` prints `check_summary` (failed checks and governing D/C, or `no checks found`).
 
 ## Validate a package
 
@@ -74,7 +74,29 @@ mcdxkit batch /path/to/reports --recursive \
 
 Explicit files and multiple folders are also accepted. Options apply to every input in the invocation: group compatible reports/templates together. Keep source/template files outside the output directory. Worker count is 1–32; default is up to four. Progress is JSON Lines on stderr; stdout is the summary. `--quiet` suppresses progress.
 
+After the run, a per-report check table (status, check count, failures, governing D/C and check) is printed to stderr and written to a new `check-summary-<timestamp>.csv` in the output directory; earlier tables are kept. Reports are identified by their path relative to the common input folder, and rows are sorted. The stdout summary's `checks` object holds the table path and counts (`reports_with_failures`, `reports_without_checks`, `reports_not_recorded`), not the rows. On resume, outcomes are re-read from the hash-verified `.html`, not from the audit; outputs whose audit lacks calculation region lines show `checks not recorded for this output`. Failing checks do not change the exit code.
+
 Exit codes: 0 = all succeeded or verified/skipped; 1 = one or more jobs failed; 2 = invalid setup. Inspect `batch-manifest.jsonl` for individual failures. Resume validates saved identity, hashes and calculation evidence; corrupted outputs are not silently reused. Do not run two batches writing to the same output directory.
+
+## Summary CSV across reports
+
+```bash
+mcdxkit summary /path/to/a.gp11t /path/to/b.gp11t -o /path/to/new-results/summary.csv
+mcdxkit summary /path/to/batch-results -o /path/to/new-results/summary.csv
+```
+
+Writes one CSV row per report and final-summary load case. Report inputs use the same parser and default case selection as `inspect`; `--cases` and `--load-source` apply to every report input. A directory is treated as MCDXKit output (batch or browser): each `.audit.json` is summarized from its `_source` report snapshot after checking the audited SHA-256, using the cases and load basis recorded in that audit. `--cases`/`--load-source` are rejected with a directory, even `--load-source effects`. The snapshot hash is checked before the snapshot is parsed; a symlinked audit, job folder or `_source` folder is rejected. A directory without audits, a missing or changed snapshot, an unresolved case selection or an unreadable report fails the whole command and writes nothing. The output must end in `.csv`, is written as UTF-8 with a byte-order mark (so Excel shows non-ASCII names) and is never overwritten. Overlapping inputs are skipped, not repeated, and listed in `duplicates_skipped` in the JSON result: the same resolved file twice (for example a directory and its subfolder), or a second input with identical source bytes, load basis and selected cases. The same report with a different selection is kept. The browser applies the same rule and requires at least two distinct reports.
+
+| Column | Meaning |
+| --- | --- |
+| `report`, `origin` | Report filename; the input path or audit path (relative to the directory) it came from |
+| `source_sha256` | SHA-256 of the report bytes |
+| `load_source` | `effects` or `reactions` basis for Vy/Vz/My/Mz |
+| `case_id`, `case_name`, `selected` | Every final-summary case; `selected` marks the cases used for the envelope |
+| `P_kip`, `Vy_kip`, `Vz_kip`, `My_kip_in`, `Mz_kip_in` | That case's maximum compression and maximum component magnitudes over all piles |
+| `governs` | Measures for which this selected case is the report's maximum (ties list every case) |
+
+Component maxima may come from different piles and cases; they are not concurrent loads. Excluded (for example service) cases are listed but never govern. Report and case names that begin with `=`, `+`, `-`, `@` are prefixed with `'` so spreadsheets do not evaluate them. In the browser, **Download summary** on the Inputs step appears when two or more reports are loaded and includes every report with a resolved case selection, using each report's selected cases and the current load basis.
 
 ## Start and stop the browser
 
@@ -86,7 +108,7 @@ mcdxkit serve --no-open --port 8765 \
 
 Open the printed URL. Omit `--template` to select it in the browser; omit `--no-open` to launch the browser automatically. `--port 0` chooses an available port. `GET /healthz` reports service health. Ctrl+C stops the server while retaining completed outputs.
 
-Workflow: Files → Inputs → Changes → Outputs. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
+Workflow: Files → Inputs → Changes → Outputs. Each output card shows a worksheet-checks panel: failed count, governing D/C and the failing conditions, with all checks behind a disclosure. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
 
 ## Environment variables
 
@@ -117,5 +139,6 @@ For a host reachable over the network, follow [deployment instructions](../deplo
 | Pile ID beyond template capacity | Review actual geometry before an explicit override |
 | Unknown case names | Supply reviewed `--cases` |
 | Output exists | Choose another basename, or verified batch resume |
+| Summary file exists | Choose a new `-o` filename |
 | Port occupied | Use `--port 0` or another port |
 | Hosted login/origin error | Check exact HTTPS origin, secret and proxy Host forwarding; do not disable protections |
