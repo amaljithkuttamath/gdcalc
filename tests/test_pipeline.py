@@ -9,7 +9,7 @@ from pathlib import Path
 from lxml import etree as E
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-from gdcalc import group_report, mcdx
+from mcdxkit import group_report, mcdx
 
 
 def report():

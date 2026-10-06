@@ -20,7 +20,7 @@ body:
     id: environment
     attributes:
       label: Version and environment
-      description: gdcalc version/commit, OS, Python, calculator revision, browser or image tag.
+      description: mcdxkit version/commit, OS, Python, calculator revision, browser or image tag.
     validations:
       required: true
   - type: textarea

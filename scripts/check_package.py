@@ -6,14 +6,14 @@ from zipfile import ZipFile
 
 
 def main():
-    wheels = list(Path('dist').glob('gdcalc-*.whl'))
+    wheels = list(Path('dist').glob('mcdxkit-*.whl'))
     if len(wheels) != 1:
-        raise SystemExit('Expected exactly one gdcalc wheel in dist/')
+        raise SystemExit('Expected exactly one mcdxkit wheel in dist/')
     required = {
-        'gdcalc/web/index.html', 'gdcalc/web/app.js', 'gdcalc/web/style.css',
-        'gdcalc/web/fonts/plex-regular.ttf', 'gdcalc/web/fonts/plex-medium.ttf',
-        'gdcalc/web/fonts/plex-semibold.ttf', 'gdcalc/web/fonts/OFL.txt',
-        'gdcalc/calcpad_bridge/Program.cs', 'gdcalc/calcpad_bridge/Bridge.csproj',
+        'mcdxkit/web/index.html', 'mcdxkit/web/app.js', 'mcdxkit/web/style.css',
+        'mcdxkit/web/fonts/plex-regular.ttf', 'mcdxkit/web/fonts/plex-medium.ttf',
+        'mcdxkit/web/fonts/plex-semibold.ttf', 'mcdxkit/web/fonts/OFL.txt',
+        'mcdxkit/calcpad_bridge/Program.cs', 'mcdxkit/calcpad_bridge/Bridge.csproj',
     }
     with ZipFile(wheels[0]) as wheel:
         metadata_path = next(name for name in wheel.namelist() if name.endswith('.dist-info/METADATA'))

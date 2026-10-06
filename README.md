@@ -1,13 +1,13 @@
-# gdcalc
+# MCDXKit
 
-**Raw pile loads → calculated engineering worksheets.**
+**Open-source tools for Mathcad workflows.**
 
-[![PyPI](https://img.shields.io/pypi/v/gdcalc?color=2563eb)](https://pypi.org/project/gdcalc/)
-[![CI](https://github.com/amaljithkuttamath/gdcalc/actions/workflows/test.yml/badge.svg)](https://github.com/amaljithkuttamath/gdcalc/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/mcdxkit?color=2563eb)](https://pypi.org/project/mcdxkit/)
+[![CI](https://github.com/amaljithkuttamath/mcdxkit/actions/workflows/test.yml/badge.svg)](https://github.com/amaljithkuttamath/mcdxkit/actions/workflows/test.yml)
 
 Convert ENSOFT GROUP reports into executable Calcpad worksheets, calculated results and native Mathcad formula packages. One engine powers the CLI, Python SDK and local browser.
 
-[Documentation](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/README.md) · [Python SDK](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/sdk.md) · [Agent skill](https://github.com/amaljithkuttamath/gdcalc/blob/main/SKILL.md) · [Contributing](https://github.com/amaljithkuttamath/gdcalc/blob/main/CONTRIBUTING.md)
+[Documentation](https://github.com/amaljithkuttamath/mcdxkit/blob/main/docs/README.md) · [Python SDK](https://github.com/amaljithkuttamath/mcdxkit/blob/main/docs/sdk.md) · [Agent skill](https://github.com/amaljithkuttamath/mcdxkit/blob/main/SKILL.md) · [Contributing](https://github.com/amaljithkuttamath/mcdxkit/blob/main/CONTRIBUTING.md)
 
 - **Calculate from source.** Read final local-load summaries and execute supported equations with CalcpadCE.
 - **Inspect the work.** Open source files, review input changes and view fresh results in the browser.
@@ -15,14 +15,14 @@ Convert ENSOFT GROUP reports into executable Calcpad worksheets, calculated resu
 
 ## Quickstart
 
-Requires Python 3.10+. The one-time calculator build needs Git and the .NET 10 SDK. Bring a [compatible private template](https://github.com/amaljithkuttamath/gdcalc/blob/main/references/template-contract.md).
+Requires Python 3.10+. The one-time calculator build needs Git and the .NET 10 SDK. Bring a [compatible private template](https://github.com/amaljithkuttamath/mcdxkit/blob/main/references/template-contract.md).
 
 ```bash
 # In your Python environment
-pip install gdcalc
-gdcalc setup-engine
+pip install mcdxkit
+mcdxkit setup-engine
 
-gdcalc convert report.gp11t --template reference.mcdx \
+mcdxkit convert report.gp11t --template reference.mcdx \
   --output results/design.mcdx
 ```
 
@@ -31,29 +31,29 @@ Each conversion produces **`.cpd`** (executable worksheet), **`.html`** (calcula
 ## Browser or batch
 
 ```bash
-gdcalc serve
+mcdxkit serve
 
-gdcalc batch ./reports --recursive --template reference.mcdx \
+mcdxkit batch ./reports --recursive --template reference.mcdx \
   --output-dir ./results --workers 4 --resume
 ```
 
-The browser guides **Files → Inputs → Changes → Outputs**. Select your report and template, inspect the source, then calculate. [CLI guide](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/cli.md) · [Docker deployment](https://github.com/amaljithkuttamath/gdcalc/blob/main/deploy/README.md)
+The browser guides **Files → Inputs → Changes → Outputs**. Select your report and template, inspect the source, then calculate. [CLI guide](https://github.com/amaljithkuttamath/mcdxkit/blob/main/docs/cli.md) · [Docker deployment](https://github.com/amaljithkuttamath/mcdxkit/blob/main/deploy/README.md)
 
 ## Python SDK
 
 ```python
-from gdcalc.engine import convert
+from mcdxkit.engine import convert
 
 result = convert("report.gp11t", "reference.mcdx", "results/design.mcdx")
 print(result["calculated_worksheet"])
 ```
 
-Use the same engine from scripts, jobs or agents. See the [SDK contract](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/sdk.md) and [portable skill setup](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/agent-integration.md).
+Use the same engine from scripts, jobs or agents. See the [SDK contract](https://github.com/amaljithkuttamath/mcdxkit/blob/main/docs/sdk.md) and [portable skill setup](https://github.com/amaljithkuttamath/mcdxkit/blob/main/docs/agent-integration.md).
 
 ## Current scope
 
-Supports GROUP `.gp11t`/text reports in kip/in and the fixed-head compression-pile template profile. CalcpadCE executes translated formulas; **Prime-native execution remains unverified**. Unsupported equations fail explicitly. Private engineering files stay out of the distribution. [Calculation and compatibility details](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/calculation.md)
+Supports GROUP `.gp11t`/text reports in kip/in and the fixed-head compression-pile template profile. CalcpadCE executes translated formulas; **Prime-native execution remains unverified**. Unsupported equations fail explicitly. Private engineering files stay out of the distribution. [Calculation and compatibility details](https://github.com/amaljithkuttamath/mcdxkit/blob/main/docs/calculation.md)
 
 ## Contribute
 
-Pick an [issue](https://github.com/amaljithkuttamath/gdcalc/issues), work on a branch, add meaningful tests and open a PR. [Contribution guide](https://github.com/amaljithkuttamath/gdcalc/blob/main/CONTRIBUTING.md) · [Architecture](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/architecture.md) · [Coding-agent guide](https://github.com/amaljithkuttamath/gdcalc/blob/main/AGENTS.md)
+Pick an [issue](https://github.com/amaljithkuttamath/mcdxkit/issues), work on a branch, add meaningful tests and open a PR. [Contribution guide](https://github.com/amaljithkuttamath/mcdxkit/blob/main/CONTRIBUTING.md) · [Architecture](https://github.com/amaljithkuttamath/mcdxkit/blob/main/docs/architecture.md) · [Coding-agent guide](https://github.com/amaljithkuttamath/mcdxkit/blob/main/AGENTS.md)
