@@ -29,6 +29,7 @@ The server prints its URL. Upload/select a private compatible template in the br
 - Unsupported expressions must be explicit failures. Do not silently substitute zero, cached values or another engine's semantics.
 - Distinguish package validation, Calcpad calculation, Prime-native verification and engineering review. `native_execution_verified` stays false unless there is real native execution evidence.
 - Independent component extrema are not concurrent load combinations. Keep governing case/pile provenance visible.
+- Do not invent universal input limits or code factors. Record applicable project/code/catalog sources and editions. The proposed [engineering standards register](docs/engineering-standards.md) is not implemented compliance validation.
 
 ## Implementation boundaries
 
@@ -39,6 +40,8 @@ CalcpadCE itself has more capabilities than the current translator. Broader inpu
 If adding browser assets, update both `pyproject.toml` package data and `.dockerignore`; add required distribution assets to `scripts/check_package.py` when appropriate. If adding CLI flags, update `--help`, docs and applicable tests. Keep the CLI version and project version consistent when changing a release version.
 
 ## Verification and publishing
+
+Follow [repository standards](docs/standards.md) and the [testing contract](docs/testing.md). For each behavioral change, add or update meaningful regression tests and relevant negative cases from that matrix. Use independent expected values and real-engine integration where calculation changes. Record exactly what ran, what passed and what remains unverified; never claim a planned or mocked check as execution evidence. Required checks must pass on the current PR head.
 
 Work through a GitHub issue and a feature/fix branch. Claim or comment on the issue before implementation to avoid duplicate work. Use a branch such as `feat/123-short-description`, `fix/123-short-description` or `chore/123-short-description`. Do not commit new work directly to `main`. Keep one coherent change per pull request, link the ticket with `Closes #123`, and provide acceptance evidence. Use a draft PR for incomplete work; only request merge when required checks pass. Maintainers merge through GitHub, then publication runs from `main`. See [contribution workflow](CONTRIBUTING.md#tickets-branches-and-review).
 

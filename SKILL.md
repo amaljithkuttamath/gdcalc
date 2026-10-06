@@ -9,7 +9,7 @@ Generate executable CalcpadCE and Mathcad worksheets from the same inputs and eq
 
 ## Run
 
-Use Python 3.10+ with the dependencies in `requirements.txt`. In Codex desktop, prefer the Python runtime returned by `load_workspace_dependencies`; it may already include the dependency. Resolve script paths relative to this skill.
+Use a shell and Python 3.10+ with the repository dependencies. This skill follows the Agent Skills format and does not require a particular agent, model, SDK or proprietary tool. Resolve scripts and references relative to this skill directory, not the agent's working directory. See [docs/cli.md](docs/cli.md) for installation and server operation.
 
 ```bash
 # One-time calculator setup; requires Git and the .NET 10 SDK.
@@ -22,9 +22,11 @@ gdcalc validate /path/to/outputs/pile-design.mcdx
 gdcalc serve --template /path/to/reference.mcdx --output-dir /path/to/outputs
 ```
 
-If the command is not installed, use `python3 scripts/cli.py` in place of `gdcalc`, or install this repository with `uv tool install .`. Run `gdcalc convert --help` for all flags.
+If the command is not installed, install this repository with `uv tool install /path/to/gdcalc`, or use `python3 /path/to/gdcalc/scripts/cli.py` after installing dependencies in an isolated environment. Run `gdcalc convert --help` for all flags. Use the agent host's normal shell/file tools; no Codex-specific tools are needed.
 
-An installed private template at `assets/local/reference.mcdx` is used when `--template` is omitted. Public distribution excludes engineering documents. Preserve supplied sources and create new output paths.
+Prefer an explicit `--template` or `GDCALC_TEMPLATE`. Generic user configuration supports `~/.config/gdcalc/reference.mcdx` (or `$XDG_CONFIG_HOME/gdcalc/reference.mcdx`); a source checkout also supports `assets/local/reference.mcdx`. See the CLI guide for fallback order. Public distribution excludes engineering documents. Preserve supplied sources and create new output paths.
+
+For changes to the software itself, read [AGENTS.md](AGENTS.md), follow the ticket/branch/PR workflow and use the repository's testing standards. Conversion permission does not imply permission to publish files or modify a live deployment.
 
 ## Bulk conversion
 

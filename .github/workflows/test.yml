@@ -57,9 +57,10 @@ jobs:
       - run: node --check src/gdcalc/web/app.js
       - name: Build and inspect distribution
         run: |
-          python -m pip install build
+          python -m pip install build twine
           python -m build
           python scripts/check_package.py
+          python -m twine check --strict dist/*
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: gdcalc-python-${{ github.sha }}

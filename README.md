@@ -2,7 +2,7 @@
 
 [![Test, package and publish](https://github.com/amaljithkuttamath/gdcalc/actions/workflows/test.yml/badge.svg)](https://github.com/amaljithkuttamath/gdcalc/actions/workflows/test.yml)
 
-A CLI-first pipeline that turns ENSOFT GROUP raw reports into executable engineering worksheets. **CalcpadCE is the required open-source calculation engine** for both CLI and browser workflows. Every conversion also exports native Mathcad Prime formulas. A bundled Codex skill uses the same engine.
+A CLI-first application that turns ENSOFT GROUP raw reports into executable engineering worksheets. **CalcpadCE is the required open-source calculation engine** for both CLI and browser workflows. Every conversion also exports native Mathcad Prime formulas. An optional, agent-neutral skill uses the same engine.
 
 For the broader worksheet application direction, see the [Mathcad Prime feature review and open-source architecture assessment](docs/mathcad-prime-review.md). It separates current capabilities from planned equation editing, broader calculation support and native compatibility testing.
 
@@ -82,17 +82,20 @@ The primary file view reconstructs the worksheet using its saved region coordina
 
 For Docker and HTTPS cloud deployment, see [deployment instructions](deploy/README.md). The repository includes a non-root Docker image, Compose with persistent storage, an optional Caddy TLS proxy, and authenticated network mode. Public deployment contains no engineering documents. Cloud mode explicitly identifies that files are uploaded to the server.
 
-## Install as a Codex skill
+## Use with coding agents
+
+The app works without an agent. The root [SKILL.md](SKILL.md) follows the open [Agent Skills format](https://agentskills.io/specification): ordinary Markdown instructions, relative references and shell commands. Install the repository as a directory named `gdcalc` in a skill location supported by your agent. For example, clients supporting personal `.agents/skills` discovery can use:
 
 ```bash
-git clone https://github.com/amaljithkuttamath/gdcalc.git ~/.codex/skills/gdcalc
+git clone https://github.com/amaljithkuttamath/gdcalc.git ~/.agents/skills/gdcalc
+uv tool install ~/.agents/skills/gdcalc
 ```
 
-Then invoke `$gdcalc` with your report and template. A private default template may be placed at `assets/local/reference.mcdx`; that directory is ignored by Git.
+Select/invoke `gdcalc` using your agent's own skill mechanism and provide your report/template. Discovery paths and invocation syntax vary by client. An agent without skill discovery can read `SKILL.md` from a normal checkout and use the same CLI. See [agent integration](docs/agent-integration.md). `agents/openai.yaml` is optional OpenAI UI metadata; other clients can ignore it.
 
-## Core engine API
+## Python SDK
 
-The core API works independently of the CLI or Codex:
+The Python package ships the SDK, CLI and browser server together. See the [SDK contract](docs/sdk.md) and [PyPI release setup](docs/releasing.md). The API works independently of the CLI or any agent host:
 
 ```python
 from gdcalc.engine import inspect_report, convert, validate
@@ -129,3 +132,5 @@ python3 -m unittest discover -s tests -v
 ```
 
 Install the calculator with `gdcalc setup-engine` before running tests. Tests execute the real calculator with synthetic text and package fixtures and check source selection, native formula dependencies, validation failures, and overwrite protection. No proprietary report or worksheet is required.
+
+Engineering values need source and code-edition provenance. See the proposed [engineering standards register](docs/engineering-standards.md); general standards-compliance validation is not implemented yet.

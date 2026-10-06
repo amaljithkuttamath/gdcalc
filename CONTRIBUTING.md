@@ -43,6 +43,8 @@ Select your own compatible template in the browser. There is no public productio
 
 ## Tests and checks
 
+The [testing contract](docs/testing.md) maps each change type to required positive/negative cases. [Repository standards](docs/standards.md) define engineering semantics, code boundaries, data handling and the definition of done. These apply equally to human and coding-agent contributions.
+
 ```bash
 python -m unittest discover -s tests -v
 node --check src/gdcalc/web/app.js
@@ -83,3 +85,5 @@ Describe the problem, resulting behavior, validation and remaining limitations. 
 Every pull request runs checks. Pushes to `main` and manual `main` runs publish Python build artifacts and, after all image tests succeed, a GHCR container. Image tags are `latest` and `sha-<full-commit-sha>`; use the latter for repeatable deployment. Actions uses `GITHUB_TOKEN`, not a repository-stored personal token. Dependabot maintains action update proposals.
 
 When intentionally releasing a new application version, keep `pyproject.toml` and the version in `src/gdcalc/cli.py` aligned. Check the workflow for the exact commit before claiming the package/image is published. Deployment to a live server is a separate operation; follow [deployment guidance](deploy/README.md).
+
+Versioned Python releases use the separate [PyPI release workflow](docs/releasing.md), which tests the installed wheel before Trusted Publishing. Ordinary main CI artifacts are not a PyPI upload.

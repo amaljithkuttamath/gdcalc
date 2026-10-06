@@ -90,6 +90,8 @@ Workflow: Files → Inputs → Changes → Outputs. Open Report/Template/Output 
 
 ## Environment variables
 
+Default template lookup: explicit `--template`, then `GDCALC_TEMPLATE`, checkout `assets/local/reference.mcdx`, `$XDG_CONFIG_HOME/gdcalc/reference.mcdx` (default `~/.config/gdcalc/reference.mcdx`), then `~/.agents/skills/gdcalc/assets/local/reference.mcdx`. The older `$CODEX_HOME/skills/gdcalc/assets/local/reference.mcdx` location remains a last compatibility fallback. No agent installation is required. An explicitly configured missing path is reported as missing rather than silently replaced by another template.
+
 | Variable | Purpose |
 | --- | --- |
 | `GDCALC_TEMPLATE` | Private default template path; `--template` overrides it |
