@@ -1,12 +1,12 @@
-# gdcalc: Mathcad Prime feature baseline and product gaps
+# mcdxkit: Mathcad Prime feature baseline and product gaps
 
-Reviewed 6 October 2026 against PTC documentation and the local gdcalc implementation.
+Reviewed 6 October 2026 against PTC documentation and the local mcdxkit implementation.
 
 **Product requirement: a complete, independently usable engineering worksheet application, with Mathcad Prime as the capability baseline, extended by raw engineering imports, traceable validation, batch automation, CLI and browser workflows.**
 
-The current implementation is a useful conversion pipeline, file inspector and limited scalar calculation adapter. It does not yet meet that requirement. An optional Windows Prime connection can provide native execution and compatibility testing later; it cannot substitute for gdcalc's own worksheet experience.
+The current implementation is a useful conversion pipeline, file inspector and limited scalar calculation adapter. It does not yet meet that requirement. An optional Windows Prime connection can provide native execution and compatibility testing later; it cannot substitute for mcdxkit's own worksheet experience.
 
-**Open-source implementation direction:** reuse CalcpadCE as the primary engineering runtime, evaluate SymPy for symbolic work, and build the editable document/pipeline integration around them. Eight local CalcpadCE probes passed during this review; see section 8. The missing capabilities in gdcalc must not be mistaken for missing capabilities in its underlying engine.
+**Open-source implementation direction:** reuse CalcpadCE as the primary engineering runtime, evaluate SymPy for symbolic work, and build the editable document/pipeline integration around them. Eight local CalcpadCE probes passed during this review; see section 8. The missing capabilities in mcdxkit must not be mistaken for missing capabilities in its underlying engine.
 
 This is a capability-family review, not a claim that every function, dialog or numerical edge case has been tested. No Mathcad Prime installation is available. Native opening, calculation, saving and rendering remain unverified.
 
@@ -18,9 +18,9 @@ The 12.0 help index distinguishes the original release from maintenance changes,
 
 ## 2. Feature coverage
 
-“Missing” below means absent from the current gdcalc application or its importer/calculation path. It does not mean an underlying third-party library could never support it. Preserving an opaque region in a ZIP package is also different from editing, rendering or executing it correctly.
+“Missing” below means absent from the current mcdxkit application or its importer/calculation path. It does not mean an underlying third-party library could never support it. Preserving an opaque region in a ZIP package is also different from editing, rendering or executing it correctly.
 
-| Feature family | Prime baseline | gdcalc today | Required product behavior |
+| Feature family | Prime baseline | mcdxkit today | Required product behavior |
 | --- | --- | --- | --- |
 | Live engineering notebook | Equations, formatted text, images and plots together; changing inputs recalculates results. [Overview](https://support.ptc.com/help/mathcad/r12.0/en/PTC_Mathcad_Help/about_using_mathcad.html) | File reconstruction and separate calculated HTML. No general equation editor. | Edit and calculate directly in the visible worksheet; save, reopen and continue working. |
 | Region and page editing | Move, resize, copy and format regions; headers, footers, page breaks, text styles, search, spell checking and keyboard workflows. [Help index](https://support.ptc.com/help/mathcad/r12.0/en/PTC_Mathcad_Help.html) | Inspection supports positions, text, images, pages and search. Authoring missing. | Structured equation editing, document layout, undo/redo and reliable pagination. |
@@ -100,7 +100,7 @@ flowchart TD
 
 ## 5. What “and more” adds
 
-These are gdcalc product requirements, not claims that Prime lacks every possible equivalent workflow:
+These are mcdxkit product requirements, not claims that Prime lacks every possible equivalent workflow:
 
 | Added workflow | Existing foundation | Remaining work |
 | --- | --- | --- |
@@ -161,13 +161,13 @@ Use the explicitly open-source CE project and a pinned revision. The original Ca
 | CalcpadCE | Primary units-aware numerical and engineering worksheet runtime | Already installed; probes below passed. Expose document execution beyond the existing restricted Mathcad translator. Review upstream editor/server reuse before duplicating it. |
 | SymPy | Symbolic algebra, exact calculations, calculus and equation solving | BSD-licensed embeddable Python library. Documented capabilities are broad; not yet integrated or benchmarked here. [Project](https://www.sympy.org/en/index.html), [features](https://www.sympy.org/en/features.html) |
 | MathLive | Candidate browser equation input component | MIT-licensed math editing/rendering components with structured interchange options. It supplies editing, not engineering units, worksheet execution order or Mathcad compatibility. [Repository](https://github.com/arnog/mathlive) |
-| gdcalc | Document integration, raw adapters, provenance, validation, exports and orchestration | Retain the existing CLI/batch infrastructure. Make browser and CLI consume the same executable document and results. |
+| mcdxkit | Document integration, raw adapters, provenance, validation, exports and orchestration | Retain the existing CLI/batch infrastructure. Make browser and CLI consume the same executable document and results. |
 
 Do not expose arbitrary uploaded Calcpad source through the existing trusted-generated-source bridge without extending execution isolation and file-access controls. The broader language includes file operations and rich markup. This is a specific boundary change from the current constrained translator, not a reason to limit the independent engine to four units forever.
 
 ### Local execution evidence
 
-These probes executed through the installed CalcpadCE bridge, bypassing `gdcalc.calcpad.Translator`. Numerical assertions used a tolerance of 1e-9. No Prime installation was used.
+These probes executed through the installed CalcpadCE bridge, bypassing `mcdxkit.calcpad.Translator`. Numerical assertions used a tolerance of 1e-9. No Prime installation was used.
 
 | Probe | Expected behavior | Result |
 | --- | --- | --- |

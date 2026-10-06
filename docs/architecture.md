@@ -36,7 +36,7 @@ flowchart LR
 ## Public Python API
 
 ```python
-from gdcalc.engine import inspect_report, convert, validate
+from mcdxkit.engine import inspect_report, convert, validate
 
 inspection = inspect_report('report.gp11t', cases=[1, 3, 7])
 result = convert(
