@@ -19,5 +19,7 @@ Template/expression/unit changes, migrations, deployment effects or remaining li
 - [ ] Validation follows docs/testing.md and results come from this PR's current revision.
 - [ ] Repository standards in docs/standards.md are met; skipped checks are explained.
 - [ ] CLI/help/docs and agent instructions match the change.
+- [ ] CHANGELOG.md has an `Unreleased` entry for user-visible changes.
+- [ ] `ruff check src tests scripts` and `mypy` pass.
 - [ ] No private engineering files, snapshots, credentials or generated project results are included.
 - [ ] Calculation/package validation is not presented as Prime verification or engineering approval.

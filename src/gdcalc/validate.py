@@ -5,7 +5,7 @@ import sys
 if __package__:
     from . import mcdx
 else:
-    import mcdx
+    import mcdx  # type: ignore[no-redef]
 
 
 def main(argv=None,prog=None):

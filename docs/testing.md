@@ -33,6 +33,11 @@ python -m unittest discover -s tests -p 'test_server.py' -v
 python -m unittest discover -s tests -v
 node --check src/gdcalc/web/app.js
 
+# Lint and type checks (pinned in requirements-dev.txt):
+python -m pip install -r requirements-dev.txt
+ruff check src tests scripts
+mypy
+
 # Distribution checks:
 python -m pip install build
 python -m build

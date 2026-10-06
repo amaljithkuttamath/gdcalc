@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from decimal import Decimal
-from lxml import etree as E, html as H
+from lxml import html as H
 from . import mcdx
 
 REVISION = '0b20dba11ebd50b303eedb57e8ec042c272c68ab'
