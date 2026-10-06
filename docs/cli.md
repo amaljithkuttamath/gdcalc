@@ -48,9 +48,9 @@ Four files are published together, with audit JSON written last as the completio
 | `.mcdx` | Native input/formula package; Prime execution unverified |
 | `.cpd` | Executable translated Calcpad worksheet |
 | `.html` | Fresh Calcpad result snapshot |
-| `.audit.json` | Source selection, hashes, assumptions and calculation evidence |
+| `.audit.json` | Source selection, hashes, assumptions, calculation evidence and [check results](calculation.md#check-results) |
 
-Existing artifacts are never overwritten. Choose a new basename for a new run. A successfully calculated worksheet may contain failing design checks.
+Existing artifacts are never overwritten. Choose a new basename for a new run. A successfully calculated worksheet may contain failing design checks; `convert` prints `check_summary` (failed checks and governing D/C, or `no checks found`).
 
 ## Validate a package
 
@@ -74,6 +74,8 @@ gdcalc batch /path/to/reports --recursive \
 
 Explicit files and multiple folders are also accepted. Options apply to every input in the invocation: group compatible reports/templates together. Keep source/template files outside the output directory. Worker count is 1–32; default is up to four. Progress is JSON Lines on stderr; stdout is the summary. `--quiet` suppresses progress.
 
+After the run, a per-report check table (status, check count, failures, governing D/C and check) is printed to stderr and written to a new `check-summary-<timestamp>.csv` in the output directory; earlier tables are kept. Its path and rows are in the stdout summary under `checks`. Skipped outputs use their recorded audit; outputs created before check extraction show `checks not recorded for this output`. Failing checks do not change the exit code.
+
 Exit codes: 0 = all succeeded or verified/skipped; 1 = one or more jobs failed; 2 = invalid setup. Inspect `batch-manifest.jsonl` for individual failures. Resume validates saved identity, hashes and calculation evidence; corrupted outputs are not silently reused. Do not run two batches writing to the same output directory.
 
 ## Start and stop the browser
@@ -86,7 +88,7 @@ gdcalc serve --no-open --port 8765 \
 
 Open the printed URL. Omit `--template` to select it in the browser; omit `--no-open` to launch the browser automatically. `--port 0` chooses an available port. `GET /healthz` reports service health. Ctrl+C stops the server while retaining completed outputs.
 
-Workflow: Files → Inputs → Changes → Outputs. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
+Workflow: Files → Inputs → Changes → Outputs. Each output card shows a worksheet-checks panel: failed count, governing D/C and the failing conditions, with all checks behind a disclosure. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
 
 ## Environment variables
 

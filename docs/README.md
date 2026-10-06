@@ -6,7 +6,7 @@
 | --- | --- |
 | [CLI and browser](cli.md) | Install, calculator setup, inspect, convert, batch/resume, server startup and configuration |
 | [Python SDK](sdk.md) | Imports, function contracts, output artifacts and error handling |
-| [Calculation and compatibility](calculation.md) | Supported expressions, load basis, execution evidence and browser inspection |
+| [Calculation and compatibility](calculation.md) | Supported expressions, load basis, execution evidence, [check results](calculation.md#check-results) and browser inspection |
 | [Template contract](../references/template-contract.md) | Required worksheet profile, geometry, inputs and overrides |
 | [Agent integration](agent-integration.md) | Use the portable [skill](../SKILL.md) with different coding agents |
 | [Docker and hosting](../deploy/README.md) | Images, Compose, authentication, HTTPS and persistent storage |

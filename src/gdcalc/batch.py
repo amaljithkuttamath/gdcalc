@@ -1,5 +1,6 @@
 """Resumable, bounded parallel conversion pipeline around the same core engine."""
 import argparse
+import csv
 import hashlib
 import json
 import multiprocessing
@@ -95,7 +96,9 @@ def _convert_job(job):
                 artifact = output.with_suffix(suffix)
                 if not artifact.is_file() or digest(artifact) != calculation.get(key):
                     raise ValueError('Calculated worksheet failed artifact hash checks')
-            row.update(status='skipped', sha256=evidence['sha256'], audit=str(audit))
+            summary = evidence.get('check_summary')
+            row.update(status='skipped', sha256=evidence['sha256'], audit=str(audit),
+                       check_summary=summary if isinstance(summary, dict) else None)
         else:
             if Path(job['source']).stat().st_size > 16 * 1024 * 1024:
                 raise ValueError('Raw report exceeds 16 MiB')
@@ -118,7 +121,7 @@ def _convert_job(job):
                     json.dump(identity, stream, indent=2)
             result = engine.convert(snapshots[0][1], snapshots[1][1], output, **job['settings'])
             row.update(status='succeeded', sha256=result['sha256'], audit=str(audit),
-                       cases=result['cases'], envelope=result['envelope'])
+                       cases=result['cases'], envelope=result['envelope'], check_summary=result['check_summary'])
     except Exception as exc:
         row.update(status='failed', error=f'{type(exc).__name__}: {exc}')
     if row.get('status') in ('succeeded', 'skipped'):
@@ -126,6 +129,64 @@ def _convert_job(job):
                    open_worksheet=str(output.with_suffix('.cpd')), calculated_worksheet=str(output.with_suffix('.html')))
     row['elapsed_seconds'] = round(time.monotonic() - started, 3)
     return row
+
+
+CHECK_COLUMNS = ('source', 'status', 'checks', 'passed', 'failed', 'governing_dc', 'governing_check',
+                 'failed_checks', 'note')
+
+
+def check_row(result):
+    """One table row per report; outcomes come only from recorded check summaries."""
+    row = dict.fromkeys(CHECK_COLUMNS, '')
+    row.update(source=Path(result['source']).name, status=result['status'])
+    summary = result.get('check_summary')
+    if result['status'] == 'failed':
+        row['note'] = 'conversion failed'
+    elif not isinstance(summary, dict):
+        row['note'] = 'checks not recorded for this output'
+    elif not summary.get('total'):
+        row['note'] = 'no checks found'
+    else:
+        governing = summary.get('governing')
+        row.update(checks=summary['total'], passed=summary['passed'], failed=summary['failed'],
+                   failed_checks='; '.join(summary.get('failed_checks', [])),
+                   governing_dc=f"{governing['ratio']:.3f}" if governing else '',
+                   governing_check=governing['name'] if governing else '',
+                   note='FAILURES' if summary['failed'] else 'all checks passed')
+    return row
+
+
+def _cell(value):
+    # Worksheet variable names reach this table; stop spreadsheet formula injection.
+    value = str(value)
+    return "'" + value if value[:1] in ('=', '+', '-', '@', '\t', '\r') else value
+
+
+def write_check_table(root, rows):
+    """Write a new timestamped CSV; earlier tables are never overwritten."""
+    stamp = time.strftime('%Y%m%dT%H%M%S')
+    for attempt in range(100):
+        path = root / (f'check-summary-{stamp}' + (f'-{attempt}' if attempt else '') + '.csv')
+        try:
+            stream = path.open('x', newline='', encoding='utf-8')
+        except FileExistsError:
+            continue
+        with stream:
+            writer = csv.DictWriter(stream, fieldnames=CHECK_COLUMNS)
+            writer.writeheader()
+            writer.writerows({k: _cell(v) for k, v in row.items()} for row in rows)
+        return path
+    raise ValueError('Could not create a new check summary table')
+
+
+def format_check_table(rows):
+    """Plain-text per-report table: governing D/C and any failed checks."""
+    columns = ('source', 'status', 'checks', 'failed', 'governing_dc', 'governing_check', 'note')
+    widths = {c: max([len(c)] + [len(str(r[c])) for r in rows]) for c in columns}
+    lines = ['  '.join(c.upper().ljust(widths[c]) for c in columns)]
+    lines += ['  '.join(str(r[c]).ljust(widths[c]) for c in columns) for r in rows]
+    lines += [f"{r['source']}: failed {r['failed_checks']}" for r in rows if r['failed_checks']]
+    return '\n'.join(line.rstrip() for line in lines)
 
 
 def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, resume=False,
@@ -148,9 +209,11 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
     counts = {'total': len(files), 'succeeded': 0, 'skipped': 0, 'failed': 0,
               'manifest': str(manifest), 'workers': workers, 'calculation_engine': 'CalcpadCE', 'native_execution_verified': False}
     started = time.monotonic()
+    table = []
     with manifest_lock(root), manifest.open('a', encoding='utf-8') as log:
         def record(result):
             result['recorded_at'] = time.time()
+            table.append(check_row(result))
             log.write(json.dumps(result, allow_nan=False) + '\n'); log.flush(); os.fsync(log.fileno())
             counts[result['status']] += 1
             if progress:
@@ -197,6 +260,11 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
                         except Exception as exc:
                             result = {**job, 'status': 'failed', 'error': str(exc), 'native_execution_verified': False}
                         record(result)
+        table.sort(key=lambda r: (r['source'], r['status']))
+        counts['checks'] = {'table': str(write_check_table(root, table)), 'rows': table,
+                            'reports_with_failures': sum(1 for r in table if r['failed'] not in ('', 0)),
+                            'reports_without_checks': sum(1 for r in table if r['note'] == 'no checks found'),
+                            'reports_not_recorded': sum(1 for r in table if r['note'] == 'checks not recorded for this output')}
     counts['elapsed_seconds'] = round(time.monotonic() - started, 3)
     return counts
 
@@ -227,6 +295,8 @@ def main(argv=None):
         summary = convert_batch(args.inputs, args.template, args.output_dir, workers=args.workers,
                                 recursive=args.recursive, resume=args.resume, cases=args.cases,
                                 load_source=args.load_source, overrides=overrides, progress=progress)
+        print(format_check_table(summary['checks']['rows']), file=sys.stderr)
+        print('Check summary table: ' + summary['checks']['table'], file=sys.stderr, flush=True)
         print(json.dumps(summary, indent=2))
         return 1 if summary['failed'] else 0
     except (ValueError, OSError) as exc:
