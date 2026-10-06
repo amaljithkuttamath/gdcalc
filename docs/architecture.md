@@ -58,7 +58,12 @@ flowchart LR
 | `server.py` | FastAPI/Uvicorn, authentication, origin checks, limits and static assets |
 | `web/` | Browser workflow and file viewer; no independent design solver |
 | `batch.py` | Input discovery, bounded process pool, job identity, manifest and resume |
+| `review/` | Advisory review checks as plug-ins, shared by inspect, convert, batch and browser: `api.py` (plug-in contract, standard library only), `view.py` (frozen `ReportView` from the parsed dict), `registry.py` (built-ins and `mcdxkit.review` entry points), `runner.py` (isolated, time-budgeted runs; `review-checks/1` report), `history.py` (past audits for the classifier), `checks/`, `annotate/`, `classify/` |
 | `summary.py` | `mcdxkit summary` input discovery and exclusive CSV write; rows come from `engine.py` |
+
+### Review dependency rule
+
+`mcdxkit.review` receives the plain dict `group_report.parse()` returns and returns a JSON-ready block. It must not import `mcdx`, `calcpad`, `engine`, `server`, `service`, `cli`, `generate`, `batch`, `inspection` or `group_report`; `tests/test_review_plugins.py` walks every module with `ast` and fails on such an import, absolute or relative. `engine.py` is the only caller that combines review output with conversion: it records `review_checks` in the audit and, only when an engineer decision exists, passes a plain-text note to `mcdx.generate`. Checks never modify inputs, cases, overrides or outputs. Plug-ins run in deterministic order with a per-plug-in time budget; failures become `check_error` entries, never conversion failures.
 
 ## Public Python API
 

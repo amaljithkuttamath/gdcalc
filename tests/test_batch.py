@@ -33,6 +33,9 @@ class BatchTests(unittest.TestCase):
             self.assertEqual((data['succeeded'], data['skipped'], data['failed']), (1, 2, 0))
             manifest = [json.loads(line) for line in Path(data['manifest']).read_text().splitlines()]
             self.assertTrue(all('source_sha256' in row for row in manifest))
+            # report() raises review items; every converted or verified row counts them.
+            self.assertTrue(all(row['open_checks'] > 0 and row['check_errors'] == 0
+                                for row in manifest if row['status'] != 'failed'))
             # Calculation artifacts are part of the resume contract too.
             rendered = next(out.glob('*/*.html')); saved = rendered.read_bytes(); rendered.write_bytes(b'corrupt')
             broken, data = run('--resume')
@@ -61,3 +64,23 @@ class BatchTests(unittest.TestCase):
             source = root/'a.txt'; source.write_text(report())
             (out/'snapshot.txt').write_text(report())
             self.assertEqual(discover([root, source], out, recursive=True), [source.resolve()])
+
+    def test_new_check_version_reruns_review_on_resume(self):
+        from unittest import mock
+        from mcdxkit.batch import convert_batch
+        from mcdxkit.review.checks.ratios import RatioOutlier
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); source = root / 'r.txt'; source.write_text(report())
+            ref = root / 'reference.mcdx'; template(ref); out = root / 'out'
+            first = convert_batch([source], ref, out)
+            self.assertEqual(first['succeeded'], 1)
+            self.assertEqual(convert_batch([source], ref, out, resume=True)['skipped'], 1)
+            with mock.patch.object(RatioOutlier, 'version', '3'):
+                again = convert_batch([source], ref, out, resume=True)
+            self.assertEqual((again['succeeded'], again['skipped']), (1, 0))
+            rows = [json.loads(line) for line in Path(again['manifest']).read_text().splitlines()]
+            self.assertNotEqual(rows[0]['job_id'], rows[-1]['job_id'])
+            audit = json.loads(Path(rows[-1]['audit']).read_text())
+            self.assertIn({'id': 'ratio_outlier', 'version': '3'},
+                          [{k: c[k] for k in ('id', 'version')} for c in audit['review_checks']['checks_run']])
+            self.assertEqual(convert_batch([source], ref, out, resume=True, checks='none')['succeeded'], 1)

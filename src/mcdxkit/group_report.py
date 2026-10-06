@@ -3,6 +3,21 @@ import math
 import re
 
 MARKER = 'SUMMARY FOR LOAD CASES AND COMBINATIONS'
+COMPONENTS = ('P', 'Vy', 'Vz', 'My', 'Mz')
+_LIMIT_STATE = re.compile(r'^(STR|SER)(?:\b|[-_])', re.I)
+
+
+def limit_state(name):
+    """'STR', 'SER' or None from a case name. Default selection recognizes only these prefixes;
+    the advisory review (mcdxkit.review) also recognizes AASHTO long names."""
+    match = _LIMIT_STATE.match(name or '')
+    return None if match is None else match.group(1).upper()
+
+
+def peak(case, key):
+    """Envelope peak of one case: largest axial compression for P, largest magnitude otherwise."""
+    values = case['pairs'][key]
+    return max(values) if key == 'P' else max(map(abs, values))
 NUMBER = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[EeDd][-+]?\d+)?'
 # Line patterns use horizontal whitespace only: \s spans newlines and backtracks quadratically.
 H = r'[^\S\r\n]'
@@ -76,11 +91,14 @@ def parse(text, load_source='effects'):
             pairs = {key: [row[col] for row in effects] for key, col in [('Vy',4),('Vz',5),('My',3),('Mz',2)]}
             ids += effect_ids
         else:
-            raw_effects = []
+            effects, raw_effects = None, []
             pairs = {key: [row[col] for row in local] for key, col in [('Vy',1),('Vz',2),('My',4),('Mz',5)]}
         pairs['P'] = [row[0] for row in local]
         cases.append({'id':ident, 'name':names.get(ident), 'pairs':pairs, 'pile_ids':sorted(set(ids)),
-                      'load_source':load_source, 'source_rows':{'local':raw_local,'effects':raw_effects}})
+                      'load_source':load_source, 'source_rows':{'local':raw_local,'effects':raw_effects},
+                      # Both numeric tables, for the advisory review (mcdxkit.review.view): pairs hold only
+                      # the chosen load source, and source_rows are unparsed text.
+                      'tables':{'local':local,'effects':effects}})
     if not cases: raise ValueError('No load cases in final summary')
     return {'cases':cases,'load_source':load_source}
 
@@ -88,9 +106,9 @@ def parse(text, load_source='effects'):
 def select(parsed, cases=None):
     available = {c['id']:c for c in parsed['cases']}
     if cases is None:
-        if any(c['name'] is None or not re.match(r'^(STR|SER)(?:\b|[-_])', c['name'], re.I) for c in available.values()):
+        if any(limit_state(c['name']) is None for c in available.values()):
             raise ValueError('Case classification unavailable; specify --cases explicitly')
-        cases = [c['id'] for c in available.values() if c['name'].upper().startswith('STR')]
+        cases = [c['id'] for c in available.values() if limit_state(c['name']) == 'STR']
     if not cases or len(cases) != len(set(cases)) or any(i not in available for i in cases):
         raise ValueError('Select nonempty, unique, existing --cases')
     selected = [available[i] for i in cases]
@@ -100,5 +118,4 @@ def select(parsed, cases=None):
 
 
 def envelope(cases):
-    return {key:max(max(c['pairs'][key]) if key=='P' else max(map(abs,c['pairs'][key])) for c in cases)
-            for key in ['P','Vy','Vz','My','Mz']}
+    return {key: max(peak(c, key) for c in cases) for key in COMPONENTS}

@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 from . import engine, mcdx
+from .review import runner as review_runner
 
 
 def case_ids(value):
@@ -46,23 +47,34 @@ def main(argv=None,prog=None):
     parser.add_argument('--load-source',choices=['effects','reactions'],default='effects',help='Use local pile effects (default) or local pile-top reactions for shear/moments')
     parser.add_argument('--title',help='Title on generated source pages; template header remains unchanged')
     parser.add_argument('--set',action='append',default=[],metavar='VARIABLE=VALUE',help='Override a single literal template input, retaining its units')
+    parser.add_argument('--checks',default='default',metavar='SPEC',help='Advisory review plug-ins: default (built-ins), none, or a comma list such as default,my_check; see "mcdxkit checks list"')
+    parser.add_argument('--history',type=Path,metavar='OUTPUT_DIR',help='Inspect only: learn case naming from completed conversion audits in this output directory')
     args=parser.parse_args(argv)
     try:
         if args.inspect:
-            print(json.dumps(engine.inspect_report(args.input,cases=args.cases,load_source=args.load_source),indent=2))
+            history=None
+            if args.history is not None:
+                from .review.history import AuditHistory
+                if not args.history.is_dir():raise ValueError('--history must be an existing output directory')
+                history=AuditHistory(args.history)
+            print(json.dumps(engine.inspect_report(args.input,cases=args.cases,load_source=args.load_source,checks=args.checks,history=history),indent=2))
             return 0
+        if args.history is not None:raise ValueError('--history applies to inspect only')
         if args.output is None:raise ValueError('--output is required unless using --inspect')
         overrides={}
         for assignment in args.set:
             key,value=assignment.split('=',1)
             if key in overrides:raise ValueError('Duplicate override: '+key)
             overrides[key]=float(value)
-        result=engine.convert(args.input,args.template,args.output,cases=args.cases,load_source=args.load_source,title=args.title,overrides=overrides)
+        result=engine.convert(args.input,args.template,args.output,cases=args.cases,load_source=args.load_source,title=args.title,overrides=overrides,checks=args.checks)
         print(json.dumps({'output':result['output'],'audit':result['audit'],'cases':result['cases'],
                           'envelope':result['envelope'],'open_worksheet':result['open_worksheet'],
                           'calculated_worksheet':result['calculated_worksheet'],
                           'calculation':{k:result['calculation'][k] for k in ('engine','calculated','translated_math_regions')},
+                          'open_checks':review_runner.open_flags(result['review_checks']),
+                          'check_errors':review_runner.check_errors(result['review_checks']),
                           'check_summary':result['check_summary'],
+
                           'native_execution_verified':False},indent=2))
         return 0
     except (ValueError,OSError,KeyError,IndexError,mcdx.E.XMLSyntaxError,mcdx.zipfile.BadZipFile) as exc:

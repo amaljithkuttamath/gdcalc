@@ -6,10 +6,13 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ### Added
 
+- Advisory review checks in a new `mcdxkit.review` plug-in package: service axial load above strength, effects below the pile top, duplicate cases, ratio outliers and possible unit slips, plus governing and "never governs" case annotations and offline case-name suggestions. Results appear in `inspect`, the audit (`review_checks`, with each check's id, version and thresholds), batch manifests and the browser. Checks never change inputs, case selection or outputs; with no review decisions the `.mcdx`, `.cpd` and `.html` are byte-identical with checks on or off. A crashing or slow check is recorded and never fails a conversion.
+- `--checks default|none|id,...` on `inspect`, `convert` and `batch`, `MCDXKIT_CHECKS` for the server, and `mcdxkit checks list`. Installed third-party checks (entry-point group `mcdxkit.review`) stay off unless named.
 - Browser-only generation progress and a persistent template shortcut, with clearer sidebar steps and mobile preview navigation.
 
 - Check results: CalcpadCE pass/fail outcomes and demand/capacity ratios are summarised in the audit (`checks`, `check_summary`), the batch check-summary CSV and the Outputs step.
 - Agent-neutral skill installer with an optional local workflow interview and task-specific review guidance.
+
 - Multi-report summary export: `mcdxkit summary`, `/api/summary` and a **Download summary** button write one CSV row per report with envelopes, governing cases and status.
 - CI lint and type-check job: `ruff check` (correctness rules) and `mypy`, pinned in `requirements-dev.txt`.
 

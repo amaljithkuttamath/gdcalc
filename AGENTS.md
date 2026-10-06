@@ -44,9 +44,12 @@ Reuse before rebuilding. Search existing repository code and established open-so
 
 MCDXKit uses the `mcdxkit` package and CLI, `MCDXKIT_*` configuration and one shared calculation engine. The 0.3.0 rename intentionally provides no previous-name aliases. Preserve private files and existing installations; migration is explicit. See [release setup](docs/releasing.md).
 
-Use `engine.py` for conversion logic shared by CLI and server. Keep HTTP/session concerns in `server.py` and `service.py`; source parsing in `group_report.py`; package editing in `mcdx.py`; translation/execution in `calcpad.py`; check-outcome extraction in `checks.py`; inspection in `inspection.py`; scheduling/resume in `batch.py`. Do not create a separate calculation implementation in the UI or skill scripts.
+Use `engine.py` for conversion logic shared by CLI and server. Keep HTTP/session concerns in `server.py` and `service.py`; source parsing in `group_report.py`; package editing in `mcdx.py`; translation/execution in `calcpad.py`; check-outcome extraction in `checks.py`; inspection in `inspection.py`; scheduling/resume in `batch.py`; advisory review checks in the `review/` package, which takes the parsed dict, must not import the conversion modules (enforced by a test) and never changes inputs, cases, overrides or outputs. New review checks are plug-ins against `review/api.py` and must pass the contract tests in `tests/test_review_plugins.py`. Do not create a separate calculation implementation in the UI or skill scripts.
+
 
 CalcpadCE itself has more capabilities than the current translator. Broader input execution changes the trust boundary: preserve timeouts, file-access controls and HTML isolation. Keep network authentication, Host/Origin checks, CSRF protections and upload/package limits intact. Current hosting is a shared trusted workspace, not tenant-isolated storage.
+
+The root README is also the PyPI package description. Use absolute GitHub URLs for repository-file links in README.md; relative links break on PyPI and fail `scripts/check_package.py`. Relative links remain appropriate inside the repository docs.
 
 If adding browser assets, update both `pyproject.toml` package data and `.dockerignore`; add required distribution assets to `scripts/check_package.py` when appropriate. If adding CLI flags, update `--help`, docs and applicable tests. Keep the CLI version and project version consistent when changing a release version.
 
