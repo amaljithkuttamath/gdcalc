@@ -55,7 +55,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual((again['skipped'], again['failed']), (1, 0))
 
     def test_explicit_files_and_output_subtree_exclusion(self):
-        from gdcalc.batch import discover
+        from mcdxkit.batch import discover
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); out = root/'out'; out.mkdir()
             source = root/'a.txt'; source.write_text(report())

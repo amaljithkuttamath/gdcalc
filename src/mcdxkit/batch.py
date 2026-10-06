@@ -48,7 +48,7 @@ def discover(inputs, output_dir, *, recursive=False):
 @contextmanager
 def manifest_lock(root):
     # OS locks are released after process death; no stale lock recovery flag needed.
-    with (root / '.gdcalc-batch.lock').open('a+b') as handle:
+    with (root / '.mcdxkit-batch.lock').open('a+b') as handle:
         try:
             if os.name == 'nt':
                 import msvcrt
@@ -203,7 +203,7 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog='gdcalc batch', description=__doc__)
+    parser = argparse.ArgumentParser(prog='mcdxkit batch', description=__doc__)
     parser.add_argument('inputs', nargs='+', type=Path, help='Report files and/or directories')
     parser.add_argument('--template', type=Path, default=default_template())
     parser.add_argument('--output-dir', required=True, type=Path)
@@ -231,5 +231,5 @@ def main(argv=None):
         print(json.dumps(summary, indent=2))
         return 1 if summary['failed'] else 0
     except (ValueError, OSError) as exc:
-        print('gdcalc: ' + str(exc), file=sys.stderr)
+        print('mcdxkit: ' + str(exc), file=sys.stderr)
         return 2

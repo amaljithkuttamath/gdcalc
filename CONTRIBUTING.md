@@ -29,14 +29,14 @@ Use issue/PR state as the work queue: open issue → claimed work/branch → dra
 Requirements: Python 3.10+, Git; .NET 10 SDK for the initial calculator build; Node.js for JavaScript syntax checks. Docker is needed for container verification.
 
 ```bash
-git clone https://github.com/amaljithkuttamath/gdcalc.git
-cd gdcalc
+git clone https://github.com/amaljithkuttamath/mcdxkit.git
+cd mcdxkit
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements.lock
 python -m pip install --no-deps -e .
-gdcalc setup-engine
-gdcalc serve --no-open --port 0 --output-dir ./gdcalc-output
+mcdxkit setup-engine
+mcdxkit serve --no-open --port 0 --output-dir ./mcdxkit-output
 ```
 
 Select your own compatible template in the browser. There is no public production template or engineering dataset. Tests generate synthetic inputs and do not need a private template. `setup-engine` builds into a persistent cache and refuses to overwrite it. If already installed, skip setup or build into a new explicit directory.
@@ -47,7 +47,7 @@ The [testing contract](docs/testing.md) maps each change type to required positi
 
 ```bash
 python -m unittest discover -s tests -v
-node --check src/gdcalc/web/app.js
+node --check src/mcdxkit/web/app.js
 python -m pip install build
 python -m build
 python scripts/check_package.py
@@ -59,9 +59,9 @@ Use focused tests while iterating, then run the full suite for changes spanning 
 For container changes:
 
 ```bash
-docker build -t gdcalc:test .
+docker build -t mcdxkit:test .
 docker run --rm -v "$PWD:/verify:ro" --entrypoint python \
-  gdcalc:test -m unittest discover -s /verify/tests -v
+  mcdxkit:test -m unittest discover -s /verify/tests -v
 ```
 
 The Actions workflow also starts the container, checks health, checks bundled fonts and confirms that unauthenticated API access is rejected.
@@ -84,6 +84,6 @@ Describe the problem, resulting behavior, validation and remaining limitations. 
 
 Every pull request runs checks. Pushes to `main` and manual `main` runs publish Python build artifacts and, after all image tests succeed, a GHCR container. Image tags are `latest` and `sha-<full-commit-sha>`; use the latter for repeatable deployment. Actions uses `GITHUB_TOKEN`, not a repository-stored personal token. Dependabot maintains action update proposals.
 
-When intentionally releasing a new application version, keep `pyproject.toml` and the version in `src/gdcalc/cli.py` aligned. Check the workflow for the exact commit before claiming the package/image is published. Deployment to a live server is a separate operation; follow [deployment guidance](deploy/README.md).
+When intentionally releasing a new application version, keep `pyproject.toml` and the version in `src/mcdxkit/cli.py` aligned. Check the workflow for the exact commit before claiming the package/image is published. Deployment to a live server is a separate operation; follow [deployment guidance](deploy/README.md).
 
 Versioned Python releases use the separate [PyPI release workflow](docs/releasing.md), which tests the installed wheel before Trusted Publishing. Ordinary main CI artifacts are not a PyPI upload.

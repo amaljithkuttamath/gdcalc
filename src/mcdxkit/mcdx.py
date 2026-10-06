@@ -176,10 +176,10 @@ def generate(template, output, cases, source_name, title=None, overrides=None, g
         r=E.Element(q(W,'region'),{'region-id':str(rid),'top':str(top),'left':str(left),'actualWidth':str(width),'actualHeight':str(height)})
         rid+=1;inserted.append(r);return r
     def text_region(text,top,height=20):
-        r=region(top,9.6,715,height);r.set('width','715');ref='Rgdcalc'+r.get('region-id')
+        r=region(top,9.6,715,height);r.set('width','715');ref='Rmcdxkit'+r.get('region-id')
         t=E.SubElement(r,q(W,'text'),{'item-idref':ref})
         E.SubElement(t,q(X,'FlowDocument'),FontFamily='Arial',FontSize='12')
-        part='mathcad/xaml/gdcalc'+r.get('region-id')+'.XamlPackage';data[part]=text_package(text)
+        part='mathcad/xaml/mcdxkit'+r.get('region-id')+'.XamlPackage';data[part]=text_package(text)
         E.SubElement(rels,q(R,'Relationship'),Id=ref,Target='/'+part,Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/flowDocument')
     def math_region(variable,rhs,top,left):
         nonlocal resultid
