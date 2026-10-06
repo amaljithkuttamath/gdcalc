@@ -25,6 +25,8 @@ from .review import runner as review_runner
 from .service import MIB, RequestError, Session
 
 STATIC = Path(__file__).with_name('web')
+LOGIN_DELAY_STEP = 0.1  # seconds added per failed login in the last minute
+LOGIN_DELAY_MAX = 1.0
 SECURITY_HEADERS = {
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
@@ -146,17 +148,16 @@ def create_app(*, origin, template=None, output_dir='mcdxkit-output', access_tok
 
     @app.post('/api/login')
     async def login(request: Request):
-        now = time.monotonic()
-        failed_logins[:] = [t for t in failed_logins if now - t < 60]
-        if len(failed_logins) >= 10:
-            raise RequestError('Too many failed attempts. Wait one minute.', 429)
         try:
             data = json.loads(await read_body(request, 4096, 'application/json'))
         except (ValueError, UnicodeError):
             raise RequestError('Invalid login request.')
         candidate = data.get('access_token') if isinstance(data, dict) else None
         if not isinstance(candidate, str) or not access_token or not hmac.compare_digest(candidate.encode(), access_token.encode()):
-            failed_logins.append(now)
+            # Slow guessing without a lockout: failures never block the correct token.
+            now = time.monotonic()
+            failed_logins[:] = [t for t in failed_logins[-31:] if now - t < 60] + [now]
+            await asyncio.sleep(min(LOGIN_DELAY_MAX, LOGIN_DELAY_STEP * len(failed_logins)))
             raise RequestError('Incorrect access token.', 401)
         payload = str(int(time.time())) + '.' + secrets.token_hex(16)
         signature = hmac.new(cookie_key, payload.encode(), hashlib.sha256).hexdigest()

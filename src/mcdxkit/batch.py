@@ -150,7 +150,8 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
         raise ValueError('No .gp11t or .txt reports found. Use --recursive for subfolders.')
     root.mkdir(parents=True, exist_ok=True)
     manifest = root / 'batch-manifest.jsonl'
-    settings = {'cases': cases, 'load_source': load_source, 'overrides': overrides or {}, 'checks': checks}
+    # Normalise once (tuples become lists) so identity matches the JSON saved in job.json.
+    settings = json.loads(json.dumps({'cases': cases, 'load_source': load_source, 'overrides': overrides or {}, 'checks': checks}, allow_nan=False))
     template_hash = digest(template)
     counts = {'total': len(files), 'succeeded': 0, 'skipped': 0, 'failed': 0,
               'manifest': str(manifest), 'workers': workers, 'calculation_engine': 'CalcpadCE', 'native_execution_verified': False}
