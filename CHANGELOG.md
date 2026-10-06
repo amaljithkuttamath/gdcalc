@@ -4,6 +4,8 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ## Unreleased
 
+- Saved outputs in the browser now distinguish repeated runs: each row shows the date and time, source report, selected cases, overrides, load basis and a Calculated / Files only / Checks failed status, with a source filter and a status filter. Context is read from each existing `.audit.json`, fields older audits never recorded are shown as not recorded, and file names stay relative to the output directory.
+
 ## 0.4.0
 
 - Verify installed SDK origins in release/container tests and include test helpers and synthetic fixtures in source distributions.
