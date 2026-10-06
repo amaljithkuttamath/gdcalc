@@ -2,7 +2,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
-from gdcalc import inspection, mcdx
+from mcdxkit import inspection, mcdx
 from test_pipeline import template
 
 

@@ -21,7 +21,7 @@ class Session:
     def __init__(self, template, output_dir):
         self.template = Path(template).resolve() if template else None
         self.output_dir = Path(output_dir).resolve()
-        self.temp = tempfile.TemporaryDirectory(prefix='gdcalc-browser-')
+        self.temp = tempfile.TemporaryDirectory(prefix='mcdxkit-browser-')
         self.token = secrets.token_urlsafe(32)
         self.files = {}
         self.upload_bytes = 0
@@ -81,7 +81,7 @@ class Session:
             raise RequestError('Use .gp11t or .txt reports, or .mcdx worksheets/templates.')
         state = self
         if state.upload_count >= 100:
-            raise RequestError('Session contains 100 uploads. Restart gdcalc serve to start a new session.', 413)
+            raise RequestError('Session contains 100 uploads. Restart mcdxkit serve to start a new session.', 413)
         if len(raw) > (16 * MIB if kind == 'report' else 32 * MIB):
             raise RequestError('File exceeds the upload limit.', 413)
         if state.upload_bytes + len(raw) > 256 * MIB:

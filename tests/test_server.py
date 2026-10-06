@@ -10,8 +10,8 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from test_pipeline import report, template
-from gdcalc import server as server_module
-from gdcalc.server import create_server
+from mcdxkit import server as server_module
+from mcdxkit.server import create_server
 
 
 class ServerTests(unittest.TestCase):
@@ -32,7 +32,7 @@ class ServerTests(unittest.TestCase):
         self.folder.cleanup()
 
     def request(self, method, path, data=None, headers=None, authenticated=True):
-        h = {'X-Gdcalc-Token': self.token} if authenticated else {}
+        h = {'X-MCDXKit-Token': self.token} if authenticated else {}
         h.update(headers or {})
         if isinstance(data, dict):
             data = json.dumps(data).encode()
@@ -141,7 +141,7 @@ class ServerTests(unittest.TestCase):
 
 class DeploymentTests(unittest.TestCase):
     def test_network_mode_requires_secret_and_https_remote_origin(self):
-        from gdcalc.server import check_configuration
+        from mcdxkit.server import check_configuration
         with self.assertRaises(ValueError): check_configuration('0.0.0.0', None, None)
         with self.assertRaises(ValueError): check_configuration('0.0.0.0', 'https://example.com', 'short')
         with self.assertRaises(ValueError): check_configuration('0.0.0.0', 'http://example.com', 'x' * 32)
@@ -178,7 +178,7 @@ class DeploymentTests(unittest.TestCase):
                 status, info, _ = call('GET', '/api/session', headers=h)
                 self.assertEqual(status, 200); self.assertTrue(info['network'])
                 self.assertEqual(call('GET', '/api/history', headers=h)[0], 403)
-                h['X-Gdcalc-Token'] = info['token']
+                h['X-MCDXKit-Token'] = info['token']
                 self.assertEqual(call('GET', '/api/history', headers=h)[0], 200)
                 h['Origin'] = 'https://attacker.example'
                 self.assertEqual(call('GET', '/api/history', headers=h)[0], 403)
