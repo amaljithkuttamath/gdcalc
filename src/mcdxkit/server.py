@@ -21,6 +21,7 @@ from starlette.responses import FileResponse, JSONResponse
 
 from . import mcdx
 from .generate import default_template
+from .review import runner as review_runner
 from .service import MIB, RequestError, Session
 
 STATIC = Path(__file__).with_name('web')
@@ -49,9 +50,10 @@ def check_configuration(host, public_url, access_token):
             raise ValueError('Remote deployments require an HTTPS public URL and a TLS reverse proxy.')
 
 
-def create_app(*, origin, template=None, output_dir='mcdxkit-output', access_token=None, network=False):
+def create_app(*, origin, template=None, output_dir='mcdxkit-output', access_token=None, network=False, checks='default',
+               plan=None):
     """Create one workspace. Deploy one process/replica per trusted user or team."""
-    state = Session(template, output_dir)
+    state = Session(template, output_dir, checks, plan)
     cookie_key = secrets.token_bytes(32)
     failed_logins = []
     secure = origin.startswith('https:')
@@ -220,8 +222,11 @@ def create_app(*, origin, template=None, output_dir='mcdxkit-output', access_tok
 
 class WebServer:
     """Lifecycle wrapper used by the CLI and real-HTTP integration tests."""
-    def __init__(self, *, port, template, output_dir, host='127.0.0.1', public_url=None, access_token=None):
+    def __init__(self, *, port, template, output_dir, host='127.0.0.1', public_url=None, access_token=None, checks=None):
         check_configuration(host, public_url, access_token)
+        # Built-in review checks only, unless MCDXKIT_CHECKS names installed plug-ins.
+        checks = checks or os.environ.get('MCDXKIT_CHECKS') or 'default'
+        plan = review_runner.prepare(checks)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -232,7 +237,8 @@ class WebServer:
             raise
         self.server_port = self.socket.getsockname()[1]
         self.origin = public_url.rstrip('/') if public_url else f'http://127.0.0.1:{self.server_port}'
-        app = create_app(origin=self.origin, template=template, output_dir=output_dir, access_token=access_token, network=host != '127.0.0.1')
+        app = create_app(origin=self.origin, template=template, output_dir=output_dir, access_token=access_token,
+                         network=host != '127.0.0.1', checks=checks, plan=plan)
         self.state = app.state.workspace
         self.stopped = threading.Event()
         self.stopped.set()
@@ -261,7 +267,9 @@ def create_server(*, port=8765, template=None, output_dir='mcdxkit-output', **kw
 
 
 def main(argv=None, prog='mcdxkit serve'):
-    parser = argparse.ArgumentParser(prog=prog, description='Open a browser for file/folder conversion and package validation.')
+    parser = argparse.ArgumentParser(prog=prog, description='Open a browser for file/folder conversion and package validation.',
+                                     epilog='Advisory review checks: built-ins only, unless MCDXKIT_CHECKS names more '
+                                            '(for example MCDXKIT_CHECKS=default,my_check). See "mcdxkit checks list".')
     parser.add_argument('--port', type=int, default=int(os.environ.get('PORT', '8765')), help='Listen port (default: PORT or 8765; 0 selects a free port)')
     parser.add_argument('--host', choices=['127.0.0.1', '0.0.0.0'], default=os.environ.get('MCDXKIT_HOST', '127.0.0.1'), help='Default: loopback. Network mode requires authentication and a public URL.')
     parser.add_argument('--public-url', default=os.environ.get('MCDXKIT_PUBLIC_URL'), help='Exact browser origin; HTTPS for remote deployments')

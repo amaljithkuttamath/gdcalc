@@ -7,6 +7,9 @@ import threading
 import shutil
 from pathlib import Path
 from . import checks, engine, inspection, standards
+from .review import runner as review_runner
+from .review.history import AuditHistory, newest
+
 
 MIB = 1024 * 1024
 
@@ -17,8 +20,12 @@ class RequestError(Exception):
 
 
 class Session:
-    def __init__(self, template, output_dir):
+    def __init__(self, template, output_dir, checks='default', plan=None):
         self.template = Path(template).resolve() if template else None
+        self.checks = checks
+        # Resolved once: installed plug-ins are imported here, not on every request.
+        self.plan = plan if plan is not None else review_runner.prepare(checks)
+        self._history = None
         self.output_dir = Path(output_dir).resolve()
         self.temp = tempfile.TemporaryDirectory(prefix='mcdxkit-browser-')
         self.token = secrets.token_urlsafe(32)
@@ -48,8 +55,7 @@ class Session:
     def history(self):
         """Recover complete generated pairs after a restart, without trusting saved paths."""
         rows = []
-        candidates = sorted(self.output_dir.glob('*/*.audit.json'), key=lambda p: p.stat().st_mtime, reverse=True)
-        for audit in candidates[:100]:
+        for audit in newest(self.output_dir.glob('*/*.audit.json'), 100)[0]:
             output = audit.with_name(audit.name.removesuffix('.audit.json') + '.mcdx')
             if not re.fullmatch('[0-9a-f]{16}', audit.parent.name) or output.is_symlink() or not output.is_file():
                 continue
@@ -99,7 +105,8 @@ class Session:
         path = folder / name
         try:
             path.write_bytes(raw)
-            checks = {'inspection': engine.inspect_report(path)} if kind == 'report' else {'validation': engine.validate(path)}
+            details = ({'inspection': self.inspect(path)} if kind == 'report'
+                       else {'validation': engine.validate(path)})
         except Exception:
             path.unlink(missing_ok=True)
             folder.rmdir()
@@ -107,7 +114,15 @@ class Session:
         result = state.register(path, kind)
         state.upload_count += 1
         state.upload_bytes += len(raw)
-        return {**result, **checks}
+        return {**result, **details}
+
+    def inspect(self, path, cases=None, load_source='effects'):
+        # The case-name classifier learns from completed conversions in the output directory,
+        # read once per completed conversion rather than on every inspection.
+        if self._history is None or self._history[0] != self.conversions:
+            self._history = (self.conversions, AuditHistory(self.output_dir))
+        return engine.inspect_report(path, cases=cases, load_source=load_source, checks=self.plan,
+                                     history=self._history[1])
 
     @staticmethod
     def cases(cases):
@@ -191,7 +206,7 @@ class Session:
         cases = self.cases(data.get('cases'))
         basis = self.basis(data)
         if route == '/api/inspect':
-            return engine.inspect_report(entry['path'], cases=cases, load_source=basis)
+            return self.inspect(entry['path'], cases, basis)
         template = state.get(data['template_id'], ['template'])['path'] if data.get('template_id') else state.template
         if template is None or not template.is_file():
             raise RequestError('Select a compatible .mcdx template before converting.')
@@ -218,7 +233,7 @@ class Session:
             shutil.copyfile(entry['path'], snapshot_report)
             shutil.copyfile(template, snapshot_template)
             result = engine.convert(snapshot_report, snapshot_template, output, cases=cases,
-                                    load_source=basis, title=title, overrides=overrides)
+                                    load_source=basis, title=title, overrides=overrides, checks=self.plan)
             changes = inspection.diff(snapshot_template, output)
         except Exception:
             shutil.rmtree(folder)
@@ -231,6 +246,7 @@ class Session:
                 'audit': state.register(output.with_suffix('.audit.json'), 'audit'),
                 'output': str(output), 'envelope': result['envelope'], 'cases': result['cases'],
                 'validation': result['validation'], 'native_execution_verified': False,
-                'preview': preview, 'diff': changes,
+                'preview': preview, 'diff': changes, 'review_checks': result['review_checks'],
                 'checks': result['checks'], 'check_summary': result['check_summary'],
+
                 **self.calculated_files(output, result['calculation'])}
