@@ -171,6 +171,8 @@ class ServerTests(unittest.TestCase):
         for bad in ([dict(decision, decision='approve')], [dict(decision, case=5)], 'yes'):
             status, error = self.request('POST', '/api/convert', {**base, 'review_decisions': bad})
             self.assertEqual(status, 400, error)
+            # The browser retries the preview without decisions on exactly this wording.
+            self.assertRegex(error['error'], '(?i)review[ _]decision')
         self.assertEqual(sorted((self.root / 'results').rglob('*.mcdx')), written)
 
     def test_summary_csv_for_uploaded_reports(self):

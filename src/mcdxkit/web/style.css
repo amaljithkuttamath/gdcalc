@@ -342,6 +342,8 @@ main .load-caption { margin: 0 0 2px; }
 .review-chip { display: inline-block; margin: 8px 0 0; padding: 2px 10px; border: 1px solid #4a4f5a; border-radius: 12px; color: #d0d7e4; font-size: 12px; }
 #inspector-content > .card .review-chip { border-color: #dbe2ee; color: #3e516f; }
 .review-pending { margin-top: 12px; }
+main .review-error-note { margin: 8px 0 0; color: #c9cfda; font-size: 12px; overflow-wrap: anywhere; }
+#inspector-content > .card .review-error-note { color: #3e516f; }
 .source-text.source-focus { border-top: 2px solid #e3b863; background: #fffaf0; }
 .source-text.source-focus:focus { outline: 2px solid #365d9f; outline-offset: -2px; }
 

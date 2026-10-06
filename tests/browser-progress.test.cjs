@@ -57,7 +57,7 @@ async function browser(action, count, setup = '') {
       : {error:message}});
     await new Promise(resolve => setImmediate(resolve));
   }
-  return {nodes, requests, respond, finished};
+  return {nodes, requests, respond, finished, context};
 }
 
 for (const action of ['preview', 'convert']) {
@@ -125,15 +125,22 @@ test('rejected template overrides return to Inputs and stop the activity indicat
 
 // Review decisions are advisory: only a decision the engineer made reaches the request.
 const flag = (rule, c) => `{rule:'${rule}', case:${c}, component:'P', message:'m', impact:{envelope:true, selection:true, magnitude:0.2, components:['P']}}`;
-test('review decisions are sent only after the engineer decides, without undo state', async () => {
-  const app = await browser('preview', 1, `
-    const item = items[0]; item.sha = 'abc';
-    item.inspection.review_checks = {flags:[${flag('service_axial_above_strength', 3)}, ${flag('duplicate_case', 4)}]};
+const decided = `
+    const item = items[0]; item.sha = 'abc'; item.inspection.load_source = 'effects';
+    const [kept, copied, later] = [${flag('service_axial_above_strength', 3)}, ${flag('duplicate_case', 4)}, ${flag('ratio_outlier', 3)}];
+    item.inspection.review_checks = {flags:[kept, copied]};
     item.keepNote = '  checked the factors  ';
-    decide(item, [item.inspection.review_checks.flags[0]], 'kept_service');
+    decide(item, {case:3, flags:[kept]}, 'kept_service');
+    // A card decision is never overwritten, and covers flags raised later for the same case.
+    globalThis.overwrote = decide(item, {case:3, flags:[kept]}, 'will_fix_in_group');
+    globalThis.coversLater = Boolean(reviewGroups(item, {flags:[kept, later]}).find(g => g.case === 3).record);
     // An "added" decision for a case that is no longer selected does not stand.
-    decide(item, [item.inspection.review_checks.flags[1]], 'included_case', {item:'r1', selected:[1]});
-  `);
+    decide(item, {case:4, flags:[copied]}, 'included_case', 'r1');
+`;
+test('review decisions are sent only after the engineer decides, without local state', async () => {
+  const app = await browser('preview', 1, decided);
+  assert.equal(vm.runInContext('overwrote', app.context), false);
+  assert.equal(vm.runInContext('coversLater', app.context), true);
   const body = JSON.parse(app.requests[0].options.body);
   assert.equal(body.review_decisions.length, 1);
   const [sent] = body.review_decisions;
@@ -143,4 +150,26 @@ test('review decisions are sent only after the engineer decides, without undo st
   assert.match(sent.decided_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   await app.respond(0, true);
   await app.finished;
+  // A decision is keyed by load source: on another basis it is not reused.
+  vm.runInContext(`items[0].inspection.load_source = 'reactions'`, app.context);
+  assert.equal(vm.runInContext(`reviewDecisions(items[0], items[0].inspection.review_checks.flags).length`, app.context), 0);
+  // Checks that could not run stay visible on Changes and Outputs.
+  assert.match(vm.runInContext(`reviewChip({flags:[], errors:[{id:'my_check', message:'boom'}]}).children[0].textContent`, app.context),
+    /could not run; check the GROUP input yourself.*my_check: boom/);
+  assert.match(vm.runInContext(`items[0].preview = {review_checks:{flags:[], errors:[{id:null, message:'view failed'}]}}; pendingView(items[0]).children[0].textContent`, app.context),
+    /could not run/);
+});
+
+test('a stale review decision never blocks the preview, and outputs repeat the preview decisions', async () => {
+  const app = await browser('preview', 1, decided);
+  assert.ok(JSON.parse(app.requests[0].options.body).review_decisions);
+  await app.respond(0, false, "Review decision does not match a raised flag: ('service_axial_above_strength', 3, 'P')");
+  assert.equal(JSON.parse(app.requests[1].options.body).review_decisions, undefined);
+  await app.respond(1, true);
+  await app.finished;
+  assert.equal(app.nodes.get('step-3').hidden, false);
+  const convert = await browser('convert', 1, decided + `item.preview = {worksheet:{id:'preview'}, diff:{changes:[]}}; item.previewDecisions = reviewDecisions(item, item.inspection.review_checks.flags);`);
+  assert.equal(JSON.parse(convert.requests[0].options.body).review_decisions[0].decision, 'kept_service');
+  await convert.respond(0, true);
+  await convert.finished;
 });

@@ -13,6 +13,9 @@ function overrideProblem(message){$('override-error').textContent=message;$('ove
 function closeViewer(){if(!$('inspector').open)return;$('inspector').close();document.body.classList.remove('document-open');restoreFocus(viewerOpener);viewerOpener=null;}
 function el(tag, text, cls) { const n=document.createElement(tag); if(text!==undefined)n.textContent=text; if(cls)n.className=cls; return n; }
 function button(text, action, cls) { const n=el('button',text,cls); n.type='button'; n.addEventListener('click',action); return n; }
+// Shared labels and number formatting for loads.
+const componentNames={P:'Axial load',Vy:'Shear y',Vz:'Shear z',My:'Moment y',Mz:'Moment z',V:'Lateral resultant'};
+const fmt=value=>Number(Number(value).toPrecision(6)).toString(),unitOf=key=>key.startsWith('M')?'kip-in':'kip',plural=(n,word)=>`${n} ${word}${n===1?'':'s'}`,listed=a=>a.length<2?a.join(''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
 function notice(text,error=false) { $('notice').textContent=text; $('notice').className='statusline'+(error?' error':''); }
 async function api(path,data,raw=false) {
   const options={headers:{'X-MCDXKit-Token':session.token}};
@@ -71,20 +74,20 @@ function overrides() {
   return values;
 }
 // Decisions are sent only when the engineer made one, so outputs are otherwise unchanged by the checks.
-function options(item){const decisions=reviewDecisions(item);return {id:item.id,cases:item.selected,load_source:$('basis').value,template_id:templateId,overrides:overrides(),...(decisions.length?{review_decisions:decisions}:{})};}
+function options(item,decisions=[]){return {id:item.id,cases:item.selected,load_source:$('basis').value,template_id:templateId,overrides:overrides(),...(decisions.length?{review_decisions:decisions}:{})};}
 function ready(){return items.filter(i=>i.inspection&&i.selected.length&&i.inspection.envelope);}
 function invalidate(){for(const item of items)item.preview=null;}
 async function refresh(item){item.preview=null;item.error=null;if(!item.selected.length){item.inspection.envelope=null;item.inspection.review_checks=null;item.error='Select at least one load case.';return;}try{item.inspection=await api('/api/inspect',{id:item.id,cases:item.selected,load_source:$('basis').value});}catch(e){item.error=e.message;item.inspection.envelope=null;item.inspection.governing=null;item.inspection.review_checks=null;}}
 async function download(file){const r=await fetch('/api/download/'+file.id,{headers:{'X-MCDXKit-Token':session.token}});if(!r.ok)throw new Error((await r.json()).error);const url=URL.createObjectURL(await r.blob());const a=el('a');a.href=url;a.download=file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 function removeButton(item){const remove=button('×',()=>{items.splice(items.indexOf(item),1);render();},'quiet');remove.setAttribute('aria-label','Remove '+item.name);return remove;}
 function head(item,label){const h=el('div',undefined,'card-head'),title=el('div');title.append(el('h3',item.name));if(item.relativePath&&item.relativePath!==item.name)title.append(el('p',item.relativePath,'card-path'));title.append(el('span',label,'tag'));h.append(title);return h;}
-function diffView(value,all=false,envelope=null){const fragment=el('div');const changed=value.changes.filter(c=>c.kind!=='added');const added=value.changes.filter(c=>c.kind==='added');const h=el('div',undefined,'diff-header');h.append(el('span','Original template'),el('span','New worksheet'));fragment.append(h);for(const c of (all?value.changes:changed)){const row=el('div',undefined,'diff-row');row.append(el('pre',c.before||'— New native expression','diff-before'),el('pre',(c.after||'— Removed')+(envelope&&({P_a:'P',V_u:'Vy',M_uy:'My',M_uz:'Mz'})[c.variable]?'\nReport preview: '+envelope[({P_a:'P',V_u:'Vy',M_uy:'My',M_uz:'Mz'})[c.variable]]+(c.variable.startsWith('M')?' kip-in':' kip'):''),'diff-after'));fragment.append(row);}fragment.append(el('p',`${changed.length} changed expressions and ${added.length} new native input/envelope expressions`,'diff-summary'));if(!all&&added.length){const details=el('details');details.append(el('summary',`See ${added.length} added expressions`));for(const c of added)details.append(el('pre',c.after,'source-text'));fragment.append(details);}return fragment;}
+function diffView(value,all=false,envelope=null){const fragment=el('div');const changed=value.changes.filter(c=>c.kind!=='added');const added=value.changes.filter(c=>c.kind==='added');const h=el('div',undefined,'diff-header');h.append(el('span','Original template'),el('span','New worksheet'));fragment.append(h);for(const c of (all?value.changes:changed)){const row=el('div',undefined,'diff-row');row.append(el('pre',c.before||'— New native expression','diff-before'),el('pre',(c.after||'— Removed')+(envelope&&({P_a:'P',V_u:'Vy',M_uy:'My',M_uz:'Mz'})[c.variable]?'\nReport preview: '+envelope[({P_a:'P',V_u:'Vy',M_uy:'My',M_uz:'Mz'})[c.variable]]+' '+unitOf(c.variable):''),'diff-after'));fragment.append(row);}fragment.append(el('p',`${changed.length} changed expressions and ${added.length} new native input/envelope expressions`,'diff-summary'));if(!all&&added.length){const details=el('details');details.append(el('summary',`See ${added.length} added expressions`));for(const c of added)details.append(el('pre',c.after,'source-text'));fragment.append(details);}return fragment;}
 function validation(parent,value,calculation=null){const status=el('div',undefined,'result-status');status.append(el('span','✓ Package structure checked'),el('span',calculation?.calculated?'✓ Calculated with CalcpadCE':'Mathcad execution unverified','pending'));parent.append(status,el('p',`${value.math_regions} math regions · ${value.cached_results} cached results · ${value.package_parts} package parts`,'validation-stats'));}
 function render(){
   $('view-calculation').disabled=!currentCalculatedId&&!activeItem?.preview&&!activeItem?.result;
   $('view-report').disabled=!activeItem?.id;$('view-template').disabled=!hasTemplate;$('view-worksheet').disabled=!activeItem?.preview&&!activeItem?.result&&!currentWorksheetId;$('view-diff').disabled=$('view-worksheet').disabled;
   $('file-count').textContent=items.length+' FILE'+(items.length===1?'':'S');$('count').textContent=items.length;
-  {const toReview=items.reduce((n,i)=>n+openReviews(i),0);$('queue-summary').textContent=ready().length+' ready'+(toReview?` · ${toReview} to review`:'');}
+  const reviews=new Map(items.map(i=>[i,reviewGroups(i)]));{const toReview=items.reduce((n,i)=>n+openReviews(reviews.get(i)),0);$('queue-summary').textContent=ready().length+' ready'+(toReview?` · ${toReview} to review`:'');}
   $('download-summary').hidden=items.filter(i=>i.inspection).length<2;$('download-summary').disabled=ready().length<2;
   $('review-next').disabled=!items.length;$('compare-next').disabled=!hasTemplate||!ready().length;
   $('convert-all').disabled=!items.some(i=>i.preview&&!i.result);
@@ -93,9 +96,9 @@ function render(){
   for(const item of items){const row=el('div',undefined,'import-row');row.append(el('span',item.kind==='report'?'REPORT':'MCDX'),el('b',item.name),el('span',item.error?'Needs attention':'Added','tag'+(item.error?' error':'')),removeButton(item));imports.append(row);}
   const queue=$('queue');queue.replaceChildren();if(!items.length)queue.append(el('div','Add a report to check its inputs.','empty'));
   for(const item of items){const card=el('article',undefined,'card');card.append(head(item,item.inspection?'Local load envelope':item.error?'Needs attention':'Worksheet'));
-    if(item.inspection){const groups=reviewGroups(item),open=groups.filter(g=>!decided(item,g)),flagged=new Map(groups.map(g=>[g[0].case,g])),governing=item.inspection.governing;const caseDetails=el('details',undefined,'load-cases');caseDetails.open=item.casesOpen??open.length>0;caseDetails.addEventListener('toggle',()=>{item.casesOpen=caseDetails.open;});caseDetails.append(el('summary',`${item.selected.length} of ${item.inspection.cases.length} load cases selected`),el('p','STR cases selected by default.','case-caption'));const cases=el('div',undefined,'cases');for(const c of item.inspection.cases){const label=el('label',undefined,'case-label'),input=el('input'),text=el('span',undefined,'case-text'),group=flagged.get(c.id),governs=governing&&item.selected.includes(c.id)?Object.keys(governing).filter(k=>governing[k]?.case===c.id):null;input.type='checkbox';input.checked=item.selected.includes(c.id);input.addEventListener('change',()=>run(async()=>{item.selected=input.checked?[...item.selected,c.id].sort((a,b)=>a-b):item.selected.filter(id=>id!==c.id);await refresh(item);}));text.append(el('span',`${c.id}: ${c.name||'Unnamed'}`));if(governs)text.append(el('small',governs.length?'governs '+governs.join(', '):'governs no peak','case-governs'));label.append(input,text);if(group){input.setAttribute('aria-describedby',reviewId(item,c.id));if(!decided(item,group)){label.classList.add('flagged');label.append(el('span','! Review','review-tag'));}}cases.append(label);}caseDetails.append(cases);card.append(caseDetails);
-      {const review=reviewView(item);if(review)card.append(review);}
-      if(item.inspection.envelope){const values=el('div',undefined,'envelope');if(open.length)values.append(el('p',`${plural(open.length,'item')} to review above`,'load-caption'));for(const [key,value]of Object.entries(item.inspection.envelope)){const cell=el('div',undefined,'measure');const label=el('span',undefined,'measure-label');const gov=item.inspection.governing?.[key];label.append(el('span',({P:'Axial load',Vy:'Shear y',Vz:'Shear z',My:'Moment y',Mz:'Moment z'})[key]||key),el('small',gov?`${key} · case ${gov.case}${gov.case_name?' '+gov.case_name:''}${gov.lead_ratio&&gov.lead_ratio>=1.5?` · ${gov.lead_ratio.toFixed(1)}× next case`:''}`:key));cell.append(label,el('strong',Number(value.toPrecision(6)).toString()),el('small',key.startsWith('M')?'kip-in':'kip'));values.append(cell);}card.append(values);}
+    if(item.inspection){const groups=reviews.get(item),open=groups.filter(g=>!g.record),flagged=new Map(groups.map(g=>[g.case,g])),governing=item.inspection.governing;const caseDetails=el('details',undefined,'load-cases');caseDetails.open=item.casesOpen??open.length>0;caseDetails.addEventListener('toggle',()=>{item.casesOpen=caseDetails.open;});caseDetails.append(el('summary',`${item.selected.length} of ${item.inspection.cases.length} load cases selected`),el('p','STR cases selected by default.','case-caption'));const cases=el('div',undefined,'cases');for(const c of item.inspection.cases){const label=el('label',undefined,'case-label'),input=el('input'),text=el('span',undefined,'case-text'),group=flagged.get(c.id),governs=governing&&item.selected.includes(c.id)?Object.keys(governing).filter(k=>governing[k]?.case===c.id):null;input.type='checkbox';input.checked=item.selected.includes(c.id);input.addEventListener('change',()=>run(async()=>{item.selected=input.checked?[...item.selected,c.id].sort((a,b)=>a-b):item.selected.filter(id=>id!==c.id);await refresh(item);}));text.append(el('span',`${c.id}: ${c.name||'Unnamed'}`));if(governs)text.append(el('small',governs.length?'governs '+governs.join(', '):'governs no peak','case-governs'));label.append(input,text);if(group){input.setAttribute('aria-describedby',reviewId(item,c.id));if(!group.record){label.classList.add('flagged');label.append(el('span','! Review','review-tag'));}}cases.append(label);}caseDetails.append(cases);card.append(caseDetails);
+      {const review=reviewView(item,groups);if(review)card.append(review);}
+      if(item.inspection.envelope){const values=el('div',undefined,'envelope');if(open.length)values.append(el('p',`${plural(open.length,'item')} to review above`,'load-caption'));for(const [key,value]of Object.entries(item.inspection.envelope)){const cell=el('div',undefined,'measure');const label=el('span',undefined,'measure-label');const gov=item.inspection.governing?.[key];label.append(el('span',componentNames[key]||key),el('small',gov?`${key} · case ${gov.case}${gov.case_name?' '+gov.case_name:''}${gov.lead_ratio&&gov.lead_ratio>=1.5?` · ${gov.lead_ratio.toFixed(1)}× next case`:''}`:key));cell.append(label,el('strong',fmt(value)),el('small',unitOf(key)));values.append(cell);}card.append(values);}
       {const note=dominanceView(item.inspection.review_checks,item.inspection.cases);if(note)card.append(note);}
     }
     if(item.advice)card.append(adviceView(item));
@@ -120,24 +123,32 @@ function resultCard(result,name){
   const more=el('div',undefined,'card-actions');more.append(button('View changes',()=>run(()=>inspectDiff(result.worksheet.id))),button('Download audit',()=>run(()=>download(result.audit))),button('Check file structure',()=>run(async()=>{result.validation=await api('/api/validate',{id:result.worksheet.id});notice('File structure checked. Native calculation requires Mathcad.');})));
   if(result.calculated_worksheet)more.append(button('Download results page',()=>run(()=>download(result.calculated_worksheet))));details.append(more);card.append(details);return card;
 }
-const componentNames={P:'Axial load',Vy:'Shear y',Vz:'Shear z',My:'Moment y',Mz:'Moment z',V:'Lateral resultant'};
-// Review checks are advisory: nothing changes until the engineer chooses. Decisions are remembered per report content, check and case.
+// Review checks are advisory: nothing changes until the engineer chooses.
+// A decision is stored per flag (report content, load source, check, case, component) and resolves the whole case card.
 const checkNames={service_axial_above_strength:'Service cases against strength cases',effects_below_top:'Effects along the pile against pile-top reactions',duplicate_case:'Copied cases',ratio_outlier:'Unusual load ratios within a case',gross_magnitude:'Possible unit slips'};
 const reviewMemory=new Map(),reviewStore='mcdxkit.review-decisions';let focusNext=null;
 try{for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem(reviewStore)||'{}')))reviewMemory.set(key,value);}catch{/* Storage is optional; decisions then last for this page. */}
-function saveDecisions(){try{const kept={};for(const [key,{undo,...row}] of reviewMemory)kept[key]=row;localStorage.setItem(reviewStore,JSON.stringify(kept));}catch{/* Storage is optional. */}}
-const fmt=value=>Number(Number(value).toPrecision(6)).toString(),unitOf=key=>key.startsWith('M')?'kip-in':'kip',plural=(n,word)=>`${n} ${word}${n===1?'':'s'}`,listed=a=>a.length<2?a.join(''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
-function flagKey(item,f){return [item.sha||item.id,f.rule,f.case,f.component].join('|');}
+function saveDecisions(){try{const kept={};for(const [key,{added_by,...row}] of reviewMemory)kept[key]=row;localStorage.setItem(reviewStore,JSON.stringify(kept));}catch{/* Storage is optional. */}}
+function reviewScope(item){return (item.sha||item.id)+'|'+(item.inspection?.load_source||$('basis').value);}
+function flagKey(item,f){return [reviewScope(item),f.rule,f.case,f.component].join('|');}
 function cardWorthy(f){return Boolean(f.impact?.envelope||f.impact?.selection);}
+const caseLabel=c=>c===null?'The report':'Case '+c,caseText=c=>c===null?'the report':'case '+c;
 // An "added" decision only stands while the case is still selected.
-function decisionOf(item,f){const d=reviewMemory.get(flagKey(item,f));return d&&(d.decision!=='included_case'||item.selected?.includes(f.case))?d:null;}
-function reviewDecisions(item){return (item.inspection?.review_checks?.flags||[]).map(f=>decisionOf(item,f)).filter(Boolean).map(({undo,...row})=>row);}
-function reviewGroups(item,review=item.inspection?.review_checks){const byCase=new Map(),magnitude=f=>f.impact?.magnitude||0;for(const f of (review?.flags||[]).filter(cardWorthy)){const key=String(f.case);if(!byCase.has(key))byCase.set(key,[]);byCase.get(key).push(f);}return [...byCase.values()].map(g=>g.sort((a,b)=>magnitude(b)-magnitude(a))).sort((a,b)=>magnitude(b[0])-magnitude(a[0])||(a[0].case??0)-(b[0].case??0));}
-function decided(item,group){return group.every(f=>decisionOf(item,f));}
-function openReviews(item,review){return reviewGroups(item,review).filter(g=>!decided(item,g)).length;}
+function standing(item,d){return d&&(d.decision!=='included_case'||Boolean(item.selected?.includes(d.case)));}
+function caseRecords(item,c){const scope=reviewScope(item);return [...reviewMemory.values()].filter(d=>d.scope===scope&&d.case===c&&standing(item,d));}
+// Decisions sent to the engine: only for flags that the given review actually raised.
+function reviewDecisions(item,flags){const raised=new Set((flags||[]).map(f=>flagKey(item,f)));return [...raised].map(key=>reviewMemory.get(key)).filter(d=>standing(item,d)).map(({rule,case:c,component,decision,note,decided_at})=>({rule,case:c,component,decision,note,decided_at}));}
+// One card per case: undecided cards hold the flags that could change the envelope or selection.
+function reviewGroups(item,review=item.inspection?.review_checks){
+  const flags=review?.flags||[],cases=new Map(),magnitude=g=>Math.max(0,...g.flags.map(f=>f.impact?.magnitude||0)),scope=reviewScope(item);
+  for(const f of flags.filter(cardWorthy))if(!cases.has(f.case))cases.set(f.case,null);
+  for(const d of reviewMemory.values())if(review&&d.scope===scope&&standing(item,d)&&!cases.has(d.case))cases.set(d.case,null);
+  return [...cases.keys()].map(c=>{const record=caseRecords(item,c)[0]||null;return {case:c,record,flags:flags.filter(f=>f.case===c&&(record||cardWorthy(f))).sort((a,b)=>(b.impact?.magnitude||0)-(a.impact?.magnitude||0))};}).filter(g=>g.record||g.flags.length).sort((a,b)=>magnitude(b)-magnitude(a)||(a.case??0)-(b.case??0));
+}
+function openReviews(groups){return groups.filter(g=>!g.record).length;}
 function reviewId(item,c){return `review-${item.id}-${c}`;}
 function caseName(cases,id){const c=cases?.find(x=>x.id===id);return `case ${id}${c?.name?' '+c.name:''}`;}
-function flagTitle(f){const c=f.case===null?'The report':'Case '+f.case;return ({service_axial_above_strength:`${c} has more axial load than any strength case`,effects_below_top:`${c} has a smaller ${(componentNames[f.component]||'value').toLowerCase()} along the pile than at the pile top`,duplicate_case:`${c} has the same tables as case ${f.evidence?.duplicate_of}`,ratio_outlier:`${c} has an unusual load ratio`,gross_magnitude:`${c} may use different units`})[f.rule]||`${c} needs a look`;}
+function flagTitle(f){const c=caseLabel(f.case);return ({service_axial_above_strength:`${c} has more axial load than any strength case`,effects_below_top:`${c} has a smaller ${(componentNames[f.component]||'value').toLowerCase()} along the pile than at the pile top`,duplicate_case:`${c} has the same tables as case ${f.evidence?.duplicate_of}`,ratio_outlier:`${c} has an unusual load ratio`,gross_magnitude:`${c} may use different units`})[f.rule]||`${c} needs a look`;}
 function flagNumbers(f,cases){return f.rule==='service_axial_above_strength'?`Axial load ${fmt(f.value)} ${f.unit} in ${caseName(cases,f.case)}. Largest strength case: ${fmt(f.compared_to)} ${f.unit} in ${caseName(cases,f.evidence?.strength_case)}.`:f.message;}
 function impactText(item,f){
   const i=f.impact,env=item.inspection?.envelope||{},parts=i.components||[];
@@ -148,66 +159,81 @@ function impactText(item,f){
   if(i.envelope)return parts.length?`It sets the ${listed(parts)} peak${parts.length===1?'':'s'}, so a wrong value here changes the envelope.`:'It is in the envelope, so a wrong value here could change it.';
   return 'It affects which cases belong in the envelope.';
 }
-const decisionText={included_case:c=>`case ${c} added to the envelope.`,kept_service:c=>`case ${c} kept as is.`,will_fix_in_group:c=>`case ${c} kept; you will fix the report in GROUP and upload it again.`};
-function decide(item,group,decision,undo){const at=new Date().toISOString(),note=decision==='included_case'?null:(item.keepNote||'').trim().slice(0,500)||null;for(const f of group)reviewMemory.set(flagKey(item,f),{rule:f.rule,case:f.case,component:f.component,decision,note,decided_at:at,...(undo?{undo}:{})});saveDecisions();item.keeping=undefined;item.keepNote='';item.preview=null;focusNext=reviewId(item,group[0].case)+'-undo';}
+const decisionText={included_case:c=>`${caseText(c)} added to the envelope.`,kept_service:c=>`${caseText(c)} kept as is.`,will_fix_in_group:c=>`${caseText(c)} kept; you will fix the report in GROUP and upload it again.`};
+// Records the decision for the flags this card showed. An existing decision is never overwritten; Undo first.
+function decide(item,group,decision,addedBy){
+  if(caseRecords(item,group.case).length)return false;
+  const at=new Date().toISOString(),note=decision==='included_case'?null:(item.keepNote||'').trim().slice(0,500)||null;
+  for(const f of group.flags)reviewMemory.set(flagKey(item,f),{scope:reviewScope(item),rule:f.rule,case:f.case,component:f.component,decision,note,decided_at:at,...(addedBy?{added_by:addedBy}:{})});
+  saveDecisions();item.keeping=undefined;item.keepNote='';item.preview=null;focusNext=reviewId(item,group.case)+'-undo';return true;
+}
 async function includeCase(item,group){
-  const f=group[0],c=f.case,before=[...item.selected];item.selected=[...before,c].sort((a,b)=>a-b);await refresh(item);
-  if(item.error||!item.inspection.envelope){const problem=item.error;item.selected=before;await refresh(item);throw new Error(`Case ${c} was not added: ${problem||'no envelope'}`);}
-  decide(item,group,'included_case',{item:item.id,selected:before});
+  const c=group.case,f=group.flags[0];item.selected=[...item.selected,c].sort((a,b)=>a-b);await refresh(item);
+  if(item.error||!item.inspection.envelope){const problem=item.error;item.selected=item.selected.filter(x=>x!==c);await refresh(item);throw new Error(`Case ${c} was not added: ${problem||'no envelope'}`);}
+  decide(item,group,'included_case',item.id);
   const key=item.inspection.envelope[f.component]===undefined?'P':f.component,gov=item.inspection.governing?.[key];
   notice(`${componentNames[key]} now ${fmt(item.inspection.envelope[key])} ${unitOf(key)}`+(gov?.case===c?`, from case ${c}`:'')+'.');
 }
+// Undo removes only this case's decision and, if this page added the case, only that case from the selection.
 async function undoDecision(item,group){
-  const f=group[0],d=reviewMemory.get(flagKey(item,f));for(const x of group)reviewMemory.delete(flagKey(item,x));saveDecisions();item.preview=null;focusNext=reviewId(item,f.case)+'-show';
-  if(d?.decision==='included_case'&&d.undo?.item===item.id){item.selected=d.undo.selected;await refresh(item);const key=item.inspection.envelope?.[f.component]===undefined?'P':f.component;notice(`Undone. ${componentNames[key]} back to ${fmt(item.inspection.envelope?.[key])} ${unitOf(key)}; case ${f.case} is back to review.`);}
-  else notice(`Undone. Case ${f.case} is back to review.`);
+  const c=group.case,scope=reviewScope(item),records=[...reviewMemory].filter(([,d])=>d.scope===scope&&d.case===c),added=records.some(([,d])=>d.decision==='included_case'&&d.added_by===item.id);
+  for(const [key] of records)reviewMemory.delete(key);saveDecisions();item.preview=null;focusNext=reviewId(item,c)+'-show';
+  if(added&&item.selected.includes(c)&&item.selected.length>1){const key=group.flags[0]?.component&&item.inspection.envelope?.[group.flags[0].component]!==undefined?group.flags[0].component:'P';item.selected=item.selected.filter(x=>x!==c);await refresh(item);notice(`Undone. ${componentNames[key]} back to ${fmt(item.inspection.envelope?.[key])} ${unitOf(key)}; case ${c} is back to review.`);}
+  else notice(`Undone. ${caseLabel(c)} is back to review.`);
 }
 function reviewCard(item,group){
-  const f=group[0],c=f.case,id=reviewId(item,c),box=el('section',undefined,'review-card');box.id=id+'-card';box.setAttribute('aria-labelledby',id);
-  if(decided(item,group)){const d=decisionOf(item,f),line=el('p',undefined,'review-done'),text=el('span','✓ Reviewed: '+decisionText[d.decision](c)+(d.note?' Note: '+d.note:''));text.id=id;const undo=button('Undo',()=>run(()=>undoDecision(item,group)),'review-undo');undo.id=id+'-undo';undo.setAttribute('aria-label',`Undo review of case ${c}`);line.append(text,undo);box.classList.add('reviewed');box.append(line);return box;}
+  const c=group.case,f=group.flags[0],id=reviewId(item,c),box=el('section',undefined,'review-card');box.id=id+'-card';box.setAttribute('aria-labelledby',id);
+  if(group.record){const d=group.record,line=el('p',undefined,'review-done'),text=el('span','✓ Reviewed: '+decisionText[d.decision](c)+(d.note?' Note: '+d.note:''));text.id=id;const undo=button('Undo',()=>run(()=>undoDecision(item,group)),'review-undo');undo.id=id+'-undo';undo.setAttribute('aria-label',`Undo review of ${caseText(c)}`);line.append(text,undo);box.classList.add('reviewed');box.append(line);return box;}
   const title=el('h4',flagTitle(f),'review-title');title.id=id;box.append(title,el('p',flagNumbers(f,item.inspection.cases),'review-numbers'));
-  for(const other of group.slice(1))box.append(el('p',other.message,'review-numbers'));
+  for(const other of group.flags.slice(1))box.append(el('p',other.message,'review-numbers'));
   box.append(el('p',impactText(item,f),'review-impact'));
   const actions=el('div',undefined,'review-actions'),show=button('Show in report',()=>run(()=>inspect(item.id,'file',c)));show.id=id+'-show';actions.append(show);
   if(c!==null&&!item.selected.includes(c))actions.append(button(`Add case ${c} to envelope`,()=>run(()=>includeCase(item,group))));
   const keep=button('Keep as is…',()=>{item.keeping=item.keeping===c?undefined:c;item.keepNote='';focusNext=item.keeping===c?id+'-note':id+'-keep';render();});keep.id=id+'-keep';keep.setAttribute('aria-expanded',String(item.keeping===c));keep.setAttribute('aria-controls',id+'-why');actions.append(keep);box.append(actions);
   if(item.keeping===c){
-    const why=el('div',undefined,'review-keep'),label=el('label','Note (optional)'),note=el('textarea');why.id=id+'-why';why.setAttribute('role','group');why.setAttribute('aria-label',`Why keep case ${c} as is`);note.id=id+'-note';label.htmlFor=note.id;note.rows=2;note.maxLength=500;note.value=item.keepNote||'';note.addEventListener('input',()=>{item.keepNote=note.value;});
-    const choices=el('div',undefined,'review-actions'),choose=(decision,message)=>()=>{if(busy)return;decide(item,group,decision);notice(message);render();};
-    choices.append(button(f.rule==='service_axial_above_strength'?`Case ${c} really is a service case`:`Case ${c} is correct as is`,choose('kept_service',`Reviewed: case ${c} kept as is.`)),button('I’ll fix the report in GROUP and upload it again',choose('will_fix_in_group',`Reviewed: case ${c} kept until you fix the report in GROUP.`)),button('Cancel',()=>{item.keeping=undefined;focusNext=id+'-keep';render();},'quiet'));
+    const why=el('div',undefined,'review-keep'),label=el('label','Note (optional)'),note=el('textarea');why.id=id+'-why';why.setAttribute('role','group');why.setAttribute('aria-label',`Why keep ${caseText(c)} as is`);note.id=id+'-note';label.htmlFor=note.id;note.rows=2;note.maxLength=500;note.value=item.keepNote||'';note.addEventListener('input',()=>{item.keepNote=note.value;});
+    const choices=el('div',undefined,'review-actions'),choose=(decision,message)=>()=>{if(busy||!decide(item,group,decision))return;notice(message);render();};
+    choices.append(button(f.rule==='service_axial_above_strength'&&c!==null?`Case ${c} really is a service case`:`${caseLabel(c)} is correct as is`,choose('kept_service',`Reviewed: ${caseText(c)} kept as is.`)),button('I’ll fix the report in GROUP and upload it again',choose('will_fix_in_group',`Reviewed: ${caseText(c)} kept until you fix the report in GROUP.`)),button('Cancel',()=>{item.keeping=undefined;focusNext=id+'-keep';render();},'quiet'));
     why.append(label,note,choices);box.append(why);
   }
   box.append(el('p','This asks you to look. It is not an error, and nothing changes unless you choose.','review-footer'));return box;
 }
 function checkedView(review){
-  const box=el('details',undefined,'review-checked'),list=el('ul');box.append(el('summary','What was checked'),el('p','Automated consistency checks on the GROUP summary. They do not verify the design and never change inputs, case selection or results.','small'));
-  const ran=(review.checks_run||[]).filter(c=>c.kind==='check');
-  for(const check of ran){const flags=(review.flags||[]).filter(f=>f.rule===check.id),minor=flags.filter(f=>!cardWorthy(f)),raised=flags.length-minor.length,row=el('li');
-    row.append(el('b',checkNames[check.id]||'Installed check '+check.id),el('span',check.status!=='ok'?'could not run':!flags.length?'nothing found':[raised?`${raised} to review above`:'',minor.length?`${plural(minor.length,'item')} that cannot change the envelope`:''].filter(Boolean).join(', '),'small'));
-    for(const f of minor)row.append(el('small',f.message,'review-minor'));list.append(row);}
-  for(const s of review.skipped||[]){const row=el('li');row.append(el('b',checkNames[s.id]||'Installed check '+s.id),el('span','not run: '+s.reason,'small'));list.append(row);}
-  for(const e of (review.errors||[]).filter(e=>!ran.some(c=>c.id===e.id))){const row=el('li');row.append(el('b',checkNames[e.id]||'Installed check '+(e.id||'')),el('span','could not run: '+e.message,'small'));list.append(row);}
+  const box=el('details',undefined,'review-checked'),list=el('ul'),shown=new Set();box.append(el('summary','What was checked'),el('p','Automated consistency checks on the GROUP summary. They do not verify the design and never change inputs, case selection or results.','small'));
+  const row=(id,state,extra=[])=>{if(shown.has(id))return;shown.add(id);const li=el('li');li.append(el('b',checkNames[id]||'Installed check '+(id||'')),el('span',state,'small'),...extra);list.append(li);};
+  const skipped=id=>(review.skipped||[]).find(s=>s.id===id),error=id=>(review.errors||[]).find(e=>e.id===id);
+  for(const check of (review.checks_run||[]).filter(c=>c.kind==='check')){
+    if(check.status==='skipped'){row(check.id,'not applicable: '+(skipped(check.id)?.reason||'does not apply to this report'));continue;}
+    if(check.status!=='ok'){row(check.id,'could not run: '+(error(check.id)?.message||check.status));continue;}
+    const flags=(review.flags||[]).filter(f=>f.rule===check.id),minor=flags.filter(f=>!cardWorthy(f)),raised=flags.length-minor.length;
+    row(check.id,!flags.length?'nothing found':[raised?`${raised} to review above`:'',minor.length?`${plural(minor.length,'item')} that cannot change the envelope`:''].filter(Boolean).join(', '),minor.map(f=>el('small',f.message,'review-minor')));
+  }
+  for(const s of review.skipped||[])if(!(review.checks_run||[]).some(c=>c.id===s.id&&c.kind!=='check'))row(s.id,'not applicable: '+s.reason);
+  for(const e of review.errors||[])if(!(review.checks_run||[]).some(c=>c.id===e.id&&c.kind!=='check'))row(e.id,'could not run: '+e.message);
   box.append(list);return box;
 }
-function reviewView(item){
+function checkErrors(review){return review?.errors?.length?el('p','Input checks could not run; check the GROUP input yourself. '+review.errors.map(e=>`${checkNames[e.id]||e.id||'Review'}: ${e.message}`).join('; ')+'.','review-error-note'):null;}
+function reviewView(item,groups){
   const review=item.inspection?.review_checks;if(!review||!(review.checks_run||[]).some(c=>c.kind==='check')&&!review.errors?.length)return null;
-  const box=el('div',undefined,'review-checks'),groups=reviewGroups(item);
-  if(!groups.length)box.append(el('p',(review.checks_run||[]).some(c=>c.kind==='check'&&c.status!=='ok')||review.errors?.length?'Some input checks could not run. See what was checked.':'✓ Input checks found nothing to review','review-clean'));
+  const box=el('div',undefined,'review-checks');
+  if(!groups.length)box.append(el('p',review.errors?.length?'Some input checks could not run. See what was checked.':'✓ Input checks found nothing to review','review-clean'));
   for(const g of groups.slice(0,3))box.append(reviewCard(item,g));
   if(groups.length>3){const more=el('details',undefined,'review-more');more.open=Boolean(item.reviewMore);more.addEventListener('toggle',()=>{item.reviewMore=more.open;});more.append(el('summary',`Show ${groups.length-3} more`));for(const g of groups.slice(3))more.append(reviewCard(item,g));box.append(more);}
   box.append(checkedView(review));return box;
 }
 function pendingView(item){
-  const review=item.preview.review_checks,open=reviewGroups(item,review).filter(g=>!decided(item,g));if(!open.length)return null;const box=el('div',undefined,'review-pending');
-  for(const [f] of open)box.append(el('p','Not reviewed yet: '+(f.rule==='service_axial_above_strength'&&!item.selected.includes(f.case)?`adding case ${f.case} would make axial load ${fmt(f.value)} ${f.unit}`:flagTitle(f).replace(/^Case/,'case')),'review-pending-line'));
-  box.append(el('p',`${plural(open.length,'item')} ${open.length===1?'isn’t':'aren’t'} reviewed yet. Outputs will list ${open.length===1?'it':'them'} as not reviewed.`,'small'));return box;
+  const review=item.preview.review_checks,open=reviewGroups(item,review).filter(g=>!g.record),errors=checkErrors(review);if(!open.length&&!errors)return null;const box=el('div',undefined,'review-pending');
+  for(const {flags:[f]} of open)box.append(el('p','Not reviewed yet: '+(f.rule==='service_axial_above_strength'&&!item.selected.includes(f.case)?`adding case ${f.case} would make axial load ${fmt(f.value)} ${f.unit}`:flagTitle(f).replace(/^Case/,'case').replace(/^The report/,'the report')),'review-pending-line'));
+  if(open.length)box.append(el('p',`${plural(open.length,'item')} ${open.length===1?'isn’t':'aren’t'} reviewed yet. Outputs will list ${open.length===1?'it':'them'} as not reviewed.`,'small'));
+  if(errors)box.append(errors);return box;
 }
 function reviewChip(review){
-  if(!review?.flags)return null;const key=f=>[f.rule,f.case,f.component].join('|'),made=new Set((review.decisions||[]).filter(d=>!d.unverified).map(key));
-  const reviewed=new Set(review.flags.filter(f=>made.has(key(f))).map(f=>f.case)),open=new Set(review.flags.filter(f=>cardWorthy(f)&&!made.has(key(f))&&!reviewed.has(f.case)).map(f=>f.case));
-  if(!reviewed.size&&!open.size)return null;return el('p','Input checks: '+[reviewed.size?`${reviewed.size} reviewed`:'',open.size?`${open.size} not reviewed`:''].filter(Boolean).join(' · '),'review-chip');
+  if(!review)return null;const box=el('div',undefined,'review-summary'),key=f=>[f.rule,f.case,f.component].join('|'),made=new Set((review.decisions||[]).filter(d=>!d.unverified).map(key)),flags=review.flags||[];
+  const reviewed=new Set(flags.filter(f=>made.has(key(f))).map(f=>f.case)),open=new Set(flags.filter(f=>cardWorthy(f)&&!reviewed.has(f.case)).map(f=>f.case));
+  if(reviewed.size||open.size)box.append(el('p','Input checks: '+[reviewed.size?`${reviewed.size} reviewed`:'',open.size?`${open.size} not reviewed`:''].filter(Boolean).join(' · '),'review-chip'));
+  const errors=checkErrors(review);if(errors)box.append(errors);return reviewed.size||open.size||errors?box:null;
 }
-function caseLine(lines,id){let summary=-1;lines.forEach((line,i)=>{if(line.includes('SUMMARY FOR LOAD CASES AND COMBINATIONS'))summary=i;});const heading=new RegExp('LOAD CASE\\s*:\\s*'+id+'(?!\\d)');const after=lines.findIndex((line,i)=>i>summary&&heading.test(line));return after;}
+function caseLine(lines,id){let summary=-1;lines.forEach((line,i)=>{if(line.includes('SUMMARY FOR LOAD CASES AND COMBINATIONS'))summary=i;});const heading=new RegExp('LOAD CASE\\s*:\\s*'+id+'(?!\\d)');return lines.findIndex((line,i)=>i>summary&&heading.test(line));}
 function dominanceOf(review){return review?.annotations?.find(a=>a.kind==='dominance')?.data;}
 function dominanceView(review,cases){
   const d=dominanceOf(review);if(!d?.dominated?.length)return null;const name=id=>{const c=cases.find(x=>x.id===id);return `${id}${c?.name?' '+c.name:''}`;};
@@ -278,7 +304,7 @@ async function inspectStandards(id,imported){
   if(register.overrides.length){const overrides=el('section',undefined,'standards-section');overrides.append(el('h3','Template overrides'));for(const value of register.overrides)overrides.append(el('p',`${value.variable} = ${value.quantity} · ${state(value.review_state)} · ${value.reason||'Reason missing'}`));body.append(overrides);}
 }
 async function history(){const data=await api('/api/history');dialog('Saved outputs','OUTPUT HISTORY','Previously generated files. Open a file to inspect it or download it.');$('preview-summary').textContent='Previous conversions';$('inspector-search').hidden=true;for(const result of data)$('inspector-content').append(resultCard(result,result.worksheet.name));if(!data.length)$('inspector-content').append(el('div','No saved outputs yet.','empty'));}
-async function importFiles(files){let added=0,failed=0,skipped=0;for(const file of files){const ext=file.name.split('.').pop().toLowerCase();if(!['gp11t','txt','mcdx'].includes(ext)){skipped++;continue;}if(items.length>=100)throw new Error('The queue is limited to 100 files. Start a new session for more.');const item={name:file.name,relativePath:file.webkitRelativePath,kind:ext==='mcdx'?'worksheet':'report'};notice('Reading '+file.name+'…');try{if(file.size>(item.kind==='report'?16:32)*1024*1024)throw new Error('File exceeds the upload size limit.');Object.assign(item,await api('/api/upload?'+new URLSearchParams({name:file.name,kind:item.kind}),file,true));item.sha=item.source_sha256;if(item.inspection){item.selected=item.inspection.selected_cases;item.error=item.inspection.selection_required;if($('basis').value!=='effects'&&item.selected.length)await refresh(item);}added++;}catch(e){item.error=e.message;failed++;}items.push(item);activeItem=item;render();}if(activeItem?.id&&!compactView.matches)await inspect(activeItem.id);const toReview=items.reduce((n,i)=>n+openReviews(i),0);notice(`${added} file${added===1?'':'s'} added`+(failed?` · ${failed} failed`:'')+(skipped?` · ${skipped} unsupported files skipped`:'')+(toReview?` · ${plural(toReview,'item')} to review`:'')+'.',failed>0);}
+async function importFiles(files){let added=0,failed=0,skipped=0;for(const file of files){const ext=file.name.split('.').pop().toLowerCase();if(!['gp11t','txt','mcdx'].includes(ext)){skipped++;continue;}if(items.length>=100)throw new Error('The queue is limited to 100 files. Start a new session for more.');const item={name:file.name,relativePath:file.webkitRelativePath,kind:ext==='mcdx'?'worksheet':'report'};notice('Reading '+file.name+'…');try{if(file.size>(item.kind==='report'?16:32)*1024*1024)throw new Error('File exceeds the upload size limit.');Object.assign(item,await api('/api/upload?'+new URLSearchParams({name:file.name,kind:item.kind}),file,true));item.sha=item.source_sha256;if(item.inspection){item.selected=item.inspection.selected_cases;item.error=item.inspection.selection_required;if($('basis').value!=='effects'&&item.selected.length)await refresh(item);}added++;}catch(e){item.error=e.message;failed++;}items.push(item);activeItem=item;render();}if(activeItem?.id&&!compactView.matches)await inspect(activeItem.id);const toReview=items.reduce((n,i)=>n+openReviews(reviewGroups(i)),0);notice(`${added} file${added===1?'':'s'} added`+(failed?` · ${failed} failed`:'')+(skipped?` · ${skipped} unsupported files skipped`:'')+(toReview?` · ${plural(toReview,'item')} to review`:'')+'.',failed>0);}
 for(const id of ['files','folder']){$('choose-'+(id==='files'?'files':'folder')).addEventListener('click',()=>$(id).click());$(id).addEventListener('change',e=>{const files=Array.from(e.target.files);e.target.value='';run(()=>importFiles(files));});}
 $('choose-template').addEventListener('click',()=>$('template').click());
 $('template').addEventListener('change',e=>{const file=e.target.files[0];e.target.value='';if(!file)return;run(async()=>{if(file.size>32*1024*1024)throw new Error('Template exceeds 32 MiB.');const value=await api('/api/upload?'+new URLSearchParams({name:file.name,kind:'template'}),file,true);templateId=value.id;hasTemplate=true;invalidate();$('template-name').textContent=value.name;$('template-status').textContent='Ready to use';await inspect(templateId);notice('Template selected.');});});
@@ -297,7 +323,17 @@ $('compare-next').addEventListener('click', () => run(async () => {
     notice('Preparing changes for ' + item.name + '…');
     item.previewError = null;
     try {
-      item.preview = await api('/api/preview', options(item));
+      // Decisions go only for flags the latest inspection raised; the output repeats exactly what the preview used.
+      let decisions = reviewDecisions(item, item.inspection?.review_checks?.flags);
+      try { item.preview = await api('/api/preview', options(item, decisions)); }
+      catch (error) {
+        // A stale decision must never block outputs: retry without decisions; they then show as not reviewed.
+        if (!decisions.length || !/review[ _]decision/i.test(error.message)) throw error;
+        decisions = [];
+        item.preview = await api('/api/preview', options(item));
+        notice('A review decision no longer matches the checks for ' + item.name + '. Review its inputs again.');
+      }
+      item.previewDecisions = decisions;
       item.result = null;
     } catch (error) {
       item.preview = null;
@@ -322,7 +358,7 @@ $('convert-all').addEventListener('click', () => run(async () => {
   const result = await processFiles('Generating outputs', pending, async item => {
     notice('Generating ' + item.name + '…');
     item.previewError = null;
-    try { item.result = await api('/api/convert', options(item)); }
+    try { item.result = await api('/api/convert', options(item, item.previewDecisions || [])); }
     catch (error) { item.previewError = error.message; }
     render();
     return Boolean(item.result);
