@@ -1,5 +1,7 @@
 """Public conversion engine independent of CLI, agent host, HTTP and Mathcad."""
+import csv
 import hashlib
+import io
 import json
 import os
 import tempfile
@@ -65,6 +67,75 @@ def convert(report, template, output, *, cases=None, load_source='effects', titl
                 if destination.exists() and os.path.samefile(destination,source):destination.unlink()
             raise
     return result
+
+
+SUMMARY_MEASURES=(('P','kip'),('Vy','kip'),('Vz','kip'),('My','kip_in'),('Mz','kip_in'))
+SUMMARY_COLUMNS=(['report','origin','source_sha256','load_source','case_id','case_name','selected']+
+                 [key+'_'+unit for key,unit in SUMMARY_MEASURES]+['governs'])
+
+
+def _summary_rows(name, origin, raw, parsed, selected):
+    """One row per final-summary case. Values are that case's component maxima (P: max compression,
+    others: max magnitude); `governs` names measures for which the case is the selected-case maximum."""
+    governing=group_report.envelope(selected)
+    chosen={c['id'] for c in selected}
+    rows=[]
+    for case in parsed['cases']:
+        values=group_report.envelope([case])
+        row={'report':name,'origin':origin,'source_sha256':hashlib.sha256(raw).hexdigest(),
+             'load_source':parsed['load_source'],'case_id':case['id'],'case_name':case['name'],
+             'selected':case['id'] in chosen}
+        row.update({key+'_'+unit:values[key] for key,unit in SUMMARY_MEASURES})
+        row['governs']=[key for key,_ in SUMMARY_MEASURES if case['id'] in chosen and values[key]==governing[key]]
+        rows.append(row)
+    return rows
+
+
+def summarize_report(report, *, cases=None, load_source='effects', origin=None):
+    """Summary rows for one report. Unresolved or invalid case selection raises ValueError."""
+    report=Path(report)
+    raw,parsed=_read_report(report,load_source)
+    try:selected=group_report.select(parsed,cases)
+    except ValueError as exc:raise ValueError(f'{report.name}: {exc}') from exc
+    return _summary_rows(report.name,origin or report.name,raw,parsed,selected)
+
+
+def summarize_audit(audit, *, origin=None):
+    """Summary rows for a completed conversion, re-parsed from its hash-verified `_source` snapshot
+    with the audit's recorded cases and load basis. A missing or changed snapshot raises ValueError."""
+    audit=Path(audit)
+    if audit.is_symlink() or audit.stat().st_size>2*1024*1024:raise ValueError(f'{audit.name}: unsupported audit file')
+    try:
+        data=json.loads(audit.read_text(encoding='utf-8'))
+        name,expected,cases,basis=data['source'],data['source_sha256'],data['cases'],data['load_source']
+    except (ValueError,KeyError,TypeError) as exc:raise ValueError(f'{audit.name}: not a gdcalc conversion audit') from exc
+    if (not isinstance(name,str) or Path(name).name!=name or name in ('','.','..') or not isinstance(cases,list)
+            or not all(type(i) is int for i in cases)):
+        raise ValueError(f'{audit.name}: not a gdcalc conversion audit')
+    snapshot=audit.parent/'_source'/name
+    if snapshot.is_symlink() or not snapshot.is_file():
+        raise ValueError(f'{audit.name}: source snapshot _source/{name} is missing')
+    raw,parsed=_read_report(snapshot,basis)
+    if hashlib.sha256(raw).hexdigest()!=expected:
+        raise ValueError(f'{audit.name}: source snapshot does not match the audited SHA-256')
+    return _summary_rows(name,origin or audit.name,raw,parsed,group_report.select(parsed,cases))
+
+
+def summary_csv(rows):
+    """Render summary rows as CSV text (units in column names, kip and kip-in)."""
+    def text(value):
+        # Spreadsheet formula injection: report/case names are untrusted text.
+        return "'"+value if isinstance(value,str) and value[:1] in ('=','+','-','@','\t','\r') else value
+    def cell(key,value):
+        if isinstance(value,bool):return 'yes' if value else 'no'
+        if isinstance(value,float):return format(value,'.12g')
+        if isinstance(value,list):return ' '.join(value)
+        return '' if value is None else text(value)
+    stream=io.StringIO()
+    writer=csv.writer(stream,lineterminator='\n')
+    writer.writerow(SUMMARY_COLUMNS)
+    for row in rows:writer.writerow([cell(key,row[key]) for key in SUMMARY_COLUMNS])
+    return stream.getvalue()
 
 
 def validate(worksheet):

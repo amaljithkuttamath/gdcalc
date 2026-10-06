@@ -101,6 +101,33 @@ class Session:
         state.upload_bytes += len(raw)
         return {**result, **checks}
 
+    @staticmethod
+    def cases(cases):
+        if cases is not None and (not isinstance(cases, list) or not cases or len(cases) > 100 or
+                                  any(type(i) is not int or i < 1 for i in cases) or len(set(cases)) != len(cases)):
+            raise RequestError('Select one or more unique positive load case IDs.')
+        return cases
+
+    @staticmethod
+    def basis(data):
+        basis = data.get('load_source', 'effects')
+        if basis not in ('effects', 'reactions'):
+            raise RequestError('Load source must be effects or reactions.')
+        return basis
+
+    def summary(self, reports, basis):
+        """CSV of per-case loads for two or more uploaded reports; nothing is written to the output directory."""
+        if not isinstance(reports, list) or not 2 <= len(reports) <= 100 or not all(isinstance(r, dict) for r in reports):
+            raise RequestError('Select between 2 and 100 reports for a summary.')
+        if len({r.get('id') for r in reports}) != len(reports):
+            raise RequestError('Each report can appear only once in a summary.')
+        rows = []
+        for report in reports:
+            entry = self.get(report.get('id'), ['report'])
+            rows += engine.summarize_report(entry['path'], cases=self.cases(report.get('cases')), load_source=basis)
+        return {'name': 'gdcalc-summary.csv', 'reports': len(reports), 'rows': len(rows),
+                'csv': engine.summary_csv(rows), 'native_execution_verified': False}
+
     def operation(self, route, data):
         state = self
         if route == '/api/view':
@@ -128,14 +155,11 @@ class Session:
             return inspection.diff(original, output)
         if route == '/api/validate':
             return engine.validate(state.get(data.get('id'), ['worksheet', 'template'])['path'])
+        if route == '/api/summary':
+            return self.summary(data.get('reports'), self.basis(data))
         entry = state.get(data.get('id'), ['report'])
-        cases = data.get('cases')
-        if cases is not None and (not isinstance(cases, list) or not cases or len(cases) > 100 or
-                                  any(type(i) is not int or i < 1 for i in cases) or len(set(cases)) != len(cases)):
-            raise RequestError('Select one or more unique positive load case IDs.')
-        basis = data.get('load_source', 'effects')
-        if basis not in ('effects', 'reactions'):
-            raise RequestError('Load source must be effects or reactions.')
+        cases = self.cases(data.get('cases'))
+        basis = self.basis(data)
         if route == '/api/inspect':
             return engine.inspect_report(entry['path'], cases=cases, load_source=basis)
         template = state.get(data['template_id'], ['template'])['path'] if data.get('template_id') else state.template
