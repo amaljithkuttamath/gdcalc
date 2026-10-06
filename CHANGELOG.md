@@ -6,6 +6,7 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ### Added
 
+- Multi-report summary export: `mcdxkit summary`, `/api/summary` and a **Download summary** button write one CSV row per report with envelopes, governing cases and status.
 - CI lint and type-check job: `ruff check` (correctness rules) and `mypy`, pinned in `requirements-dev.txt`.
 
 ## 0.3.0
