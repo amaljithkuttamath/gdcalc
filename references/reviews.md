@@ -60,3 +60,7 @@ Record each applicable review as **pass**, **fail**, **unverified** or **not app
 The installer records seven optional choices: workflow, source format, template status, units, standards basis, reviewer availability and operating mode. It asks no credentials, client names or private paths. Blank answers stay null and EOF leaves remaining answers unknown. Installation copies committed source only; it does not install dependencies, launch the server, change calculation defaults or validate a project.
 
 Use that context to shorten future setup, not to suppress necessary questions. For example, “offline” means check provisioned dependencies before promising offline execution; “reviewed register” means locate current evidence when the task needs a standards decision. Follow-up questions should name the missing decision and why it matters. Do not repeat the full interview on each invocation.
+
+## After release and weekly follow-up
+
+Use the [repository audit](../docs/improvement-loop.md) for repeatable software evidence. Check for matching tickets before opening a finding. Include the affected revision, reproduction, expected behavior and regression-test plan. Do not create speculative work or call an infrastructure failure a calculation defect. A clean audit is not an engineering attestation. Complete fixes through the contribution workflow and verify the current commit's pipelines.
