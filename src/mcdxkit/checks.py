@@ -144,6 +144,9 @@ def valid_summary(summary):
     counts = [summary.get(k) for k in ('total', 'passed', 'failed')]
     if any(type(n) is not int or n < 0 for n in counts) or counts[0] != counts[1] + counts[2]:
         return False
+    expected = 'failures' if counts[2] else 'passed' if counts[0] else NO_CHECKS
+    if summary['status'] != expected:
+        return False
     failed = summary.get('failed_checks')
     if not isinstance(failed, list) or len(failed) != counts[2] or not all(isinstance(n, str) for n in failed):
         return False
@@ -151,5 +154,8 @@ def valid_summary(summary):
     if governing is None:
         return True
     ratio = governing.get('ratio') if isinstance(governing, dict) else None
-    return (isinstance(governing, dict) and isinstance(governing.get('name'), str)
+    return (counts[0] > 0 and isinstance(governing, dict) and isinstance(governing.get('name'), str)
+            and type(governing.get('passed')) is bool
+            and (governing.get('region_id') is None or isinstance(governing['region_id'], str))
+            and (counts[2] > 0 or governing['passed'])
             and type(ratio) in (int, float) and math.isfinite(ratio) and ratio >= 0)
