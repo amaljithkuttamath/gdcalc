@@ -42,6 +42,8 @@ class SimilarJobs:
     id = 'similar_jobs'
     version = '1'
     title = 'Similar past jobs'
+    # Needs ctx.history; conversions have none, so batch job identities ignore this plug-in.
+    history_only = True
     params = frozen_mapping({'max_distance_log10': round(MAX_DISTANCE, 6), 'floor': FLOOR, 'limit': LIMIT})
 
     def run(self, view: ReportView, ctx: Context) -> Iterator[Annotation]:

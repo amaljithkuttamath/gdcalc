@@ -242,3 +242,11 @@ class ServiceTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PlanIdentityTests(unittest.TestCase):
+    def test_history_only_plugin_does_not_change_batch_job_identity(self):
+        from mcdxkit.review import runner
+        plan = runner.prepare('default')
+        self.assertIn('similar_jobs', [e.id for e in plan.entries])
+        self.assertNotIn('similar_jobs', [pair[0] for pair in plan.identity])

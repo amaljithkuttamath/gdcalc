@@ -35,8 +35,11 @@ class Plan:
 
     @property
     def identity(self) -> List[List[str]]:
-        """[id, version] pairs: what a cached review result depends on."""
-        return [[e.id, e.plugin.version] for e in self.entries]
+        """[id, version] pairs: what a cached review result depends on.
+
+        Plug-ins marked ``history_only`` produce nothing without a history store (a conversion
+        never has one), so they do not change a conversion's review and are left out."""
+        return [[e.id, e.plugin.version] for e in self.entries if not getattr(e.plugin, 'history_only', False)]
 
 
 def prepare(checks: Any = 'default', catalog: Optional[registry.Catalog] = None) -> Plan:
