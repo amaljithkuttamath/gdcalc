@@ -19,9 +19,22 @@ The one-time engine build needs Git and the .NET 10 SDK. The resulting executabl
 ```bash
 mcdxkit inspect /path/to/report.gp11t
 mcdxkit inspect /path/to/report.gp11t --cases 1,3,7
+mcdxkit inspect /path/to/report.gp11t --history /path/to/earlier-results   # learn case naming
+mcdxkit inspect /path/to/report.gp11t --checks none                        # no review checks
 ```
 
-Inspection returns cases, selected cases, load basis and an envelope where selection is resolved. Default selection recognizes `STR` case names and excludes service cases. If classification is unresolved, obtain the intended case IDs; do not guess. Reports must be GROUP text in the supported kip/in convention, not Excel binaries.
+Inspection returns cases, selected cases, load basis and an envelope where selection is resolved. Default selection recognizes `STR` case names and excludes service cases. If classification is unresolved, obtain the intended case IDs; do not guess. `case_suggestions` classifies every case name (strength, service, extreme, fatigue, other or unknown) with confidence and evidence and lists `recommended_cases`; it is advisory, so pass reviewed IDs to `--cases` yourself. `--history OUTPUT_DIR` (inspect only) learns naming conventions from completed conversion audits in that directory. Reports must be GROUP text in the supported kip/in convention, not Excel binaries.
+
+Inspection, conversion audits and batch audits include an advisory `review_checks` block (schema `review-checks/1`, replacing the earlier `review_flags`): flags, annotations such as the governing case, case-name suggestions, errors from checks that could not run, and `checks_run` with each check's version and thresholds. A flag asks you to check the GROUP input and never changes the selection or result. See [review checks](machine-learning.md#review-checks).
+
+## Review checks
+
+```bash
+mcdxkit checks list                              # id, version, kind, source, on/off
+mcdxkit checks list --checks default,my_check    # on/off for a --checks value; --json for rows
+```
+
+`--checks` on `inspect`, `convert` and `batch` takes `default` (the built-in checks, annotators and case-name classifier), `none`, or a comma list of ids such as `default,my_check` or `ratio_outlier`. An unknown id is an error (exit 2). Installed plug-ins (Python entry points in the `mcdxkit.review` group, named by their id) are listed but stay off until named; only named plug-ins are imported. A plug-in that fails to load, raises or exceeds its time budget is reported under `review_checks.errors` as `check_error`; the inspection or conversion still completes. A plug-in that timed out is disabled for the rest of the process (`check_error: disabled after timeout`). `convert` prints `open_checks` (flags without a decision; `null` when no check ran successfully, for example with `--checks none`) and `check_errors` (plug-ins that failed). With no review decisions, `.mcdx`, `.cpd` and `.html` outputs are byte-identical with `--checks none` and `--checks default`.
 
 Default loads come from the last summary: axial compression from local pile-top reactions, shears/moments from local pile effects. Use `--load-source reactions` only when local top reactions are the intended basis for all components.
 
@@ -76,7 +89,8 @@ Explicit files and multiple folders are also accepted. Options apply to every in
 
 After the run, a per-report check table (status, check count, failures, governing D/C and check) is printed to stderr and written to a new `check-summary-<timestamp>.csv` in the output directory; earlier tables are kept. Reports are identified by their path relative to the common input folder, and rows are sorted. The stdout summary's `checks` object holds the table path and counts (`reports_with_failures`, `reports_without_checks`, `reports_not_recorded`), not the rows. On resume, outcomes are re-read from the hash-verified `.html`, not from the audit; outputs whose audit lacks calculation region lines show `checks not recorded for this output`. Failing checks do not change the exit code.
 
-Exit codes: 0 = all succeeded or verified/skipped; 1 = one or more jobs failed; 2 = invalid setup. Inspect `batch-manifest.jsonl` for individual failures. Resume validates saved identity, hashes and calculation evidence; corrupted outputs are not silently reused. Do not run two batches writing to the same output directory.
+Exit codes: 0 = all succeeded or verified/skipped; 1 = one or more jobs failed; 2 = invalid setup. Inspect `batch-manifest.jsonl` for individual failures. Resume validates saved identity, hashes and calculation evidence; corrupted outputs are not silently reused. Do not run two batches writing to the same output directory. Manifest rows of converted or verified jobs carry `open_checks`, the number of review flags without an engineer decision (`null` when no check ran successfully, never 0), and `check_errors`, the number of review plug-ins that failed or timed out. Batch accepts `--checks`; the enabled check ids and versions are part of the job identity, so a new check version converts and reviews again on `--resume` (in a new job folder) instead of reusing the old audit.
+
 
 ## Summary CSV across reports
 
@@ -108,7 +122,8 @@ mcdxkit serve --no-open --port 8765 \
 
 Open the printed URL. Omit `--template` to select it in the browser; omit `--no-open` to launch the browser automatically. `--port 0` chooses an available port. `GET /healthz` reports service health. Ctrl+C stops the server while retaining completed outputs.
 
-Workflow: Files → Inputs → Changes → Outputs. Each output card shows a worksheet-checks panel: failed count, governing D/C and the failing conditions, with all checks behind a disclosure. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
+Workflow: Files → Inputs → Changes → Outputs. Each output card shows a worksheet-checks panel with failed count, governing D/C and the failing conditions. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Inputs and Changes list advisory review checks as "Review: …" items to check; they are never shown as a pass or fail. Inputs greys strength cases that can never govern; they stay selected. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
+
 
 ## Environment variables
 
@@ -125,6 +140,7 @@ Default template lookup: explicit `--template`, then `MCDXKIT_TEMPLATE`, checkou
 | `MCDXKIT_OUTPUT_DIR` | Server output location; `--output-dir` overrides |
 | `MCDXKIT_ACCESS_TOKEN` | Hosting secret, at least 32 characters |
 | `MCDXKIT_ACCESS_TOKEN_FILE` | Read the hosting secret from this file; takes precedence |
+| `MCDXKIT_CHECKS` | Server review checks, same values as `--checks`; default `default` (built-ins only) |
 
 For a host reachable over the network, follow [deployment instructions](../deploy/README.md). CLI startup does not automatically load `.env`; Compose reads it. `MCDXKIT_PORT`, `MCDXKIT_DOMAIN` and `MCDXKIT_IMAGE` in the example environment are Compose settings, distinct from direct CLI variables.
 
@@ -137,8 +153,12 @@ For a host reachable over the network, follow [deployment instructions](../deplo
 | Template missing | Pass/select a compatible private template |
 | Unsupported expression | Report the exact construct and extend the adapter with tests; no cache fallback |
 | Pile ID beyond template capacity | Review actual geometry before an explicit override |
-| Unknown case names | Supply reviewed `--cases` |
+| Unknown case names | Supply reviewed `--cases`; `case_suggestions` in `mcdxkit inspect` can suggest them |
 | Output exists | Choose another basename, or verified batch resume |
 | Summary file exists | Choose a new `-o` filename |
 | Port occupied | Use `--port 0` or another port |
 | Hosted login/origin error | Check exact HTTPS origin, secret and proxy Host forwarding; do not disable protections |
+
+## Source and standards records
+
+After conversion, `mcdxkit standards init output.audit.json --output engineering-register.json` creates a pending provenance register. Use `mcdxkit standards inspect engineering-register.json --audit output.audit.json` to inspect it. The browser provides **Sources & standards** on generated outputs. See [the register guide](engineering-standards.md) for schema, scope and external review records. Never fabricate citations or attestations; software checks are not engineering approval.

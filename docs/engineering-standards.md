@@ -1,6 +1,6 @@
 # Engineering standards and value provenance
 
-Status: design requirements for a future standards register. The current app checks its parser/template contract and executes supported formulas; it does not implement a general code-compliance database.
+Status: versioned metadata register shipped. Engineering rules await qualified review. No approved code clauses, universal limits or licensed rulebooks are bundled.
 
 Many engineering quantities have governing references, but not every value has a universal code-prescribed number or safe range. Distinguish measured/imported values, catalog properties, project assumptions, code factors and calculated outputs.
 
@@ -26,37 +26,38 @@ FHWA GEC 12 provides driven-pile foundation guidance and design examples. Guidan
 
 Before asserting compliance, the project must identify jurisdiction/owner, governing code and edition, amendments/errata, design method, limit states, material and section references, geotechnical basis, and applicable units/axis conventions. These are project choices, not facts to infer from a filename.
 
-A rule record should contain a stable rule ID and version, cited authority/edition/clause, applicability conditions, expected value type and dimension, required dependencies, calculation/check expression, severity, and reviewer/approval state. A value record should contain its variable ID, quantity/unit, source reference, transformation history, linked rule IDs and review state.
+## Use the register
 
-Example conceptual record (not an implemented schema or an engineering recommendation):
+After generating outputs, select **Sources & standards** on an output card. It shows the imported quantities, source versions and hashes, selected cases, transformations, worksheet mappings and missing project basis. Download the JSON record, add project references locally, then use **Load register** to inspect that revision against the same output. Loading a register does not change the worksheet or save over a previous record.
 
-```json
-{
-  "variable": "P_a",
-  "dimension": "force",
-  "display_unit": "kip",
-  "source_kind": "analysis_report",
-  "source_reference": null,
-  "load_basis": "factored_compression_before_downdrag",
-  "governing_code": null,
-  "code_edition": null,
-  "applicable_rule_ids": [],
-  "review_state": "needs_project_basis"
-}
+```bash
+mcdxkit standards init output.audit.json --output engineering-register.json
+mcdxkit standards inspect engineering-register.json --audit output.audit.json
 ```
 
-The name/basis above follows the current template adapter. Another template must explicitly map its own conventions. The null fields intentionally prevent a guessed code reference from appearing authoritative.
+The CLI writes a new file exclusively; it refuses to overwrite. Exit zero means inspection completed, not that the design passed. SDK callers use `mcdxkit.standards.from_audit(audit)`, `validate(register)` and `assess(register, audit)`.
 
-## Execution and UI requirements
+Schema `engineering-register/1` records:
 
-- Separate data validity (type/unit/source), rule applicability, numerical execution and design-check outcome.
-- Display value → source → governing reference → check result in the worksheet inspector. Each citation should name edition and clause/table, not just “per code.”
-- Return explicit `missing_basis`, `not_applicable`, `unsupported`, `calculation_error`, `pass` or `fail` states as appropriate. Missing standards evidence must never become a green compliance indicator.
-- Bind rules and source datasets to versions/hashes so later code/catalog updates do not silently alter a past calculation.
-- Record reviewed overrides with reasons. Do not silently cap imported loads or replace project inputs with generic “standard” values.
-- Keep code-compliance status separate from professional review/approval. A passing numerical check is evidence about that check, not approval of the entire design.
-- Link to licensed standards and store permitted references/metadata; do not bundle copyrighted rulebooks or assume every downloadable catalog permits redistribution.
+- Positive integer `revision` and `calculation_sha256`, binding the entire audit revision.
+- `project_basis`: owner, jurisdiction, governing code/edition, amendments, design method, material grade, section reference, geotechnical basis, units/axes and load source. Unknowns remain null.
+- `sources`: stable `id`, `kind`, `version`, `reference`, `edition` and optional file `sha256`.
+- `values`: stable variable `id`, `quantity`, `unit`, `dimension`, `source_id`, `source_version`, `source_locator`, `transformations` and `template_mapping`.
+- `rules`: stable `id`, `version`, source ID/version, `clause`, `dimension`, `value_ids`, `applicability`, `check` and optional `review`.
+- `overrides`: actual audited variable/quantity, reason and declared review state. Missing reasons remain pending.
 
-## Tests required for implementation
+Generated values cover five imported load components. Geometry, materials, capacities and factors inherited from the template are not automatically sourced or approved; add their references after engineering review. Vz is retained as evidence and is not silently mapped to a template input. Component extrema are independent, not concurrent load combinations.
 
-Test equivalent-unit inputs, incompatible dimensions, missing/ambiguous references, wrong grade/shape/edition, incompatible nominal/factored bases, rule applicability boundaries, pass/fail thresholds, changed errata/version invalidation and override provenance. Use synthetic fixtures and independently reviewed reference calculations. A domain reviewer must approve encoded engineering clauses before the app labels them supported.
+## Rule and review records
+
+A rule's `applicability` contains exact project-basis field/value matches. Its `check` names the exact `region_id` and `expression` from an existing calculated audit check. No expressions are evaluated by this register, and no design factors are inserted. A unique check must already have a consistent boolean outcome and numeric 0/1 result.
+
+A qualified reviewer can supply an external `review` record with `decision: "reviewed"`, `reviewer`, timezone-qualified ISO `reviewed_at`, `reason` and `content_sha256`. Compute the latter using `mcdxkit.standards.content_hash(register)` after substantive edits. It excludes rule review records themselves; source, basis, value, rule, override or revision changes invalidate all previous review hashes. Review metadata is **not a digital signature or authenticated professional approval**. MCDXKit does not create or infer the attestation.
+
+Assessment reports `missing_basis`, `not_applicable`, `unsupported`, `calculation_error`, `awaiting_engineering_review`, `pass` or `fail`. Pass/fail are linked numerical outcomes only, after the required metadata and external review are recorded. The overall register never asserts code compliance, and `engineering_approval_verified` and `native_execution_verified` remain false. A CLI audit is user-supplied evidence; the browser additionally checks the actual worksheet and calculated HTML hashes before assessment.
+
+Unit normalization supports force (kip, lbf, N, kN), moment (kip-in, N-m, kN-m, kN-mm), length (m, mm, in, ft), stress (ksi, MPa) and dimensionless values (1). Other units are explicit unsupported states. This is dimensional/provenance inspection, not a second calculation engine.
+
+## Contribution and verification
+
+Use synthetic sources and checks in tests. Test equivalent units, incompatible dimensions, missing references, source-version mismatch, applicability mismatch, stale attestations, changed load basis/quantity, override omissions and tampered calculation artifacts. A domain reviewer must approve the applicability and reference calculations of any encoded engineering clause before it can be called supported. Link licensed standards and store permitted references/metadata; do not redistribute rulebooks.

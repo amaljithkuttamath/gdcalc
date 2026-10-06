@@ -96,6 +96,24 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(len(history), 1)
         self.assertEqual(self.request('GET', '/api/download/' + history[0]['worksheet']['id'])[1], raw)
 
+    def test_standards_register_is_bound_to_actual_calculated_artifacts(self):
+        _, uploaded = self.upload()
+        _, converted = self.request('POST', '/api/convert', {'id': uploaded['id'], 'cases': [1, 7]})
+        key = converted['worksheet']['id']
+        status, result = self.request('POST', '/api/standards', {'id': key})
+        self.assertEqual(status, 200, result)
+        register = result['register']
+        self.assertEqual(register['values'][0]['quantity'], 140)
+        self.assertEqual(register['rules'], [])
+        self.assertFalse(result['assessment']['engineering_approval_verified'])
+        self.assertEqual(self.request('POST', '/api/standards', {'id': key, 'register': register})[0], 200)
+        register['values'][0]['source_id'] = []
+        self.assertEqual(self.request('POST', '/api/standards', {'id': key, 'register': register})[0], 400)
+        self.assertEqual(self.request('POST', '/api/standards', {'id': key}, authenticated=False)[0], 403)
+        artifact = self.server.state.get(key, ['worksheet'])['path']
+        artifact.with_suffix('.html').write_text('Changed result')
+        self.assertEqual(self.request('POST', '/api/standards', {'id': key})[0], 400)
+
     def test_untrusted_requests_paths_and_sizes_are_rejected(self):
         self.assertEqual(self.request('POST', '/api/upload?name=x.txt&kind=report', b'x', authenticated=False)[0], 403)
         for headers in [{'Host': 'evil.example'}, {'Origin': 'https://evil.example'}, {'Sec-Fetch-Site': 'cross-site'}]:

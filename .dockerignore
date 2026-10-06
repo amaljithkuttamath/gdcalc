@@ -7,6 +7,10 @@
 !src/
 !src/mcdxkit/
 !src/mcdxkit/*.py
+!src/mcdxkit/review/
+!src/mcdxkit/review/*.py
+!src/mcdxkit/review/*/
+!src/mcdxkit/review/*/*.py
 !src/mcdxkit/web/
 !src/mcdxkit/web/*.html
 !src/mcdxkit/web/*.css
