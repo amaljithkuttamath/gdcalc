@@ -17,6 +17,10 @@ def presentation(node, depth=0):
     def n(tag, *children, text=None):
         return {'tag': tag, 'children': list(children), 'text': text}
     def render(child): return presentation(child, depth+1)
+    def op_of(child): return mcdx.tag(child[0]) if mcdx.tag(child) == 'apply' and len(child) else None
+    def grouped(child, ops=('plus', 'minus', 'mult', 'scale', 'div')):
+        rendered = render(child)
+        return n('mrow', n('mo', text='('), rendered, n('mo', text=')')) if op_of(child) in ops else rendered
     tag = mcdx.tag(node); children = list(node)
     if depth > 35: return n('mtext', text='[nested expression]')
     if tag == 'id':
@@ -34,7 +38,8 @@ def presentation(node, depth=0):
     if tag == 'apply' and children:
         op = mcdx.tag(children[0]); args = children[1:]
         if op in ('div', 'pow') and len(args) == 2:
-            return n('mfrac' if op == 'div' else 'msup', *map(render, args))
+            if op == 'pow': return n('msup', grouped(args[0], ('plus', 'minus', 'mult', 'scale', 'div', 'neg', 'pow')), render(args[1]))
+            return n('mfrac', *map(render, args))
         if op == 'sqrt' and args: return n('msqrt', render(args[0]))
         if op == 'nthRoot' and len(args) == 2:
             return n('msqrt', render(args[1])) if mcdx.tag(args[0]) == 'placeholder' else n('mroot', render(args[1]), render(args[0]))
@@ -43,11 +48,11 @@ def presentation(node, depth=0):
             for arg in args:
                 if result: result.append(n('mo', text=OPS.get(op, ' ')))
                 child=render(arg)
-                child_op=mcdx.tag(arg[0]) if mcdx.tag(arg)=='apply' and len(arg) else None
-                needs_parens=(op in ('mult','scale') and child_op in ('plus','minus')) or (op=='minus' and arg is args[-1] and child_op in ('plus','minus'))
+                child_op=op_of(arg)
+                needs_parens=(op in ('mult','scale') and child_op in ('plus','minus')) or (op=='minus' and arg is args[-1] and child_op in ('plus','minus','neg'))
                 result.append(n('mrow',n('mo',text='('),child,n('mo',text=')')) if needs_parens else child)
             return n('mrow', *result)
-        if op == 'neg': return n('mrow', n('mo', text='−'), *map(render,args))
+        if op == 'neg': return n('mrow', n('mo', text='−'), *map(grouped,args))
         if op == 'id': return n('mrow', render(children[0]), n('mo', text='('), *map(render,args), n('mo', text=')'))
     if tag in ('test', 'then', 'else', 'return', 'result', 'unitOverride'):
         return n('mrow', *map(render, children))
