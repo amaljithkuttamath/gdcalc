@@ -32,7 +32,7 @@ For changes to the software itself, read [AGENTS.md](AGENTS.md), follow the tick
 
 Use `mcdxkit batch /path/to/reports --recursive --template /path/to/reference.mcdx --output-dir /path/to/outputs --workers 4` for multiple reports. Add `--resume` to verify and skip completed jobs. Explicit files and multiple folders are accepted. Case/load-basis/override flags apply to the whole batch, so group inputs by compatible template and assumptions. Read `batch-manifest.jsonl` for per-file failures; return the JSON summary and manifest path. Exit 1 means partial failure, not that all jobs failed. Never silently change source selection to make a failed job succeed.
 
-Use `gdcalc summary <reports-or-output-dir> -o /path/to/new/summary.csv` for one CSV row per report and load case with per-case loads, governing measures and source hashes. It never overwrites the CSV and fails as a whole on any unreadable report, unresolved selection or changed output snapshot.
+Use `mcdxkit summary <reports-or-output-dir> -o /path/to/new/summary.csv` for one CSV row per report and load case with per-case loads, governing measures and source hashes. It never overwrites the CSV and fails as a whole on any unreadable report, unresolved selection or changed output snapshot.
 
 ## Browser and deployment
 

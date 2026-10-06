@@ -69,9 +69,9 @@ def write(text, output):
         raise ValueError(f'{output} already exists; choose a new filename') from None
 
 
-def main(argv=None, prog='gdcalc summary'):
+def main(argv=None, prog='mcdxkit summary'):
     parser = argparse.ArgumentParser(prog=prog, description=__doc__)
-    parser.add_argument('inputs', nargs='+', type=Path, help='GROUP .gp11t/.txt reports and/or gdcalc output directories')
+    parser.add_argument('inputs', nargs='+', type=Path, help='GROUP .gp11t/.txt reports and/or MCDXKit output directories')
     parser.add_argument('-o', '--output', required=True, type=Path, help='New .csv path (never overwritten)')
     parser.add_argument('--cases', type=case_ids, help='Explicit case IDs for every report input; default detects STR case names')
     parser.add_argument('--load-source', choices=['effects', 'reactions'], default=None,
@@ -85,7 +85,7 @@ def main(argv=None, prog='gdcalc summary'):
         rows, sources, duplicates = collect(args.inputs, cases=args.cases, load_source=args.load_source)
         write(engine.summary_csv(rows), args.output)
     except (ValueError, OSError) as exc:
-        print('gdcalc: ' + str(exc), file=sys.stderr)
+        print('mcdxkit: ' + str(exc), file=sys.stderr)
         return 2
     print(json.dumps({'output': str(args.output), 'reports': sources, 'rows': len(rows),
                       'duplicates_skipped': duplicates, 'units': {'force': 'kip', 'moment': 'kip-in'}}, indent=2))

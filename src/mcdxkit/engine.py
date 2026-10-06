@@ -136,7 +136,7 @@ def summarize_audit(audit, *, origin=None):
     name,expected,cases,basis=(data.get(k) for k in ('source','source_sha256','cases','load_source'))
     if (not isinstance(name,str) or Path(name).name!=name or name in ('','.','..') or not isinstance(expected,str)
             or not isinstance(cases,list) or not all(type(i) is int for i in cases) or basis not in ('effects','reactions')):
-        raise ValueError(f'{audit.name}: not a gdcalc conversion audit')
+        raise ValueError(f'{audit.name}: not an MCDXKit conversion audit')
     folder=audit.parent/'_source';snapshot=folder/name
     if folder.is_symlink() or snapshot.is_symlink() or not snapshot.is_file():
         raise ValueError(f'{audit.name}: source snapshot _source/{name} is missing or not a regular file')

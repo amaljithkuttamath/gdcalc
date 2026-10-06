@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from test_pipeline import report, template
-from gdcalc import engine
+from mcdxkit import engine
 
 CLI = Path(__file__).resolve().parents[1] / 'scripts/cli.py'
 COLUMNS = ['report', 'origin', 'source_sha256', 'load_source', 'case_id', 'case_name', 'selected',

@@ -131,7 +131,7 @@ class Session:
             seen.add(key); rows += found
         if len(seen) < 2:
             raise RequestError('Select at least two different reports for a summary.')
-        return {'name': 'gdcalc-summary.csv', 'reports': len(seen), 'rows': len(rows), 'duplicates_skipped': duplicates,
+        return {'name': 'mcdxkit-summary.csv', 'reports': len(seen), 'rows': len(rows), 'duplicates_skipped': duplicates,
                 'csv': engine.summary_csv(rows), 'native_execution_verified': False}
 
     def operation(self, route, data):
