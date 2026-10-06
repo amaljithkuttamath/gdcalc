@@ -175,6 +175,26 @@ class ServerTests(unittest.TestCase):
             self.assertRegex(error['error'], '(?i)review[ _]decision')
         self.assertEqual(sorted((self.root / 'results').rglob('*.mcdx')), written)
 
+    def test_many_review_decisions_with_notes_fit_a_preview_request(self):
+        # Every flag on a card carries the card's note, so a few long notes exceeded the old 16 KiB limit (413).
+        _, uploaded = self.upload()
+        note = 'é' * 500
+        decisions = [{'rule': 'my_check', 'case': n, 'component': 'P', 'decision': 'kept_service',
+                      'note': note, 'decided_at': '2026-10-06T09:30:00Z'} for n in range(1, 31)]
+        body = {'id': uploaded['id'], 'cases': [1, 7], 'review_decisions': decisions}
+        self.assertGreater(len(json.dumps(body).encode()), 16384)
+        status, preview = self.request('POST', '/api/preview', body)
+        self.assertEqual(status, 200, preview)
+        self.assertEqual(len(preview['review_checks']['decisions']), 30)
+        self.assertTrue(all(d['unverified'] for d in preview['review_checks']['decisions']))
+        # Identifiers of decisions that cannot be checked are still bounded before they reach the audit.
+        for bad in ({'rule': 'x' * 70}, {'rule': 'Not an id'}, {'component': 'P' * 65}):
+            status, error = self.request('POST', '/api/preview', {**body, 'review_decisions': [{**decisions[0], **bad}]})
+            self.assertEqual(status, 400, error)
+            self.assertRegex(error['error'], '(?i)review[ _]decision')
+        status, error = self.request('POST', '/api/inspect', {'id': uploaded['id'], 'pad': 'x' * 20000})
+        self.assertEqual(status, 413, error)
+
     def test_summary_csv_for_uploaded_reports(self):
         _, first = self.upload('a.txt')
         _, second = self.upload('b.gp11t', report().replace('Max. .2 .3 400 180 14 7', 'Max. .2 .3 400 180 14 9').encode())

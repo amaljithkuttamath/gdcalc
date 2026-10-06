@@ -126,24 +126,36 @@ function resultCard(result,name){
 // Review checks are advisory: nothing changes until the engineer chooses.
 // A decision is stored per flag (report content, load source, check, case, component) and resolves the whole case card.
 const checkNames={service_axial_above_strength:'Service cases against strength cases',effects_below_top:'Effects along the pile against pile-top reactions',duplicate_case:'Copied cases',ratio_outlier:'Unusual load ratios within a case',gross_magnitude:'Possible unit slips'};
+const caseLabel=c=>c===null?'The report':'Case '+c,caseText=c=>c===null?'the report':'case '+c;
+const decisionText={included_case:c=>`${caseText(c)} added to the envelope.`,kept_service:c=>`${caseText(c)} kept as is.`,will_fix_in_group:c=>`${caseText(c)} kept; you will fix the report in GROUP and upload it again.`};
 const reviewMemory=new Map(),reviewStore='mcdxkit.review-decisions';let focusNext=null;
-try{for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem(reviewStore)||'{}')))reviewMemory.set(key,value);}catch{/* Storage is optional; decisions then last for this page. */}
+// Stored rows are checked before use: a malformed or older row is dropped, never rendered or sent.
+const storedDecision=d=>Boolean(d)&&typeof d==='object'&&typeof d.scope==='string'&&typeof d.rule==='string'&&(d.case===null||Number.isInteger(d.case))&&(d.component===null||typeof d.component==='string')&&Object.hasOwn(decisionText,d.decision)&&(d.note===null||typeof d.note==='string')&&typeof d.decided_at==='string';
+try{for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem(reviewStore)||'{}')))if(storedDecision(value))reviewMemory.set(key,value);}catch{/* Storage is optional; decisions then last for this page. */}
 function saveDecisions(){try{const kept={};for(const [key,{added_by,...row}] of reviewMemory)kept[key]=row;localStorage.setItem(reviewStore,JSON.stringify(kept));}catch{/* Storage is optional. */}}
 function reviewScope(item){return (item.sha||item.id)+'|'+(item.inspection?.load_source||$('basis').value);}
 function flagKey(item,f){return [reviewScope(item),f.rule,f.case,f.component].join('|');}
 function cardWorthy(f){return Boolean(f.impact?.envelope||f.impact?.selection);}
-const caseLabel=c=>c===null?'The report':'Case '+c,caseText=c=>c===null?'the report':'case '+c;
 // An "added" decision only stands while the case is still selected.
 function standing(item,d){return d&&(d.decision!=='included_case'||Boolean(item.selected?.includes(d.case)));}
 function caseRecords(item,c){const scope=reviewScope(item);return [...reviewMemory.values()].filter(d=>d.scope===scope&&d.case===c&&standing(item,d));}
 // Decisions sent to the engine: only for flags that the given review actually raised.
 function reviewDecisions(item,flags){const raised=new Set((flags||[]).map(f=>flagKey(item,f)));return [...raised].map(key=>reviewMemory.get(key)).filter(d=>standing(item,d)).map(({rule,case:c,component,decision,note,decided_at})=>({rule,case:c,component,decision,note,decided_at}));}
+function decided(item,f){return standing(item,reviewMemory.get(flagKey(item,f)));}
 // One card per case: undecided cards hold the flags that could change the envelope or selection.
+// A case counts as reviewed only when every such flag has a decision; a flag that becomes card-worthy
+// later (for example a unit slip once the case is added) reopens the card with just that flag.
 function reviewGroups(item,review=item.inspection?.review_checks){
   const flags=review?.flags||[],cases=new Map(),magnitude=g=>Math.max(0,...g.flags.map(f=>f.impact?.magnitude||0)),scope=reviewScope(item);
   for(const f of flags.filter(cardWorthy))if(!cases.has(f.case))cases.set(f.case,null);
   for(const d of reviewMemory.values())if(review&&d.scope===scope&&standing(item,d)&&!cases.has(d.case))cases.set(d.case,null);
-  return [...cases.keys()].map(c=>{const record=caseRecords(item,c)[0]||null;return {case:c,record,flags:flags.filter(f=>f.case===c&&(record||cardWorthy(f))).sort((a,b)=>(b.impact?.magnitude||0)-(a.impact?.magnitude||0))};}).filter(g=>g.record||g.flags.length).sort((a,b)=>magnitude(b)-magnitude(a)||(a.case??0)-(b.case??0));
+  return [...cases.keys()].map(c=>{const mine=flags.filter(f=>f.case===c).sort((a,b)=>(b.impact?.magnitude||0)-(a.impact?.magnitude||0)),undecided=mine.filter(f=>cardWorthy(f)&&!decided(item,f)),record=undecided.length?null:caseRecords(item,c)[0]||null;return {case:c,record,flags:record?mine:undecided};}).filter(g=>g.record||g.flags.length).sort((a,b)=>magnitude(b)-magnitude(a)||(a.case??0)-(b.case??0));
+}
+// Card-worthy flags of a generated review that carry no verified decision, by case (largest impact first).
+function undecidedByCase(review){
+  const key=f=>[f.rule,f.case,f.component].join('|'),made=new Set((review?.decisions||[]).filter(d=>!d.unverified).map(key)),open=new Map();
+  for(const f of [...(review?.flags||[])].sort((a,b)=>(b.impact?.magnitude||0)-(a.impact?.magnitude||0)))if(cardWorthy(f)&&!made.has(key(f)))open.set(f.case,[...(open.get(f.case)||[]),f]);
+  return {open,made,key};
 }
 function openReviews(groups){return groups.filter(g=>!g.record).length;}
 function reviewId(item,c){return `review-${item.id}-${c}`;}
@@ -159,13 +171,14 @@ function impactText(item,f){
   if(i.envelope)return parts.length?`It sets the ${listed(parts)} peak${parts.length===1?'':'s'}, so a wrong value here changes the envelope.`:'It is in the envelope, so a wrong value here could change it.';
   return 'It affects which cases belong in the envelope.';
 }
-const decisionText={included_case:c=>`${caseText(c)} added to the envelope.`,kept_service:c=>`${caseText(c)} kept as is.`,will_fix_in_group:c=>`${caseText(c)} kept; you will fix the report in GROUP and upload it again.`};
+// A decision changes what the next preview sends, so every preview of the same report content is dropped.
+function dropPreviews(scope){for(const other of items)if(other.inspection&&reviewScope(other)===scope)other.preview=null;}
 // Records the decision for the flags this card showed. An existing decision is never overwritten; Undo first.
 function decide(item,group,decision,addedBy){
-  if(caseRecords(item,group.case).length)return false;
+  if(!group.flags.length||group.flags.some(f=>decided(item,f)))return false;
   const at=new Date().toISOString(),note=decision==='included_case'?null:(item.keepNote||'').trim().slice(0,500)||null;
   for(const f of group.flags)reviewMemory.set(flagKey(item,f),{scope:reviewScope(item),rule:f.rule,case:f.case,component:f.component,decision,note,decided_at:at,...(addedBy?{added_by:addedBy}:{})});
-  saveDecisions();item.keeping=undefined;item.keepNote='';item.preview=null;focusNext=reviewId(item,group.case)+'-undo';return true;
+  saveDecisions();item.keeping=undefined;item.keepNote='';item.preview=null;dropPreviews(reviewScope(item));focusNext=reviewId(item,group.case)+'-undo';return true;
 }
 async function includeCase(item,group){
   const c=group.case,f=group.flags[0];item.selected=[...item.selected,c].sort((a,b)=>a-b);await refresh(item);
@@ -177,7 +190,7 @@ async function includeCase(item,group){
 // Undo removes only this case's decision and, if this page added the case, only that case from the selection.
 async function undoDecision(item,group){
   const c=group.case,scope=reviewScope(item),records=[...reviewMemory].filter(([,d])=>d.scope===scope&&d.case===c),added=records.some(([,d])=>d.decision==='included_case'&&d.added_by===item.id);
-  for(const [key] of records)reviewMemory.delete(key);saveDecisions();item.preview=null;focusNext=reviewId(item,c)+'-show';
+  for(const [key] of records)reviewMemory.delete(key);saveDecisions();item.preview=null;dropPreviews(scope);focusNext=reviewId(item,c)+'-show';
   if(added&&item.selected.includes(c)&&item.selected.length>1){const key=group.flags[0]?.component&&item.inspection.envelope?.[group.flags[0].component]!==undefined?group.flags[0].component:'P';item.selected=item.selected.filter(x=>x!==c);await refresh(item);notice(`Undone. ${componentNames[key]} back to ${fmt(item.inspection.envelope?.[key])} ${unitOf(key)}; case ${c} is back to review.`);}
   else notice(`Undone. ${caseLabel(c)} is back to review.`);
 }
@@ -222,14 +235,16 @@ function reviewView(item,groups){
   box.append(checkedView(review));return box;
 }
 function pendingView(item){
-  const review=item.preview.review_checks,open=reviewGroups(item,review).filter(g=>!g.record),errors=checkErrors(review);if(!open.length&&!errors)return null;const box=el('div',undefined,'review-pending');
-  for(const {flags:[f]} of open)box.append(el('p','Not reviewed yet: '+(f.rule==='service_axial_above_strength'&&!item.selected.includes(f.case)?`adding case ${f.case} would make axial load ${fmt(f.value)} ${f.unit}`:flagTitle(f).replace(/^Case/,'case').replace(/^The report/,'the report')),'review-pending-line'));
+  // What the preview itself recorded, so Changes and Outputs agree even when a stale decision was dropped.
+  const review=item.preview.review_checks,open=[...undecidedByCase(review).open.values()],errors=checkErrors(review);if(!open.length&&!errors)return null;const box=el('div',undefined,'review-pending');
+  for(const [f] of open)box.append(el('p','Not reviewed yet: '+(f.rule==='service_axial_above_strength'&&!item.selected.includes(f.case)?`adding case ${f.case} would make axial load ${fmt(f.value)} ${f.unit}`:flagTitle(f).replace(/^Case/,'case').replace(/^The report/,'the report')),'review-pending-line'));
   if(open.length)box.append(el('p',`${plural(open.length,'item')} ${open.length===1?'isn’t':'aren’t'} reviewed yet. Outputs will list ${open.length===1?'it':'them'} as not reviewed.`,'small'));
   if(errors)box.append(errors);return box;
 }
 function reviewChip(review){
-  if(!review)return null;const box=el('div',undefined,'review-summary'),key=f=>[f.rule,f.case,f.component].join('|'),made=new Set((review.decisions||[]).filter(d=>!d.unverified).map(key)),flags=review.flags||[];
-  const reviewed=new Set(flags.filter(f=>made.has(key(f))).map(f=>f.case)),open=new Set(flags.filter(f=>cardWorthy(f)&&!reviewed.has(f.case)).map(f=>f.case));
+  if(!review)return null;const box=el('div',undefined,'review-summary'),{open,made,key}=undecidedByCase(review),flags=review.flags||[];
+  // A case is reviewed only when none of its card-worthy flags is still undecided.
+  const reviewed=new Set(flags.filter(f=>made.has(key(f))&&!open.has(f.case)).map(f=>f.case));
   if(reviewed.size||open.size)box.append(el('p','Input checks: '+[reviewed.size?`${reviewed.size} reviewed`:'',open.size?`${open.size} not reviewed`:''].filter(Boolean).join(' · '),'review-chip'));
   const errors=checkErrors(review);if(errors)box.append(errors);return reviewed.size||open.size||errors?box:null;
 }
