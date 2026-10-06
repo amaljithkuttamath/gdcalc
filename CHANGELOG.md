@@ -5,6 +5,7 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 ## Unreleased
 
 - Run synthetic repository audits after releases and weekly, with bounded evidence and deduplicated improvement tickets.
+- Add versioned source/standards records in the CLI and browser, with audit linkage, unit checks, stale-review detection and explicit pending engineering review.
 
 ### Added
 

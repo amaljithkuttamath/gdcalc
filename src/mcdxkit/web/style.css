@@ -332,3 +332,15 @@ main .case-caption, .queue-heading, .template-panel > p { color: var(--text-seco
 .template-file small { color: #b8c3d1; }
 .template-panel .actions { display: grid; grid-template-columns: 1fr 1fr; }
 .template-panel .actions button { min-width: 0; }
+
+/* Provenance is read-only; no engineering status is implied by color. */
+.standards-view { padding: 24px; color: #202b33; }
+.standards-section { background: #fff; padding: 20px; margin-bottom: 16px; border: 1px solid #dce1e5; border-radius: 8px; overflow-wrap: anywhere; }
+.standards-section h3 { font-size: 18px; margin: 0 0 12px; text-transform: none; }
+.standards-section p { font-size: 13px; line-height: 1.6; }
+.standards-section dl { display: grid; grid-template-columns: minmax(100px,1fr) 2fr; gap: 8px 16px; font-size: 13px; }
+.standards-section dd { margin: 0; }
+.standards-section dt { color: #626c75; }
+.standards-section summary { cursor: pointer; padding: 8px 0; }
+.standards-section pre { white-space: pre-wrap; font-size: 11px; overflow-wrap: anywhere; }
+@media(max-width:600px){ .standards-view{padding:12px}.standards-section{padding:14px}.standards-section dl{grid-template-columns:1fr}.standards-section dd{margin-bottom:8px} }
