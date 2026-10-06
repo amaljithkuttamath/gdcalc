@@ -139,12 +139,15 @@ function dominanceView(review,cases){
 }
 // Earlier conversions in the same output folder with the closest envelopes; context only, never applied.
 function similarView(item){
-  const jobs=item.inspection.similar_jobs||[];if(!jobs.length)return null;
+  const jobs=(item.inspection.review_checks?.annotations||[]).filter(a=>a.kind==='similar_job').map(a=>a.data);if(!jobs.length)return null;
   const box=el('details',undefined,'similar-jobs');box.open=Boolean(item.similarOpen);box.addEventListener('toggle',()=>{item.similarOpen=box.open;});
   box.append(el('summary',`Similar past jobs in this folder · ${jobs.length}`),el('p','Earlier conversions in this output folder with the closest selected-case envelopes. Percentages are the past job relative to this report. For reference only; nothing here changes inputs, cases or results.','small'));
   const pct=v=>(v>0?'+':'')+(Math.abs(v)<10?v.toFixed(1):Math.round(v))+'%';
   const list=el('ul',undefined,'similar-list');for(const j of jobs){const row=el('li');const diffs=el('div',undefined,'similar-diffs');for(const [k,v]of Object.entries(j.difference_pct||{}))diffs.append(el('span',`${k} ${pct(v)}`));
-    row.append(el('b',j.name,'similar-name'),el('small',[j.date,j.template,`case${j.cases.length===1?'':'s'} ${j.cases.join(', ')}`,j.typical_difference_pct<0.5?'same envelope':`about ${pct(j.typical_difference_pct).replace('+','')} apart overall`].filter(Boolean).join(' · ')),diffs);list.append(row);}
+    // File name first; a short folder id keeps two jobs from the same report apart. Full relative name on hover.
+    const parts=j.name.split('/'),file=parts.pop(),folder=parts.join('/'),title=el('b',file,'similar-name');title.title=j.name;
+    if(folder)title.append(el('span',` · ${folder.length>4?folder.slice(0,4)+'…':folder}`,'similar-folder'));
+    row.append(title,el('small',[j.date,j.template,`case${j.cases.length===1?'':'s'} ${j.cases.join(', ')}`,j.typical_difference_pct<0.5?'same envelope':`about ${pct(j.typical_difference_pct).replace('+','')} apart overall`].filter(Boolean).join(' · ')),diffs);list.append(row);}
   box.append(list);return box;
 }
 function adviceView(item){

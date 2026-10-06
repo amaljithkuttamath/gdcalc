@@ -4,7 +4,7 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ## Unreleased
 
-- Similar past jobs: `inspect` (browser, and CLI with `--history DIR`) lists up to three earlier conversions in the same output directory whose selected-case envelopes are closest (log10 distance over P, Vy, Vz, My, Mz), with per-component % differences, in a collapsed "Similar past jobs in this folder" disclosure on the Inputs card. Offline and advisory only: it never searches other output directories, never changes inputs or outputs, and ignores unreadable audits. Audits now record `units` and `template_name`.
+- Similar past jobs: inspection (browser, and CLI with `--history DIR`) lists up to three earlier conversions in the same output directory whose selected-case envelopes are closest (log10 distance over P, Vy, Vz, My, Mz), with per-component % differences, in a collapsed "Similar past jobs in this folder" disclosure on the Inputs card. Offline and advisory only: it never searches other output directories, never changes inputs or outputs, and ignores unreadable audits. Audits now record `units` and `template_name`.
 
 ## 0.4.0
 

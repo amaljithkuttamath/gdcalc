@@ -15,6 +15,11 @@ from mcdxkit.review.api import PastJob, frozen_mapping
 from mcdxkit.review.history import AuditHistory, MemoryHistory, read_audits
 from mcdxkit.service import Session
 
+def jobs(inspected):
+    """Similar jobs from an inspection, as the browser derives them from the annotations."""
+    return [a['data'] for a in inspected['review_checks']['annotations'] if a['kind'] == 'similar_job']
+
+
 BASE = {'P': 1000.0, 'Vy': 100.0, 'Vz': 50.0, 'My': 10000.0, 'Mz': 50000.0}
 
 
@@ -49,8 +54,9 @@ class SimilarJobsTests(unittest.TestCase):
         self.folder.cleanup()
 
     def similar(self, output_dir=None, report=None):
-        history = AuditHistory(output_dir or self.out)
-        return engine.inspect_report(report or self.report, history=history)['similar_jobs']
+        inspected = engine.inspect_report(report or self.report, history=AuditHistory(output_dir or self.out))
+        self.assertNotIn('similar_jobs', inspected)
+        return jobs(inspected)
 
     def test_ranks_nearest_first_within_threshold(self):
         for name, scale in (('far', 3.0), ('b', 1.2), ('a', 1.05), ('c', 1.1), ('d', 0.7)):
@@ -68,10 +74,19 @@ class SimilarJobsTests(unittest.TestCase):
             (self.out / name / 'w.audit.json').unlink()
         self.assertEqual(self.similar(), [])
 
-    def test_case_count_counts_less_than_loads(self):
-        audit(self.out, 'more_cases', 1.0, cases=(1, 3))
-        audit(self.out, 'bigger', 1.3)
-        self.assertEqual([j['name'] for j in self.similar()], ['more_cases/w.mcdx', 'bigger/w.mcdx'])
+    def test_identical_envelope_is_distance_zero_and_case_count_breaks_ties(self):
+        audit(self.out, 'a-more-cases', 1.0, cases=(1, 3, 5))
+        audit(self.out, 'z-same-cases', 1.0, cases=(1,))
+        audit(self.out, 'bigger', 1.3, cases=(1,))
+        found = self.similar()
+        self.assertEqual([j['name'] for j in found], ['z-same-cases/w.mcdx', 'a-more-cases/w.mcdx', 'bigger/w.mcdx'])
+        self.assertEqual([(j['distance'], j['typical_difference_pct']) for j in found[:2]], [(0.0, 0.0), (0.0, 0.0)])
+        self.assertAlmostEqual(found[2]['typical_difference_pct'], 30.0)
+
+    def test_source_snapshots_are_not_history(self):
+        audit(self.out, 'job/_source', 1.0)
+        audit(self.out, 'job', 1.1)
+        self.assertEqual([j['name'] for j in self.similar()], ['job/w.mcdx'])
 
     def test_different_units_or_load_source_are_excluded(self):
         audit(self.out, 'si', 1.0, units={'force': 'kN', 'moment': 'kN-m'})
@@ -94,9 +109,35 @@ class SimilarJobsTests(unittest.TestCase):
         self.assertEqual([j['name'] for j in self.similar(other)], ['secret/w.mcdx'])
         session = Session(None, self.out)
         try:
-            self.assertEqual([j['name'] for j in session.inspect(self.report)['similar_jobs']], ['mine/w.mcdx'])
+            self.assertEqual([j['name'] for j in jobs(session.inspect(self.report))], ['mine/w.mcdx'])
         finally:
             session.temp.cleanup()
+
+    def test_session_sees_conversions_written_by_others(self):
+        # Batch or CLI conversions into the same output directory, and deletions there, are
+        # picked up without a conversion in this session.
+        audit(self.out, 'first', 1.1)
+        session = Session(None, self.out)
+        try:
+            self.assertEqual([j['name'] for j in jobs(session.inspect(self.report))], ['first/w.mcdx'])
+            audit(self.out, 'batch-job', 1.05)
+            self.assertEqual([j['name'] for j in jobs(session.inspect(self.report))], ['batch-job/w.mcdx', 'first/w.mcdx'])
+            (self.out / 'first' / 'w.audit.json').unlink()
+            self.assertEqual([j['name'] for j in jobs(session.inspect(self.report))], ['batch-job/w.mcdx'])
+        finally:
+            session.temp.cleanup()
+
+    def test_cli_inspect_lists_similar_jobs_with_history(self):
+        import contextlib
+        import io
+        from mcdxkit import generate
+        audit(self.out, 'job', 1.1)
+        for argv, expected in (([], None), (['--history', str(self.out)], ['job/w.mcdx'])):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(generate.main([str(self.report), '--inspect', *argv]), 0)
+            printed = json.loads(out.getvalue())
+            self.assertEqual(expected, [j['name'] for j in printed['similar_jobs']] if 'similar_jobs' in printed else None)
 
     def test_malformed_audits_are_ignored(self):
         audit(self.out, 'good', 1.1)
@@ -125,7 +166,7 @@ class SimilarJobsTests(unittest.TestCase):
 
     def test_needs_a_selection_and_history(self):
         audit(self.out, 'a', 1.0)
-        self.assertEqual(engine.inspect_report(self.report)['similar_jobs'], [])
+        self.assertEqual(jobs(engine.inspect_report(self.report)), [])
         unresolved = self.root / 'u.txt'
         unresolved.write_text(summary([(1, 'Case A', 1000, 50000)]))
         self.assertEqual(self.similar(report=unresolved), [])
@@ -156,16 +197,16 @@ class ServiceTests(unittest.TestCase):
             out = root / 'results'
             session = Session(root / 'reference.mcdx', out)
             try:
-                self.assertEqual(session.inspect(second)['similar_jobs'], [])
+                self.assertEqual(jobs(session.inspect(second)), [])
                 uploaded = session.register(first, 'report')
                 done = session.operation('/api/convert', {'id': uploaded['id']})
-                found = session.inspect(second)['similar_jobs']
+                found = jobs(session.inspect(second))
                 worksheet = Path(done['output']).relative_to(out.resolve()).as_posix()
                 self.assertEqual([(j['name'], j['template'], j['cases']) for j in found],
                                  [(worksheet, 'reference.mcdx', [1])])
                 self.assertEqual(found[0]['difference_pct']['P'], -9.1)
                 # Inspecting the converted report again does not list itself.
-                self.assertEqual(session.inspect(first)['similar_jobs'], [])
+                self.assertEqual(jobs(session.inspect(first)), [])
             finally:
                 session.temp.cleanup()
             # Advisory only: the worksheet is byte-identical whether or not similar jobs exist.
@@ -174,7 +215,7 @@ class ServiceTests(unittest.TestCase):
                 target = root / name / 'w.mcdx'
                 if name == 'with-history':
                     audit(root / name, 'past', 1.0)
-                    self.assertEqual(len(engine.inspect_report(second, history=AuditHistory(root / name))['similar_jobs']), 1)
+                    self.assertEqual(len(jobs(engine.inspect_report(second, history=AuditHistory(root / name)))), 1)
                 engine.convert(second, root / 'reference.mcdx', target)
                 outputs.append([target.with_suffix(s).read_bytes() for s in ('.mcdx', '.cpd', '.html')])
             self.assertEqual(outputs[0], outputs[1])

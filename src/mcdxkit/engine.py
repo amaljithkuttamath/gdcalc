@@ -11,11 +11,8 @@ from pathlib import Path
 from . import group_report, mcdx, calcpad
 from . import checks as worksheet_checks
 from .review import runner as review_runner
+from .review.view import AUDIT_UNITS
 
-
-
-# The units the parser enforces; recorded in audits so history compares like with like.
-UNITS={'force':'kip','moment':'kip-in'}
 
 
 def _read_raw(path):
@@ -149,7 +146,6 @@ def inspect_report(report, *, cases=None, load_source='effects', checks='default
             'load_source':load_source,'envelope':group_report.envelope(selected) if selected else None,
             'governing':_governing(block) if selected else None,
             'case_suggestions':_case_suggestions(parsed,block),
-            'similar_jobs':[a['data'] for a in block['annotations'] if a['kind']=='similar_job'],
             'review_checks':block,
             'largest_observed_pile_id':max((p for c in parsed['cases'] for p in c['pile_ids']),default=0)}
 
@@ -186,7 +182,7 @@ def convert(report, template, output, *, cases=None, load_source='effects', titl
         result.update({'output':str(output),'audit':str(audit),'source_sha256':hashlib.sha256(raw).hexdigest(),
                        'geometry_case_ids':[c['id'] for c in parsed['cases']],
                        'case_names':{str(c['id']):c['name'] for c in parsed['cases']},
-                       'units':dict(UNITS),'template_name':Path(template_name or template.name).name,
+                       'units':dict(AUDIT_UNITS),'template_name':Path(template_name or template.name).name,
                        'review_checks':block})
         cpd_staged=Path(folder)/'worksheet.cpd'; html_staged=Path(folder)/'worksheet.html'
         calculation=calcpad.calculate(staged,cpd_staged,html_staged)

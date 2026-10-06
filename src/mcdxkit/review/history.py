@@ -8,17 +8,19 @@ MemoryHistory is for tests and for callers with their own store.
 """
 import json
 import math
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Tuple
 
 from .api import COMPONENTS, PastJob, frozen_mapping
+from .view import AUDIT_UNITS
 
 Example = Tuple[str, bool]
 MAX_AUDIT_BYTES = 2 * 1024 * 1024
 # Audits from before units were recorded were parsed under these (the parser enforces them).
-DEFAULT_UNITS = frozen_mapping({'force': 'kip', 'moment': 'kip-in'})
+DEFAULT_UNITS = AUDIT_UNITS
 SHA256 = re.compile(r'[0-9a-f]{64}')
 
 
@@ -39,14 +41,36 @@ class MemoryHistory:
 def newest(paths: Iterable[Path], limit: int) -> Tuple[List[Path], int]:
     """The ``limit`` most recently modified paths, and how many could not be stat'ed
     (dangling symlinks, files removed or unreadable meanwhile); those are skipped."""
+    found, skipped = _newest_stats(paths, limit)
+    return [path for path, _ in found], skipped
+
+
+def _newest_stats(paths: Iterable[Path], limit: int) -> Tuple[List[Tuple[Path, os.stat_result]], int]:
     dated, skipped = [], 0
     for path in paths:
         try:
-            dated.append((path.stat().st_mtime, path))
+            dated.append((path, path.stat()))
         except OSError:
             skipped += 1
-    dated.sort(key=lambda item: item[0], reverse=True)
-    return [path for _, path in dated[:limit]], skipped
+    dated.sort(key=lambda item: item[1].st_mtime, reverse=True)
+    return dated[:limit], skipped
+
+
+def signature(output_dir) -> Optional[Tuple[int, int, int]]:
+    """A cheap freshness signal for ``output_dir``: its own mtime, and the number and newest
+    mtime of its immediate subfolders (where every conversion and batch job writes its audit).
+    One directory listing, no file reads; None when the directory cannot be read."""
+    try:
+        own = os.stat(output_dir).st_mtime_ns
+        count = newest_child = 0
+        with os.scandir(output_dir) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    count += 1
+                    newest_child = max(newest_child, entry.stat(follow_symlinks=False).st_mtime_ns)
+    except OSError:
+        return None
+    return own, count, newest_child
 
 
 def _number(value: Any) -> float:
@@ -104,13 +128,14 @@ def read_audits(output_dir, limit: int = 500) -> Tuple[Tuple[Example, ...], Tupl
         base = root.resolve()
     except OSError:
         return (), (), 0
-    audits, skipped = newest(root.rglob('*.audit.json'), limit)
-    for path in audits:
+    # _source holds snapshots of a conversion's inputs, never audits of its own.
+    candidates = (p for p in root.rglob('*.audit.json') if '_source' not in p.relative_to(root).parts)
+    audits, skipped = _newest_stats(candidates, limit)
+    for path, stat in audits:
         try:
             if path.is_symlink() or not path.resolve().is_relative_to(base):
                 skipped += 1
                 continue
-            stat = path.stat()
             if stat.st_size > MAX_AUDIT_BYTES:
                 skipped += 1
                 continue

@@ -57,7 +57,11 @@ def main(argv=None,prog=None):
                 from .review.history import AuditHistory
                 if not args.history.is_dir():raise ValueError('--history must be an existing output directory')
                 history=AuditHistory(args.history)
-            print(json.dumps(engine.inspect_report(args.input,cases=args.cases,load_source=args.load_source,checks=args.checks,history=history),indent=2))
+            inspected=engine.inspect_report(args.input,cases=args.cases,load_source=args.load_source,checks=args.checks,history=history)
+            if history is not None:
+                # Convenience view of the similar-jobs annotations; review_checks holds the source.
+                inspected['similar_jobs']=[a['data'] for a in inspected['review_checks']['annotations'] if a['kind']=='similar_job']
+            print(json.dumps(inspected,indent=2))
             return 0
         if args.history is not None:raise ValueError('--history applies to inspect only')
         if args.output is None:raise ValueError('--output is required unless using --inspect')
