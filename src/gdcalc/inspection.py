@@ -135,7 +135,7 @@ def flow(node):
             'children':[{'node':flow(child), 'tail':child.tail or ''} for child in node]}
 
 
-def read_regions(parts, part, cache):
+def read_regions(parts, part, cache, budget=None):
     root = mcdx.read_xml(parts[part])
     relpart = 'mathcad/_rels/'+posixpath.basename(part)+'.rels'
     relationships = {}
@@ -183,7 +183,7 @@ def read_regions(parts, part, cache):
                         mime='image/png' if content.startswith(b'\x89PNG') else 'image/jpeg'
                         entry['image']='data:'+mime+';base64,'+base64.b64encode(content).decode();continue
                     try:
-                        nested=mcdx.read_package(io.BytesIO(content));document=mcdx.read_xml(nested['Xaml/Document.xaml'])
+                        nested=mcdx.read_package(io.BytesIO(content),budget,1);document=mcdx.read_xml(nested['Xaml/Document.xaml'])
                         texts.append(' '.join(' '.join(document.itertext()).split()));flows.append(flow(document))
                     except (ValueError,KeyError,mcdx.zipfile.BadZipFile):texts.append('[embedded content; native Mathcad view required]')
             entry.update(kind='text',text=' '.join(texts) or '[image or layout region]',flows=flows)
@@ -192,9 +192,9 @@ def read_regions(parts, part, cache):
 
 
 def worksheet(path):
-    parts=mcdx.read_package(path)
+    budget=mcdx.Budget();parts=mcdx.read_package(path,budget)
     cache={n.get('result-id'):n.find('m:result',mcdx.NS) for n in mcdx.read_xml(parts['mathcad/result.xml'])}
-    regions=read_regions(parts,'mathcad/worksheet.xml',cache)
+    regions=read_regions(parts,'mathcad/worksheet.xml',cache,budget)
     page={'width':816,'height':1056,'margins':[48,144,48,48],'paper':'Letter'}
     if 'mathcad/settings/presentation.xml' in parts:
         model=next((n for n in mcdx.read_xml(parts['mathcad/settings/presentation.xml']).iter() if mcdx.tag(n)=='pageModel'),None)
@@ -209,8 +209,8 @@ def worksheet(path):
             except ValueError:pass
     page['content_height']=page['height']-page['margins'][1]-page['margins'][3]
     page['count']=max(1,math.ceil(max((float(r['top'])+float(r['height']) for r in regions),default=0)/page['content_height']))
-    header=read_regions(parts,'mathcad/header.xml',{}) if 'mathcad/header.xml' in parts else []
-    footer=read_regions(parts,'mathcad/footer.xml',{}) if 'mathcad/footer.xml' in parts else []
+    header=read_regions(parts,'mathcad/header.xml',{},budget) if 'mathcad/header.xml' in parts else []
+    footer=read_regions(parts,'mathcad/footer.xml',{},budget) if 'mathcad/footer.xml' in parts else []
     return {'name':path.name,'regions':regions,'page':page,'header':header,'footer':footer,
             'has_cached_results':any(r.get('cached_result') for r in regions),'native_execution_verified':False,
             'view':'Browser reconstruction from stored region coordinates, text, images and equations; not Prime-native rendering.'}
