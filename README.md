@@ -57,3 +57,5 @@ Supports GROUP `.gp11t`/text reports in kip/in and the fixed-head compression-pi
 ## Contribute
 
 Pick an [issue](https://github.com/amaljithkuttamath/mcdxkit/issues), work on a branch, add meaningful tests and open a PR. [Contribution guide](https://github.com/amaljithkuttamath/mcdxkit/blob/main/CONTRIBUTING.md) · [Architecture](https://github.com/amaljithkuttamath/mcdxkit/blob/main/docs/architecture.md) · [Coding-agent guide](https://github.com/amaljithkuttamath/mcdxkit/blob/main/AGENTS.md)
+
+[MIT licensed](https://github.com/amaljithkuttamath/mcdxkit/blob/main/LICENSE). Dependencies retain their [own licenses](https://github.com/amaljithkuttamath/mcdxkit/blob/main/THIRD_PARTY.md).

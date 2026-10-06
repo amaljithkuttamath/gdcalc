@@ -73,6 +73,7 @@ For UI changes, use the real browser flow: upload → inputs → changes → gen
 
 ## Change expectations
 
+- Reuse existing modules and established open-source implementations before rebuilding. Record candidates, licenses, offline requirements and any concrete gap in the issue/PR. New solvers need separate numerical validation; a renderer must consume shared results rather than reproduce template formulas.
 - Keep domain calculations and file semantics outside HTTP/UI glue. Reuse the common engine.
 - Fail visibly on unsupported expressions or incompatible units. Preserve original source and governing-case provenance.
 - Keep old caches distinct from calculated results. Never change native verification flags without actual Prime evidence.
@@ -92,3 +93,5 @@ Every pull request runs checks. Pushes to `main` and manual `main` runs publish 
 When intentionally releasing a new application version, keep `pyproject.toml` and the version in `src/mcdxkit/cli.py` aligned, and move the `Unreleased` changelog entries under the new version heading. Check the workflow for the exact commit before claiming the package/image is published. Deployment to a live server is a separate operation; follow [deployment guidance](deploy/README.md).
 
 Versioned Python releases use the separate [PyPI release workflow](docs/releasing.md), which tests the installed wheel before Trusted Publishing. Ordinary main CI artifacts are not a PyPI upload.
+
+See [GitHub workflow](docs/github-workflow.md) for the roadmap, triage and security controls. Contributions are distributed under the repository's [MIT license](LICENSE); dependencies keep their own terms and attribution.

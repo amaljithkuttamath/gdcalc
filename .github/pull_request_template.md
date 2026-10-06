@@ -12,6 +12,10 @@ Commands/checks run and relevant browser evidence. Separate unverified behavior.
 
 Template/expression/unit changes, migrations, deployment effects or remaining limitations.
 
+## Reuse
+
+Existing modules or upstream implementations reused; for a new subsystem, explain the gap and license/offline assessment. Use "not applicable" for changes that introduce no subsystem.
+
 ## Checklist
 
 - [ ] Linked ticket and acceptance criteria are addressed.

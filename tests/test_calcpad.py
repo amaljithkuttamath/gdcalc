@@ -77,6 +77,36 @@ class CalcpadTests(unittest.TestCase):
                     engine.convert(raw,ref,root/'failed.mcdx')
             self.assertEqual(list(root.glob('failed.*')),[])
 
+    def test_negation_powers_and_literal_magnitudes_match_mathcad(self):
+        x=mcdx.ident('x'); large=mcdx.real(0); large.text='1E3'
+        text,_=self.calculate([
+            definition('x',mcdx.real(3)),
+            definition('negpow',apply('pow',apply('neg',x),mcdx.real(2))),
+            definition('litpow',apply('pow',mcdx.real(-3),mcdx.real(2))),
+            definition('powneg',apply('neg',apply('pow',mcdx.ident('x'),mcdx.real(2)))),
+            definition('product',apply('mult',mcdx.ident('x'),apply('neg',mcdx.ident('x')))),
+            definition('difference',apply('minus',mcdx.ident('x'),apply('neg',mcdx.ident('x')))),
+            definition('tiny',apply('mult',mcdx.quantity(mcdx.real(5e-08),'kip'),mcdx.real(1e8))),
+            definition('large',large)])
+        # (-3)^2 = 9; -(3^2) = -9; 3*(-3) = -9; 3-(-3) = 6; 5e-8 kip*1e8 = 5 kip.
+        results={line.split(' = ')[0]:line.split(' = ')[-1].replace('\u2009',' ') for line in text.splitlines() if ' = ' in line}
+        self.assertEqual(results,{'x':'3','negpow':'9','litpow':'9','powneg':'-9','product':'-9','difference':'6','tiny':'5 kip','large':'1000'})
+
+    def test_program_returns_last_statement_unless_returned_early(self):
+        def program(*statements): return mcdx.node('program',*statements)
+        def when(condition,value): return mcdx.node('if',mcdx.node('test',condition),mcdx.node('then',value))
+        true,false=apply('lessThan',mcdx.real(1),mcdx.real(2)),apply('lessThan',mcdx.real(2),mcdx.real(1))
+        text,_=self.calculate([
+            definition('last',program(mcdx.real(5),mcdx.real(7))),
+            definition('skipped',program(when(true,mcdx.real(5)),mcdx.real(7))),
+            definition('early',program(when(copy.deepcopy(true),mcdx.node('return',mcdx.real(5))),mcdx.real(7))),
+            definition('notearly',program(when(false,mcdx.node('return',mcdx.real(5))),mcdx.real(7))),
+            definition('chosen',branch(copy.deepcopy(true),mcdx.real(11),mcdx.real(99)))])
+        results={line.split(' = ')[0]:line.split(' = ')[-1] for line in text.splitlines() if ' = ' in line}
+        self.assertEqual(results,{'last':'7','skipped':'7','early':'5','notearly':'7','chosen':'11'})
+        with self.assertRaises(ValueError):
+            self.calculate([definition('missing',program(when(copy.deepcopy(false),mcdx.real(5))))])
+
     def test_literal_text_cannot_inject_calcpad_directives(self):
         string=mcdx.node('str'); string.text="hello'\n#include /etc/passwd\n<script>alert(1)</script>"
         with tempfile.TemporaryDirectory() as folder:

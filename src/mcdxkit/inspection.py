@@ -17,6 +17,10 @@ def presentation(node, depth=0):
     def n(tag, *children, text=None):
         return {'tag': tag, 'children': list(children), 'text': text}
     def render(child): return presentation(child, depth+1)
+    def op_of(child): return mcdx.tag(child[0]) if mcdx.tag(child) == 'apply' and len(child) else None
+    def grouped(child, ops=('plus', 'minus', 'mult', 'scale', 'div')):
+        rendered = render(child)
+        return n('mrow', n('mo', text='('), rendered, n('mo', text=')')) if op_of(child) in ops else rendered
     tag = mcdx.tag(node); children = list(node)
     if depth > 35: return n('mtext', text='[nested expression]')
     if tag == 'id':
@@ -34,7 +38,8 @@ def presentation(node, depth=0):
     if tag == 'apply' and children:
         op = mcdx.tag(children[0]); args = children[1:]
         if op in ('div', 'pow') and len(args) == 2:
-            return n('mfrac' if op == 'div' else 'msup', *map(render, args))
+            if op == 'pow': return n('msup', grouped(args[0], ('plus', 'minus', 'mult', 'scale', 'div', 'neg', 'pow')), render(args[1]))
+            return n('mfrac', *map(render, args))
         if op == 'sqrt' and args: return n('msqrt', render(args[0]))
         if op == 'nthRoot' and len(args) == 2:
             return n('msqrt', render(args[1])) if mcdx.tag(args[0]) == 'placeholder' else n('mroot', render(args[1]), render(args[0]))
@@ -43,11 +48,11 @@ def presentation(node, depth=0):
             for arg in args:
                 if result: result.append(n('mo', text=OPS.get(op, ' ')))
                 child=render(arg)
-                child_op=mcdx.tag(arg[0]) if mcdx.tag(arg)=='apply' and len(arg) else None
-                needs_parens=(op in ('mult','scale') and child_op in ('plus','minus')) or (op=='minus' and arg is args[-1] and child_op in ('plus','minus'))
+                child_op=op_of(arg)
+                needs_parens=(op in ('mult','scale') and child_op in ('plus','minus')) or (op=='minus' and arg is args[-1] and child_op in ('plus','minus','neg'))
                 result.append(n('mrow',n('mo',text='('),child,n('mo',text=')')) if needs_parens else child)
             return n('mrow', *result)
-        if op == 'neg': return n('mrow', n('mo', text='−'), *map(render,args))
+        if op == 'neg': return n('mrow', n('mo', text='−'), *map(grouped,args))
         if op == 'id': return n('mrow', render(children[0]), n('mo', text='('), *map(render,args), n('mo', text=')'))
     if tag in ('test', 'then', 'else', 'return', 'result', 'unitOverride'):
         return n('mrow', *map(render, children))
@@ -135,7 +140,7 @@ def flow(node):
             'children':[{'node':flow(child), 'tail':child.tail or ''} for child in node]}
 
 
-def read_regions(parts, part, cache):
+def read_regions(parts, part, cache, budget=None):
     root = mcdx.read_xml(parts[part])
     relpart = 'mathcad/_rels/'+posixpath.basename(part)+'.rels'
     relationships = {}
@@ -183,7 +188,7 @@ def read_regions(parts, part, cache):
                         mime='image/png' if content.startswith(b'\x89PNG') else 'image/jpeg'
                         entry['image']='data:'+mime+';base64,'+base64.b64encode(content).decode();continue
                     try:
-                        nested=mcdx.read_package(io.BytesIO(content));document=mcdx.read_xml(nested['Xaml/Document.xaml'])
+                        nested=mcdx.read_package(io.BytesIO(content),budget,1);document=mcdx.read_xml(nested['Xaml/Document.xaml'])
                         texts.append(' '.join(' '.join(document.itertext()).split()));flows.append(flow(document))
                     except (ValueError,KeyError,mcdx.zipfile.BadZipFile):texts.append('[embedded content; native Mathcad view required]')
             entry.update(kind='text',text=' '.join(texts) or '[image or layout region]',flows=flows)
@@ -192,9 +197,9 @@ def read_regions(parts, part, cache):
 
 
 def worksheet(path):
-    parts=mcdx.read_package(path)
+    budget=mcdx.Budget();parts=mcdx.read_package(path,budget)
     cache={n.get('result-id'):n.find('m:result',mcdx.NS) for n in mcdx.read_xml(parts['mathcad/result.xml'])}
-    regions=read_regions(parts,'mathcad/worksheet.xml',cache)
+    regions=read_regions(parts,'mathcad/worksheet.xml',cache,budget)
     page={'width':816,'height':1056,'margins':[48,144,48,48],'paper':'Letter'}
     if 'mathcad/settings/presentation.xml' in parts:
         model=next((n for n in mcdx.read_xml(parts['mathcad/settings/presentation.xml']).iter() if mcdx.tag(n)=='pageModel'),None)
@@ -209,8 +214,8 @@ def worksheet(path):
             except ValueError:pass
     page['content_height']=page['height']-page['margins'][1]-page['margins'][3]
     page['count']=max(1,math.ceil(max((float(r['top'])+float(r['height']) for r in regions),default=0)/page['content_height']))
-    header=read_regions(parts,'mathcad/header.xml',{}) if 'mathcad/header.xml' in parts else []
-    footer=read_regions(parts,'mathcad/footer.xml',{}) if 'mathcad/footer.xml' in parts else []
+    header=read_regions(parts,'mathcad/header.xml',{},budget) if 'mathcad/header.xml' in parts else []
+    footer=read_regions(parts,'mathcad/footer.xml',{},budget) if 'mathcad/footer.xml' in parts else []
     return {'name':path.name,'regions':regions,'page':page,'header':header,'footer':footer,
             'has_cached_results':any(r.get('cached_result') for r in regions),'native_execution_verified':False,
             'view':'Browser reconstruction from stored region coordinates, text, images and equations; not Prime-native rendering.'}

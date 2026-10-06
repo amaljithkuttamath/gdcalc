@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,8 @@ name = "mcdxkit"
 version = "0.3.0"
 description = "Open-source Mathcad workflow toolkit: worksheet generation, calculation, CLI and SDK"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY.md"]
 requires-python = ">=3.10"
 dependencies = ["lxml>=5.3,<7", "fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
 
