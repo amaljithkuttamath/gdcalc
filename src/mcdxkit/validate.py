@@ -14,7 +14,7 @@ def main(argv=None,prog=None):
     args=parser.parse_args(argv)
     try:print(json.dumps(mcdx.validate(args.worksheet),indent=2))
     except (ValueError,OSError,mcdx.E.XMLSyntaxError,mcdx.zipfile.BadZipFile) as exc:
-        print('gdcalc: '+str(exc),file=sys.stderr);return 2
+        print('mcdxkit: '+str(exc),file=sys.stderr);return 2
     return 0
 
 

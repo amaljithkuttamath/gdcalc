@@ -7,7 +7,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 from lxml import etree as E, html
-from gdcalc import calcpad, engine, mcdx
+from mcdxkit import calcpad, engine, mcdx
 from test_pipeline import template, report
 
 
@@ -71,8 +71,8 @@ class CalcpadTests(unittest.TestCase):
             self.assertTrue(result['calculation']['calculated'])
             text=html.parse(str(root/'result.html')).getroot().text_content()
             self.assertIn('P_u = 145',text)
-            self.assertIn('gdcalc', (root/'result.cpd').read_text())
-            with patch.dict(os.environ, {'GDCALC_CALCPAD': str(root/'missing')}):
+            self.assertIn('mcdxkit', (root/'result.cpd').read_text())
+            with patch.dict(os.environ, {'MCDXKIT_CALCPAD': str(root/'missing')}):
                 with self.assertRaisesRegex(ValueError, 'required CalcpadCE'):
                     engine.convert(raw,ref,root/'failed.mcdx')
             self.assertEqual(list(root.glob('failed.*')),[])

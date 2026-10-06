@@ -36,7 +36,7 @@ jobs:
         with:
           dotnet-version: '10.0.112'
       - name: Build pinned calculation engine
-        run: gdcalc setup-engine
+        run: mcdxkit setup-engine
       - name: Run real-engine and HTTP integration tests
         run: python -m unittest discover -s tests -v
 
@@ -71,7 +71,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-      - run: node --check src/gdcalc/web/app.js
+      - run: node --check src/mcdxkit/web/app.js
       - name: Build and inspect distribution
         run: |
           python -m pip install build twine
@@ -80,7 +80,7 @@ jobs:
           python -m twine check --strict dist/*
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: gdcalc-python-${{ github.sha }}
+          name: mcdxkit-python-${{ github.sha }}
           path: dist/*
           if-no-files-found: error
           retention-days: 30
@@ -103,7 +103,7 @@ jobs:
         with:
           context: .
           load: true
-          tags: gdcalc:test
+          tags: mcdxkit:test
           platforms: linux/amd64
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
@@ -111,12 +111,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Execute conversion tests inside the image
-        run: docker run --rm -v "$PWD:/verify:ro" --entrypoint python gdcalc:test -m unittest discover -s /verify/tests -v
+        run: docker run --rm -v "$PWD:/verify:ro" --entrypoint python mcdxkit:test -m unittest discover -s /verify/tests -v
       - name: Smoke test deployed HTTP service
         run: |
-          docker run --name gdcalc-test -d -p 127.0.0.1:8765:8765 \
-            -e GDCALC_PUBLIC_URL=http://127.0.0.1:8765 \
-            -e GDCALC_ACCESS_TOKEN=synthetic-ci-token-not-a-deployment-secret gdcalc:test
+          docker run --name mcdxkit-test -d -p 127.0.0.1:8765:8765 \
+            -e MCDXKIT_PUBLIC_URL=http://127.0.0.1:8765 \
+            -e MCDXKIT_ACCESS_TOKEN=synthetic-ci-token-not-a-deployment-secret mcdxkit:test
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8765/healthz; then break; fi
             sleep 1
@@ -127,8 +127,8 @@ jobs:
       - name: Container diagnostics and cleanup
         if: always()
         run: |
-          docker logs gdcalc-test 2>/dev/null || true
-          docker rm -f gdcalc-test 2>/dev/null || true
+          docker logs mcdxkit-test 2>/dev/null || true
+          docker rm -f mcdxkit-test 2>/dev/null || true
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -142,8 +142,8 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           image="ghcr.io/${REPOSITORY,,}"
-          docker tag gdcalc:test "$image:sha-$GITHUB_SHA"
-          docker tag gdcalc:test "$image:latest"
+          docker tag mcdxkit:test "$image:sha-$GITHUB_SHA"
+          docker tag mcdxkit:test "$image:latest"
           docker push "$image:sha-$GITHUB_SHA"
           docker push "$image:latest"
           echo "Published tested linux/amd64 image: \`$image:sha-$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"
