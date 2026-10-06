@@ -13,9 +13,10 @@ from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import engine, calcpad
+from . import engine, calcpad, group_report
 from . import checks as worksheet_checks
 from .review import runner as review_runner
+from .review.history import AuditHistory, MemoryHistory
 
 from .generate import case_ids, default_template
 
@@ -136,11 +137,79 @@ def _convert_job(job):
 
     except Exception as exc:
         row.update(status='failed', error=f'{type(exc).__name__}: {exc}')
+    if job.get('suggest'):
+        try:
+            row['suggestions'] = suggestions(job)
+        except Exception as exc:  # advisory: never changes the job's status
+            row['suggestions'] = {'error': f'{type(exc).__name__}: {exc}'}
     if row.get('status') in ('succeeded', 'skipped'):
         row.update(calculation_engine='CalcpadCE', calculated=True,
                    open_worksheet=str(output.with_suffix('.cpd')), calculated_worksheet=str(output.with_suffix('.html')))
     row['elapsed_seconds'] = round(time.monotonic() - started, 3)
     return row
+
+
+# (examples, skipped) read once from --history at batch start; set per worker process.
+HISTORY = None
+
+
+def _use_history(value):
+    global HISTORY
+    HISTORY = value
+
+
+def suggestions(job):
+    """Advisory case triage for one report, read-only: it never changes the cases, outputs or status.
+
+    The report is re-read only if its bytes still match the job's hash, so the advice is about the
+    converted input. ``selected_cases`` is the job's selection rule applied to that input (empty,
+    with ``selection_required``, when it fails); ``differences`` lists cases to look at."""
+    settings = job['settings']
+    raw = engine._read_raw(job['source'])
+    if hashlib.sha256(raw).hexdigest() != job['source_sha256']:
+        raise ValueError('Report changed since the job started')
+    parsed = engine._parse_raw(raw, settings['load_source'])
+    issue = None
+    try:
+        selected = [c['id'] for c in group_report.select(parsed, settings['cases'])]
+    except ValueError as exc:
+        selected, issue = [], str(exc)
+    history = MemoryHistory(*HISTORY) if HISTORY is not None else None
+    block = review_runner.review(parsed, selected, plan=review_runner.prepare(settings['checks']), history=history)
+    advice = engine._case_suggestions(parsed, block)
+    if advice is None:
+        detail = '; '.join(e['message'] for e in block['errors'])
+        raise ValueError('case-name classifier did not run' + (': ' + detail if detail else ''))
+    names = {c['id']: c['name'] for c in parsed['cases']}
+    chosen = set(selected)
+    reasons = {}
+    for case in advice['cases']:
+        if case['category'] == 'strength' and case['id'] not in chosen:
+            reasons.setdefault((case['id'], 'add'), []).append(f"strength {case['confidence']:.2f}")
+        elif case['id'] in chosen and case['category'] not in ('strength', 'unknown'):
+            reasons.setdefault((case['id'], 'drop'), []).append(f"{case['category']} {case['confidence']:.2f}")
+    flags = []
+    for flag in block['flags']:
+        flags.append({k: flag[k] for k in ('rule', 'case', 'component', 'message')} | {'selection': flag['impact']['selection']})
+        if flag['impact']['selection'] and flag['case'] is not None and flag['case'] not in chosen:
+            reasons.setdefault((flag['case'], 'add'), []).append('flag ' + flag['rule'])
+    differences = [{'case': case, 'name': names.get(case), 'action': action, 'reasons': list(dict.fromkeys(why))}
+                   for (case, action), why in sorted(reasons.items())]
+    return {'selected_cases': selected, 'selection_required': issue, 'case_suggestions': advice,
+            'flags': flags, 'review_errors': block['errors'], 'differences': differences}
+
+
+def suggestion_text(result):
+    """Compact triage cell: cases to add or drop and why; empty when the selection matches."""
+    advice = result.get('suggestions')
+    if not isinstance(advice, dict) or 'differences' not in advice:
+        error = advice.get('error') if isinstance(advice, dict) else None
+        return 'unavailable: ' + (error or 'report not read')
+    parts = [f"{d['action']} {d['case']} {d['name'] or ''} [{', '.join(d['reasons'])}]" for d in advice['differences']]
+    unresolved = [i for i in advice['case_suggestions']['unresolved_case_ids'] if i not in advice['selected_cases']]
+    if unresolved:
+        parts.append('unclassified ' + ', '.join(map(str, unresolved)))
+    return '; '.join(' '.join(p.split()) for p in parts)
 
 
 def resumed_checks(page, region_lines):
@@ -152,6 +221,7 @@ def resumed_checks(page, region_lines):
 
 CHECK_COLUMNS = ('source', 'status', 'checks', 'passed', 'failed', 'governing_dc', 'governing_check',
                  'failed_checks', 'note')
+SUGGEST_COLUMNS = ('suggested_cases',)
 
 
 def source_label(source, base=None):
@@ -171,9 +241,11 @@ def input_root(inputs):
         return None
 
 
-def check_row(result, base=None):
+def check_row(result, base=None, suggest=False):
     """One table row per report; outcomes come only from validated check summaries."""
-    row = dict.fromkeys(CHECK_COLUMNS, '')
+    row = dict.fromkeys(CHECK_COLUMNS + (SUGGEST_COLUMNS if suggest else ()), '')
+    if suggest:
+        row['suggested_cases'] = suggestion_text(result)
     row.update(source=source_label(result['source'], base), status=result['status'])
     summary = result.get('check_summary')
     if result['status'] == 'failed':
@@ -198,7 +270,7 @@ def _cell(value):
     return "'" + value if value[:1] in ('=', '+', '-', '@', '\t', '\r') else value
 
 
-def write_check_table(root, rows):
+def write_check_table(root, rows, columns=CHECK_COLUMNS):
     """Write a new timestamped CSV; earlier tables are never overwritten."""
     stamp = time.strftime('%Y%m%dT%H%M%S')
     for attempt in range(100):
@@ -208,7 +280,7 @@ def write_check_table(root, rows):
         except FileExistsError:
             continue
         with stream:
-            writer = csv.DictWriter(stream, fieldnames=CHECK_COLUMNS)
+            writer = csv.DictWriter(stream, fieldnames=columns)
             writer.writeheader()
             writer.writerows({k: _cell(v) for k, v in row.items()} for row in rows)
         return path
@@ -222,15 +294,22 @@ def format_check_table(rows):
     lines = ['  '.join(c.upper().ljust(widths[c]) for c in columns)]
     lines += ['  '.join(str(r[c]).ljust(widths[c]) for c in columns) for r in rows]
     lines += [f"{r['source']}: failed {r['failed_checks']}" for r in rows if r['failed_checks']]
+    lines += [f"{r['source']}: suggest {r['suggested_cases']}" for r in rows if r.get('suggested_cases')]
     return '\n'.join(line.rstrip() for line in lines)
 
 
 def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, resume=False,
-                  cases=None, load_source='effects', overrides=None, checks='default', progress=None, check_rows=None):
+                  cases=None, load_source='effects', overrides=None, checks='default', progress=None, check_rows=None,
+                  suggest=False, history=None):
     """Convert files independently; append durable records and verify outputs on resume.
 
     The job identity includes the enabled review checks and their versions, so a new check
-    version gives a new job (and a fresh review) on resume."""
+    version gives a new job (and a fresh review) on resume.
+
+    ``suggest`` adds advisory case suggestions and review flags to each manifest row and a
+    ``suggested_cases`` table column. It is not part of the job identity and never changes the
+    cases or outputs. ``history`` (with ``suggest`` only) is an output directory of earlier,
+    reviewed conversions whose case names the classifier learns from; it is read once, here."""
 
     if not 1 <= workers <= 32:
         raise ValueError('workers must be between 1 and 32')
@@ -240,6 +319,20 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
     if template.is_relative_to(root):
         raise ValueError('Keep the reference template outside the batch output directory.')
     plan = review_runner.prepare(checks)
+    if history is not None and not suggest:
+        raise ValueError('--history applies to batch only with --suggest')
+    if suggest and not any(e.plugin.kind == 'classifier' for e in plan.entries):
+        raise ValueError('--suggest needs the case-name classifier; use --checks default or include case_names')
+    learned = None
+    if history is not None:
+        history = Path(history).resolve()
+        if not history.is_dir():
+            raise ValueError('--history must be an existing output directory')
+        if history.is_relative_to(root) or root.is_relative_to(history):
+            # Batch selections are automatic, not reviewed, and would change on every resume.
+            raise ValueError('--history must not overlap the batch output directory')
+        found = AuditHistory(history)
+        learned = (found.case_examples(), found.skipped)
     files = discover(inputs, root, recursive=recursive)
     base = input_root(inputs)
     if not files:
@@ -261,13 +354,15 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
             except (TypeError, ValueError):
                 # Never drop the manifest line over an unserializable check summary.
                 result['check_summary'] = None
+                if 'suggestions' in result:
+                    result['suggestions'] = {'error': 'suggestions not serializable'}
                 line = json.dumps(result, allow_nan=False)
             log.write(line + '\n'); log.flush(); os.fsync(log.fileno())
             # The durable manifest line is written first; a bad summary only degrades the table row.
             try:
-                table.append(check_row(result, base))
+                table.append(check_row(result, base, suggest))
             except Exception:
-                table.append(check_row({**result, 'check_summary': None}, base))
+                table.append(check_row({**result, 'check_summary': None, 'suggestions': None}, base, suggest))
             counts[result['status']] += 1
             if progress:
                 progress(result)
@@ -283,17 +378,22 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
                     stem = re.sub(r'[^A-Za-z0-9_-]+', '-', path.stem).strip('-')[:80] or 'worksheet'
                     yield {'job_id': job_id, 'source': str(path), 'source_sha256': source_hash,
                            'template': str(template), 'template_sha256': template_hash, 'settings': settings,
-                           'output': str(root / job_id / (stem + '.mcdx')), 'resume': resume}
+                           'output': str(root / job_id / (stem + '.mcdx')), 'resume': resume, 'suggest': suggest}
                 except (ValueError, OSError) as exc:
                     record({'source': str(path), 'source_sha256': None, 'status': 'failed', 'error': str(exc),
                             'native_execution_verified': False})
 
         if workers == 1:
-            for job in jobs():
-                record(_convert_job(job))
+            _use_history(learned)
+            try:
+                for job in jobs():
+                    record(_convert_job(job))
+            finally:
+                _use_history(None)
         else:
             iterator = iter(jobs())
-            with ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context('spawn')) as pool:
+            with ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context('spawn'),
+                                     initializer=_use_history, initargs=(learned,)) as pool:
                 pending = {}
                 exhausted = False
                 while pending or not exhausted:
@@ -316,7 +416,14 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
         table.sort(key=lambda r: tuple(str(r[c]) for c in CHECK_COLUMNS))
         if check_rows is not None:
             check_rows.extend(table)
-        counts['checks'] = {'table': str(write_check_table(root, table)),
+        columns = CHECK_COLUMNS + (SUGGEST_COLUMNS if suggest else ())
+        if suggest:
+            counts['suggestions'] = {
+                'reports_with_suggestions': sum(1 for r in table if r['suggested_cases']
+                                                and not r['suggested_cases'].startswith('unavailable')),
+                'reports_unavailable': sum(1 for r in table if r['suggested_cases'].startswith('unavailable')),
+                'history': None if learned is None else {'examples': len(learned[0]), 'skipped': learned[1]}}
+        counts['checks'] = {'table': str(write_check_table(root, table, columns)),
                             'reports_with_failures': sum(1 for r in table if r['failed'] not in ('', 0)),
                             'reports_without_checks': sum(1 for r in table if r['note'] == 'no checks found'),
                             'reports_not_recorded': sum(1 for r in table if r['note'] == 'checks not recorded for this output')}
@@ -337,6 +444,10 @@ def main(argv=None):
     parser.add_argument('--set', action='append', default=[], metavar='VARIABLE=VALUE')
     parser.add_argument('--checks', default='default', metavar='SPEC',
                         help='Advisory review plug-ins: default, none, or a comma list such as default,my_check')
+    parser.add_argument('--suggest', action='store_true',
+                        help='Record advisory case suggestions and review flags in the manifest and check table; never applied')
+    parser.add_argument('--history', type=Path, metavar='OUTPUT_DIR',
+                        help='With --suggest: learn case naming from reviewed conversions in another output directory')
     parser.add_argument('--quiet', action='store_true', help='Suppress per-file progress on stderr')
     args = parser.parse_args(argv)
     try:
@@ -353,8 +464,13 @@ def main(argv=None):
         summary = convert_batch(args.inputs, args.template, args.output_dir, workers=args.workers,
                                 recursive=args.recursive, resume=args.resume, cases=args.cases,
                                 load_source=args.load_source, overrides=overrides, checks=args.checks, progress=progress,
-                                check_rows=rows)
+                                check_rows=rows, suggest=args.suggest, history=args.history)
         print(format_check_table(rows), file=sys.stderr)
+        if args.suggest:
+            found = summary['suggestions']
+            print(f"Case suggestions: {found['reports_with_suggestions']} of {summary['total']} reports differ from the "
+                  f"selection used; {found['reports_unavailable']} unavailable. Advisory only: nothing was applied.",
+                  file=sys.stderr)
         print('Check summary table: ' + summary['checks']['table'], file=sys.stderr, flush=True)
 
         print(json.dumps(summary, indent=2))
