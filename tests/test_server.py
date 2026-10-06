@@ -143,10 +143,11 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(row['status'], 'calculated')
             if metadata.get('source') == '/tmp/loads.gp11t':
                 self.assertIsNone(row['source'])
-                self.assertEqual((row['cases'], row['overrides'], row['case_names']), ([1], {'ok': 2}, {}))
+                # One unacceptable entry makes the overrides unrecorded, not a shorter list.
+                self.assertEqual((row['cases'], row['overrides'], row['case_names']), ([1], None, {}))
             else:
                 self.assertIsNone(row['source'])
-                self.assertEqual((row['cases'], row['overrides'], row['case_names']), ([], {}, {}))
+                self.assertEqual((row['cases'], row['overrides'], row['case_names']), ([], None, {}))
         # Files-only rows keep their context; here the calculated page is gone, not the audit.
         audit.write_text(json.dumps(original))
         self.assertEqual(converted['calculated_worksheet']['name'], audit.name.replace('.audit.json', '.html'))
@@ -154,6 +155,30 @@ class ServerTests(unittest.TestCase):
         self.server.state.files.clear()
         (row,) = self.request('GET', '/api/history')[1]
         self.assertEqual((row['status'], row['source'], row['cases']), ('files', 'loads.gp11t', [1]))
+
+    def test_history_survives_hostile_audit_context(self):
+        _, uploaded = self.upload()
+        self.request('POST', '/api/convert', {'id': uploaded['id'], 'cases': [1]})
+        audit = next((self.root / 'results').glob('*/*.audit.json'))
+        original = json.loads(audit.read_text())
+        # One huge integer used to overflow math.isfinite and fail the whole history.
+        audit.write_text(json.dumps({**original, 'overrides': 'HUGE'})
+                         .replace('"HUGE"', '{"n_z": 1' + '0' * 400 + ', "ok": 2}'))
+        self.server.state.files.clear()
+        status, rows = self.request('GET', '/api/history')
+        self.assertEqual(status, 200)
+        self.assertIsNone(rows[0]['overrides'])
+        for source in ('C:\\Users\\someone\\loads.gp11t', '..\\..\\loads.gp11t',
+                       'evil\u202etxt.11pg', 'loads\x00.gp11t', 'zero\u200bwidth.gp11t'):
+            audit.write_text(json.dumps({**original, 'source': source}))
+            self.server.state.files.clear()
+            self.assertIsNone(self.request('GET', '/api/history')[1][0]['source'], source)
+        audit.write_text(json.dumps({**original, 'cases': [1, 1, 0, -3, 2 ** 60, 7],
+                                     'case_names': {'1': 'STR\u202eI', '7': 'SER\nI'},
+                                     'overrides': {'n\u202ez': 1, 'n_y\n': 2, 'n_z': 3}}))
+        self.server.state.files.clear()
+        (row,) = self.request('GET', '/api/history')[1]
+        self.assertEqual((row['cases'], row['case_names'], row['overrides']), ([1, 7], {}, None))
 
     def test_standards_register_is_bound_to_actual_calculated_artifacts(self):
         _, uploaded = self.upload()

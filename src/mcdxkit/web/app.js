@@ -208,14 +208,14 @@ function historyWhen(value){if(typeof value!=='number'||!Number.isFinite(value))
   const date=new Date(value*1000);return Number.isNaN(date.getTime())?'Date not recorded':date.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
 function historyCases(result){const ids=Array.isArray(result.cases)?result.cases:[],names=result.case_names||{};
   return ids.length?'Cases '+ids.map(id=>id+(names[String(id)]?' '+names[String(id)]:'')).join(', '):'Cases not recorded';}
-function historyOverrides(result){const entries=Object.entries(result.overrides||{});return entries.length?entries.map(([key,value])=>`${key}=${value}`).join(', '):null;}
-function historySource(result){return result.source||result.worksheet?.name||'Source not recorded';}
+function historyOverrides(result){if(!result.overrides||typeof result.overrides!=='object')return 'Overrides not recorded';const entries=Object.entries(result.overrides);return entries.length?'Overrides '+entries.map(([key,value])=>`${key}=${value}`).join(', '):'No overrides';}
+function historySource(result){return result.source||'Source not recorded';}
 function historyRow(result){
   const status=statusLabels[result.status]?result.status:'files';
   const row=el('details',undefined,'history-row'),summary=el('summary'),line=el('div',undefined,'history-line');
   line.append(el('b',historySource(result)),el('span',historyWhen(result.created),'history-when'),el('span',statusLabels[status],'history-status state-'+status.replace('_','-')));
   const overrides=historyOverrides(result);
-  const meta=[historyCases(result),overrides?'Overrides '+overrides:'No overrides',result.load_source?result.load_source==='reactions'?'Reactions':'Effects':'Load source not recorded'];
+  const meta=[historyCases(result),overrides,result.load_source?result.load_source==='reactions'?'Reactions':'Effects':'Load source not recorded'];
   summary.append(line,el('p',meta.join(' · '),'history-meta'));
   row.append(summary,resultCard(result,historySource(result)));return row;
 }
@@ -233,7 +233,7 @@ async function history(){
   function draw(){
     const needle=search.value.trim().toLowerCase(),wanted=state.value;
     const rows=data.filter(r=>(wanted==='all'||(statusLabels[r.status]?r.status:'files')===wanted)&&
-      (!needle||historySource(r).toLowerCase().includes(needle)));
+      (!needle||(r.source||'').toLowerCase().includes(needle)));
     list.replaceChildren();
     for(const result of rows)list.append(historyRow(result));
     if(!data.length)list.append(el('div','No saved outputs yet.','empty'));
