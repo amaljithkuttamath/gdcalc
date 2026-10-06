@@ -84,6 +84,7 @@ For UI changes, use the real browser flow: upload → inputs → changes → gen
 - Fail visibly on unsupported expressions or incompatible units. Preserve original source and governing-case provenance.
 - Keep old caches distinct from calculated results. Never change native verification flags without actual Prime evidence.
 - Update CLI help/docs for new flags; update `SKILL.md` when agent workflow changes.
+- Keep [skill reviews](references/reviews.md) consistent with repository standards. The optional [installation interview](docs/agent-integration.md#install-with-optional-workflow-interview) must remain agent-neutral, skippable and local; preferences cannot count as validation evidence or change calculation defaults.
 - Add packaged assets to both package metadata and Docker's context allowlist. Include licenses for bundled dependencies/assets.
 - Update dependency locks intentionally. Pin the calculator revision and review its behavior when upgrading. Do not silently fetch newer engines during conversion.
 - Exclude reports, templates, source snapshots, credentials and generated engineering outputs from commits and build contexts. Review staged filenames before publishing.

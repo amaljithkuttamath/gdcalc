@@ -20,3 +20,4 @@ mcdxkit-output/
 *.cpd
 *.html
 !src/mcdxkit/web/*.html
+.mcdxkit/

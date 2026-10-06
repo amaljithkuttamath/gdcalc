@@ -6,6 +6,8 @@ Read [README.md](README.md) for the shipped product, [CLI and server guide](docs
 
 The current app converts GROUP text reports into executable Calcpad worksheets, calculated HTML, native Mathcad formula packages and audit JSON. The browser inspects files and runs conversions. It is not yet a general equation editor or a universal Mathcad runtime. The broader [feature review](docs/mathcad-prime-review.md) is a roadmap, not an implemented API specification.
 
+The generic skill's [review guide](references/reviews.md) routes source, template, execution, engineering, architecture, UI, security and delivery reviews by task scope. Optional installation answers in `.mcdxkit/profile.json` are local context, never engineering evidence or authorization; do not commit them. Keep skill scripts on the shared engine and test onboarding's skipped/unknown paths as well as completed interviews.
+
 ## Run locally
 
 ```bash

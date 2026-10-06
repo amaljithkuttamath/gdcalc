@@ -6,6 +6,7 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ### Added
 
+- Agent-neutral skill installer with an optional local workflow interview and task-specific review guidance.
 - CI lint and type-check job: `ruff check` (correctness rules) and `mypy`, pinned in `requirements-dev.txt`.
 
 ## 0.3.0
