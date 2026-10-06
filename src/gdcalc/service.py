@@ -1,6 +1,5 @@
 """Transport-independent browser session and conversion operations."""
 import math
-import json
 import re
 import secrets
 import tempfile
@@ -52,11 +51,10 @@ class Session:
         candidates = sorted(self.output_dir.glob('*/*.audit.json'), key=lambda p: p.stat().st_mtime, reverse=True)
         for audit in candidates[:100]:
             output = audit.with_name(audit.name.removesuffix('.audit.json') + '.mcdx')
-            if (not re.fullmatch('[0-9a-f]{16}', audit.parent.name) or audit.parent.is_symlink()
-                    or audit.is_symlink() or output.is_symlink() or not output.is_file() or audit.stat().st_size > 2 * MIB):
+            if not re.fullmatch('[0-9a-f]{16}', audit.parent.name) or output.is_symlink() or not output.is_file():
                 continue
             try:
-                metadata = json.loads(audit.read_text())
+                metadata = engine.load_audit(audit)
                 rows.append({'worksheet': self.register(output, 'worksheet'), 'audit': self.register(audit, 'audit'),
                              'output': str(output), 'created': audit.stat().st_mtime,
                              'envelope': metadata.get('envelope'), 'native_execution_verified': False,
@@ -119,13 +117,21 @@ class Session:
         """CSV of per-case loads for two or more uploaded reports; nothing is written to the output directory."""
         if not isinstance(reports, list) or not 2 <= len(reports) <= 100 or not all(isinstance(r, dict) for r in reports):
             raise RequestError('Select between 2 and 100 reports for a summary.')
-        if len({r.get('id') for r in reports}) != len(reports):
-            raise RequestError('Each report can appear only once in a summary.')
-        rows = []
+        if not all(isinstance(r.get('id'), str) for r in reports):
+            raise RequestError('Each summary report needs a file ID.')
+        rows, seen, duplicates = [], set(), []
         for report in reports:
-            entry = self.get(report.get('id'), ['report'])
-            rows += engine.summarize_report(entry['path'], cases=self.cases(report.get('cases')), load_source=basis)
-        return {'name': 'gdcalc-summary.csv', 'reports': len(reports), 'rows': len(rows),
+            entry = self.get(report['id'], ['report'])
+            found = engine.summarize_report(entry['path'], cases=self.cases(report.get('cases')), load_source=basis)
+            # Same bytes, basis and selection would repeat identical rows: skip, as the CLI does.
+            key = engine.summary_key(found)
+            if key in seen:
+                duplicates.append(entry['path'].name)
+                continue
+            seen.add(key); rows += found
+        if len(seen) < 2:
+            raise RequestError('Select at least two different reports for a summary.')
+        return {'name': 'gdcalc-summary.csv', 'reports': len(seen), 'rows': len(rows), 'duplicates_skipped': duplicates,
                 'csv': engine.summary_csv(rows), 'native_execution_verified': False}
 
     def operation(self, route, data):

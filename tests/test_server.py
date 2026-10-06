@@ -132,6 +132,12 @@ class ServerTests(unittest.TestCase):
         self.assertFalse((self.root / 'results').exists())
         self.assertEqual(self.request('POST', '/api/summary', {'reports': reports[:1]})[0], 400)
         self.assertEqual(self.request('POST', '/api/summary', {'reports': [reports[0], reports[0]]})[0], 400)
+        _, third = self.upload('copy.txt')
+        status, value = self.request('POST', '/api/summary', {'reports': reports + [{'id': third['id'], 'cases': [1, 7]}]})
+        self.assertEqual(status, 200, value)
+        self.assertEqual((value['reports'], value['rows'], value['duplicates_skipped']), (2, 6, ['copy.txt']))
+        for bad in (['x'], {'a': 1}, None, 5):
+            self.assertEqual(self.request('POST', '/api/summary', {'reports': [reports[0], {'id': bad}]})[0], 400)
         self.assertEqual(self.request('POST', '/api/summary', {'reports': [reports[0], {'id': 'missing'}]})[0], 404)
         self.assertEqual(self.request('POST', '/api/summary', {'reports': [reports[0], {'id': second['id'], 'cases': [99]}]})[0], 400)
         self.assertEqual(self.request('POST', '/api/summary', {'reports': reports, 'load_source': 'global'})[0], 400)

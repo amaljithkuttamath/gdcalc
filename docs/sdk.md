@@ -38,6 +38,7 @@ print(result["calculated_worksheet"])
 | `convert(report, template, output, *, cases=None, load_source='effects', title=None, overrides=None)` | Calculates and returns the audit dictionary with final artifact paths, source hash, selection/envelope and calculation evidence. Publishes `.mcdx`, `.cpd`, `.html`, `.audit.json`, with audit last. |
 | `summarize_report(report, *, cases=None, load_source='effects', origin=None)` | Returns one row dict per final-summary case with per-case loads (kip, kip-in), `selected`, `governs` and `source_sha256`. Unresolved or invalid selection raises `ValueError`. |
 | `summarize_audit(audit, *, origin=None)` | Same rows for a completed conversion, re-parsed from its `_source` snapshot after verifying the audited hash, with the audited cases and load basis. |
+| `summary_key(rows)` | Identity of one summarized input (source hash, load basis, selected cases), used by the CLI and server to skip identical duplicates. |
 | `summary_csv(rows)` | Renders rows as CSV text; columns are listed in [the summary guide](cli.md#summary-csv-across-reports). It does not write files. |
 | `validate(worksheet)` | Returns package integrity results. Does not execute Prime or prove engineering compliance. |
 

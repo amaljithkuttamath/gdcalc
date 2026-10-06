@@ -9,14 +9,22 @@ from pathlib import Path
 from . import group_report, mcdx, calcpad
 
 
-def _read_report(path, load_source):
+def _read_raw(path):
     path=Path(path)
     if path.stat().st_size>16*1024*1024:raise ValueError('Raw report exceeds 16 MiB')
-    raw=path.read_bytes()
+    return path.read_bytes()
+
+
+def _parse_raw(raw, load_source):
     if b'\x00' in raw:raise ValueError('Expected a text GROUP report, not a binary workbook')
     try:text=raw.decode('utf-8-sig')
     except UnicodeDecodeError:text=raw.decode('cp1252')
-    return raw,group_report.parse(text,load_source)
+    return group_report.parse(text,load_source)
+
+
+def _read_report(path, load_source):
+    raw=_read_raw(path)
+    return raw,_parse_raw(raw,load_source)
 
 
 def inspect_report(report, *, cases=None, load_source='effects'):
@@ -74,7 +82,7 @@ SUMMARY_COLUMNS=(['report','origin','source_sha256','load_source','case_id','cas
                  [key+'_'+unit for key,unit in SUMMARY_MEASURES]+['governs'])
 
 
-def _summary_rows(name, origin, raw, parsed, selected):
+def _summary_rows(name, origin, digest, parsed, selected):
     """One row per final-summary case. Values are that case's component maxima (P: max compression,
     others: max magnitude); `governs` names measures for which the case is the selected-case maximum."""
     governing=group_report.envelope(selected)
@@ -82,7 +90,7 @@ def _summary_rows(name, origin, raw, parsed, selected):
     rows=[]
     for case in parsed['cases']:
         values=group_report.envelope([case])
-        row={'report':name,'origin':origin,'source_sha256':hashlib.sha256(raw).hexdigest(),
+        row={'report':name,'origin':origin,'source_sha256':digest,
              'load_source':parsed['load_source'],'case_id':case['id'],'case_name':case['name'],
              'selected':case['id'] in chosen}
         row.update({key+'_'+unit:values[key] for key,unit in SUMMARY_MEASURES})
@@ -91,34 +99,52 @@ def _summary_rows(name, origin, raw, parsed, selected):
     return rows
 
 
+def _select(label, parsed, cases):
+    try:return group_report.select(parsed,cases)
+    except ValueError as exc:raise ValueError(f'{label}: {exc}') from exc
+
+
+def summary_key(rows):
+    """Identity of one summarized input: identical source bytes, load basis and selection give identical rows."""
+    return (rows[0]['source_sha256'],rows[0]['load_source'],tuple(r['case_id'] for r in rows if r['selected']))
+
+
 def summarize_report(report, *, cases=None, load_source='effects', origin=None):
     """Summary rows for one report. Unresolved or invalid case selection raises ValueError."""
     report=Path(report)
     raw,parsed=_read_report(report,load_source)
-    try:selected=group_report.select(parsed,cases)
-    except ValueError as exc:raise ValueError(f'{report.name}: {exc}') from exc
-    return _summary_rows(report.name,origin or report.name,raw,parsed,selected)
+    return _summary_rows(report.name,origin or report.name,hashlib.sha256(raw).hexdigest(),parsed,
+                         _select(report.name,parsed,cases))
+
+
+def load_audit(audit):
+    """Bounded JSON read of a conversion audit; rejects symlinked audits and audit folders."""
+    audit=Path(audit)
+    if audit.is_symlink() or audit.parent.is_symlink() or not audit.is_file() or audit.stat().st_size>2*1024*1024:
+        raise ValueError(f'{audit.name}: unsupported audit file')
+    try:data=json.loads(audit.read_text(encoding='utf-8'))
+    except (ValueError,UnicodeError) as exc:raise ValueError(f'{audit.name}: unreadable audit JSON') from exc
+    if not isinstance(data,dict):raise ValueError(f'{audit.name}: unreadable audit JSON')
+    return data
 
 
 def summarize_audit(audit, *, origin=None):
-    """Summary rows for a completed conversion, re-parsed from its hash-verified `_source` snapshot
-    with the audit's recorded cases and load basis. A missing or changed snapshot raises ValueError."""
+    """Summary rows for a completed conversion, parsed from its `_source` snapshot only after the
+    snapshot matches the audited SHA-256, with the audit's recorded cases and load basis."""
     audit=Path(audit)
-    if audit.is_symlink() or audit.stat().st_size>2*1024*1024:raise ValueError(f'{audit.name}: unsupported audit file')
-    try:
-        data=json.loads(audit.read_text(encoding='utf-8'))
-        name,expected,cases,basis=data['source'],data['source_sha256'],data['cases'],data['load_source']
-    except (ValueError,KeyError,TypeError) as exc:raise ValueError(f'{audit.name}: not a gdcalc conversion audit') from exc
-    if (not isinstance(name,str) or Path(name).name!=name or name in ('','.','..') or not isinstance(cases,list)
-            or not all(type(i) is int for i in cases)):
+    data=load_audit(audit)
+    name,expected,cases,basis=(data.get(k) for k in ('source','source_sha256','cases','load_source'))
+    if (not isinstance(name,str) or Path(name).name!=name or name in ('','.','..') or not isinstance(expected,str)
+            or not isinstance(cases,list) or not all(type(i) is int for i in cases) or basis not in ('effects','reactions')):
         raise ValueError(f'{audit.name}: not a gdcalc conversion audit')
-    snapshot=audit.parent/'_source'/name
-    if snapshot.is_symlink() or not snapshot.is_file():
-        raise ValueError(f'{audit.name}: source snapshot _source/{name} is missing')
-    raw,parsed=_read_report(snapshot,basis)
-    if hashlib.sha256(raw).hexdigest()!=expected:
+    folder=audit.parent/'_source';snapshot=folder/name
+    if folder.is_symlink() or snapshot.is_symlink() or not snapshot.is_file():
+        raise ValueError(f'{audit.name}: source snapshot _source/{name} is missing or not a regular file')
+    raw=_read_raw(snapshot);digest=hashlib.sha256(raw).hexdigest()
+    if digest!=expected:
         raise ValueError(f'{audit.name}: source snapshot does not match the audited SHA-256')
-    return _summary_rows(name,origin or audit.name,raw,parsed,group_report.select(parsed,cases))
+    parsed=_parse_raw(raw,basis)
+    return _summary_rows(name,origin or audit.name,digest,parsed,_select(audit.name,parsed,cases))
 
 
 def summary_csv(rows):
