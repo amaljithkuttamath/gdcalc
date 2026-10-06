@@ -33,6 +33,10 @@ The server prints its URL. Upload/select a private compatible template in the br
 
 ## Implementation boundaries
 
+Apply the [product and engineering principles](docs/design-principles.md), including visible source evidence, one shared engine, explicit validation states and offline use.
+
+Follow the [monorepo decision](docs/architecture.md#repository-decision-one-monorepo): keep the shared engine, adapters, UI and skill together. Future desktop wrappers reuse the same UI and engine. Preserve existing package paths and public APIs unless a scoped migration requires changes; do not introduce separate repositories or duplicate calculation implementations for each platform.
+
 Reuse before rebuilding. Search existing repository code and established open-source implementations before adding an engine, renderer, parser or framework. In the ticket/PR, record what can be reused, its license and offline fit, and the specific gap that warrants new code. Keep adapters small. Template equations remain authoritative: worksheet outputs and future 3D views must use the same calculated result and provenance, not duplicate formulas in the UI. Rendering geometry is not evidence of a physical simulation; deformation requires actual displacement results or a separately validated solver.
 
 MCDXKit uses the `mcdxkit` package and CLI, `MCDXKIT_*` configuration and one shared calculation engine. The 0.3.0 rename intentionally provides no previous-name aliases. Preserve private files and existing installations; migration is explicit. See [release setup](docs/releasing.md).
@@ -52,6 +56,9 @@ Work through a GitHub issue and a feature/fix branch. Claim or comment on the is
 ```bash
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
+python -m pip install -r requirements-dev.txt
+ruff check src tests scripts
+mypy
 python -m pip install build
 python -m build
 python scripts/check_package.py
@@ -61,3 +68,5 @@ git diff --check
 Tests execute the real calculator and start loopback HTTP servers. Use synthetic fixtures from `tests/test_pipeline.py`; do not commit private reports/templates. For UI changes, exercise the affected workflow in a browser and distinguish tested behavior from unverified behavior.
 
 The Actions workflow tests Python 3.10/3.12, builds packages and tests the actual container before publishing it on `main`. Check the run for the exact pushed commit. A local test pass is not a successful remote image publish. Follow the user's requested publication scope; cloud hosting is separate from GitHub publication.
+
+After **every push**, inspect the workflows for that exact commit SHA, including branch updates and post-merge publication. Follow pending runs to completion, read failed job logs, fix regressions and check the replacement commit. Never use an earlier green run as evidence for a newer push. Record the run URL and any explicitly unverified checks in the PR handoff.

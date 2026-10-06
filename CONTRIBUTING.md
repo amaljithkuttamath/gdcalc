@@ -26,6 +26,8 @@ Use issue/PR state as the work queue: open issue → claimed work/branch → dra
 
 ## Development setup
 
+Read [design principles](docs/design-principles.md) before changing product behavior or adding a subsystem. The [UI guide](docs/ui-design.md) covers interaction and visual requirements.
+
 Requirements: Python 3.10+, Git; .NET 10 SDK for the initial calculator build; Node.js for JavaScript syntax checks. Docker is needed for container verification.
 
 ```bash
@@ -39,6 +41,10 @@ mcdxkit setup-engine
 mcdxkit serve --no-open --port 0 --output-dir ./mcdxkit-output
 ```
 
+On Windows PowerShell, activate with `.venv\Scripts\Activate.ps1`; the remaining `python -m pip` and `mcdxkit` commands are the same. Use `python` instead of `python3` when that is your Python 3 command. Node 22 is the browser-test baseline. Install the .NET 10 SDK before `setup-engine`; the generated calculator is reused across later runs.
+
+A successful contributor setup prints the server URL, opens the Files step, and passes the synthetic tests without a private template. Use `python -m mcdxkit --help` to confirm the active environment if a different installed CLI is found. Stop only the server you started and preserve its output directory.
+
 Select your own compatible template in the browser. There is no public production template or engineering dataset. Tests generate synthetic inputs and do not need a private template. `setup-engine` builds into a persistent cache and refuses to overwrite it. If already installed, skip setup or build into a new explicit directory.
 
 ## Tests and checks
@@ -48,6 +54,9 @@ The [testing contract](docs/testing.md) maps each change type to required positi
 ```bash
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
+python -m pip install -r requirements-dev.txt
+ruff check src tests scripts
+mypy
 python -m pip install build
 python -m build
 python scripts/check_package.py
@@ -81,12 +90,16 @@ For UI changes, use the real browser flow: upload → inputs → changes → gen
 
 ## Pull requests and releases
 
+Add a line under `Unreleased` in [CHANGELOG.md](CHANGELOG.md) for any change a user, integrator or deployer would notice. Internal refactors and test-only changes can skip it.
+
 Describe the problem, resulting behavior, validation and remaining limitations. Separate current features from roadmap work. Include any template or expression compatibility changes so reviewers can assess existing documents.
 
 Every pull request runs checks. Pushes to `main` and manual `main` runs publish Python build artifacts and, after all image tests succeed, a GHCR container. Image tags are `latest` and `sha-<full-commit-sha>`; use the latter for repeatable deployment. Actions uses `GITHUB_TOKEN`, not a repository-stored personal token. Dependabot maintains action update proposals.
 
-When intentionally releasing a new application version, keep `pyproject.toml` and the version in `src/mcdxkit/cli.py` aligned. Check the workflow for the exact commit before claiming the package/image is published. Deployment to a live server is a separate operation; follow [deployment guidance](deploy/README.md).
+When intentionally releasing a new application version, keep `pyproject.toml` and the version in `src/mcdxkit/cli.py` aligned, and move the `Unreleased` changelog entries under the new version heading. Check the workflow for the exact commit before claiming the package/image is published. Deployment to a live server is a separate operation; follow [deployment guidance](deploy/README.md).
 
 Versioned Python releases use the separate [PyPI release workflow](docs/releasing.md), which tests the installed wheel before Trusted Publishing. Ordinary main CI artifacts are not a PyPI upload.
 
 See [GitHub workflow](docs/github-workflow.md) for the roadmap, triage and security controls. Contributions are distributed under the repository's [MIT license](LICENSE); dependencies keep their own terms and attribution.
+
+After **every push**, inspect the workflows for that exact commit SHA, including branch updates and post-merge publication. Follow pending runs to completion, read failed job logs, fix regressions and check the replacement commit. Never use an earlier green run as evidence for a newer push. Record the run URL and any explicitly unverified checks in the PR handoff.
