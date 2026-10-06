@@ -91,6 +91,22 @@ After the run, a per-report check table (status, check count, failures, governin
 
 Exit codes: 0 = all succeeded or verified/skipped; 1 = one or more jobs failed; 2 = invalid setup. Inspect `batch-manifest.jsonl` for individual failures. Resume validates saved identity, hashes and calculation evidence; corrupted outputs are not silently reused. Do not run two batches writing to the same output directory. Manifest rows of converted or verified jobs carry `open_checks`, the number of review flags without an engineer decision (`null` when no check ran successfully, never 0), and `check_errors`, the number of review plug-ins that failed or timed out. Batch accepts `--checks`; the enabled check ids and versions are part of the job identity, so a new check version converts and reviews again on `--resume` (in a new job folder) instead of reusing the old audit.
 
+### Triage case selection with `--suggest`
+
+```bash
+mcdxkit batch /path/to/reports --recursive --template /path/to/reference.mcdx \
+  --output-dir /path/to/batch-results --suggest
+# later, triage a finished batch without reconverting:
+mcdxkit batch /path/to/reports --recursive --template /path/to/reference.mcdx \
+  --output-dir /path/to/batch-results --resume --suggest
+```
+
+`--suggest` adds advisory case suggestions to every manifest row and nothing else: the cases, overrides, job ids and the `.mcdx`, `.cpd` and `.html` bytes are the same as without it, and nothing is applied. Each row gains `suggestions` with `selected_cases` (the job's selection rule applied to the report: the default STR rule or `--cases`), `selection_required` (why that selection failed, or `null`), `case_suggestions` (the same block as `mcdxkit inspect`: every case's id, name, category, confidence, evidence and stage, plus `recommended_cases` and `unresolved_case_ids`), compact review `flags` (`rule`, `case`, `component`, `message`, `selection`), `review_errors`, and `differences`: cases to **add** (classified strength, or raised by a flag that could change the selection, but not selected) or **drop** (selected but classified service, extreme, fatigue or other). Suggestions are made even when conversion failed, so a report rejected with "Case classification unavailable" shows which cases to pass with `--cases`. The report is re-read only when its bytes still match the job's SHA-256; otherwise the row records `suggestions.error`.
+
+The check table gets a last column, `suggested_cases`, such as `add 3 SER-IX [flag service_axial_above_strength]` or `drop 2 SER-I [service 1.00]`, empty when the selection matches, `unavailable: …` when suggestions could not be made. Rows with suggestions are repeated below the stderr table, followed by `Case suggestions: N of M reports differ from the selection used`, and stdout's summary has a `suggestions` object (`reports_with_suggestions`, `reports_unavailable`, `history`). Suggestions never change the exit code.
+
+`--suggest` is not part of the job identity, so `--resume --suggest` verifies and skips completed jobs and adds suggestions to the new manifest rows; it never reconverts. Earlier manifest lines are kept as they were. By default the classifier uses only its seed corpus, so suggestions do not depend on worker order, parallelism or earlier runs. `--history OUTPUT_DIR` (with `--suggest` only) learns naming from reviewed conversions in another output directory, for example the browser's, exactly like `inspect --history`: the newest 500 audits are read once when the batch starts and shared by every worker. It must not overlap the batch output directory, whose selections are automatic rather than reviewed. `--suggest` needs the case-name classifier (`--checks none` is rejected, exit 2).
+
 
 ## Summary CSV across reports
 

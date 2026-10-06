@@ -4,6 +4,8 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ## Unreleased
 
+- `mcdxkit batch --suggest` records advisory case suggestions, review flags and the cases that differ from the selection used (add/drop) in each manifest row and a `suggested_cases` check-table column, without changing cases or worksheets; `--resume --suggest` triages a finished batch without reconverting, and `--history DIR` learns naming from reviewed conversions elsewhere.
+
 ## 0.4.0
 
 - Verify installed SDK origins in release/container tests and include test helpers and synthetic fixtures in source distributions.
