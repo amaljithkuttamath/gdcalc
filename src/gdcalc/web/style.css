@@ -32,7 +32,8 @@ button:active:not(:disabled) { scale: .96; }
 button:hover { background: #f3f4f6; border-color: #b9bcc3; }
 button:disabled { opacity: .35; cursor: default; box-shadow: none; }
 button:focus-visible, input:focus-visible, select:focus-visible,
-textarea:focus-visible, summary:focus-visible { outline: 2px solid #83a8e3; outline-offset: 3px; }
+textarea:focus-visible, summary:focus-visible { outline: 2px solid #365d9f; outline-offset: 3px; }
+main :focus-visible, .topbar :focus-visible { outline-color: #83a8e3; }
 .primary-button { background: #303238; border-color: #303238; color: #fff; }
 .primary-button:hover { background: #44474f; color: #fff; }
 .quiet { background: transparent; border-color: transparent; }
@@ -131,12 +132,14 @@ textarea { resize: vertical; font-family: ui-monospace, monospace; }
 main .error, main .error-text { color: #f1aaa4; }
 .result-status { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
 .result-status span { font-size: 12px; color: #486a54; background: #eaf3ed; padding: 5px; border-radius: 4px; }
-.result-status .pending { color: #74767e; background: #f0f1f3; }
+.result-status .pending { color: #5d6068; background: #f0f1f3; }
 .validation-stats { font-size: 12px; color: #8694ab; }
+#inspector-content .validation-stats { color: #5f6d84; }
 .login { padding: 20px; border: 1px solid #424b5c; border-radius: 9px; background: #272e3b; color: #e0e6ef; }
 .login button { margin-top: 12px; }
 #inspector { position: fixed; left: 332px; right: 10px; top: 70px; bottom: 10px; width: auto; height: auto; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: #fff; color: #354259; box-shadow: 0 5px 25px #0002; }
 #inspector[open] { display: flex; flex-direction: column; }
+#close-inspector .close-label { display: none; }
 .document-top { display: flex; align-items: center; position: relative; background: #fff; border-bottom: 1px solid #e4e7ed; padding-right: 62px; }
 .inspector-head { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 66px; padding: 11px 20px; background: #fff; }
 .inspector-head h2 { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #3b4558; font: 500 12px var(--font-ui); }
@@ -156,7 +159,7 @@ main .error, main .error-text { color: #f1aaa4; }
 #inspector-content.worksheet-view { display: flex; flex-direction: column; overflow: hidden; }
 #inspector-content > .card { margin: 15px; background: #fff; border-color: #dbe2ee; box-shadow: none; }
 #inspector-content > .card h3 { color: #3e516f; }
-#inspector-content > .card .tag, #inspector-content > .card summary { color: #7c8da9; }
+#inspector-content > .card .tag, #inspector-content > .card summary { color: #5d6f8c; }
 #inspector-content > button { margin: 12px; }
 .source-text { white-space: pre; font: 12px/1.65 ui-monospace, monospace; padding: 12px 18px; margin: 0; background: #fff; }
 .document-toolbar { display: flex; flex-shrink: 0; align-items: center; gap: 7px; position: sticky; top: 0; z-index: 5; padding: 8px 18px; background: #f5f7fa; border-bottom: 1px solid #e0e5ed; }
@@ -194,7 +197,7 @@ main .error, main .error-text { color: #f1aaa4; }
 .diff-header span { padding: 17px 22px; }
 .diff-row { border-bottom: 1px solid #dce3ee; }
 .diff-row pre { min-width: 0; margin: 0; padding: 20px 22px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 ui-monospace, monospace; }
-.diff-before { background: #fcf4f3; color: #916d6a; }
+.diff-before { background: #fcf4f3; color: #85605d; }
 .diff-after { background: #f1f7f4; color: #507461; }
 .diff-summary { padding: 4px 22px; color: #55677f; font-size: 12px; }
 #inspector-content > div > details { padding: 0 22px 16px; color: #55677f; }
@@ -251,6 +254,9 @@ main .case-caption, .queue-heading, .template-panel > p { color: var(--text-seco
 @media (max-width: 560px) {
   .document-open main { width: 100%; }
   #inspector { left: 6px; right: 6px; top: 66px; bottom: 6px; z-index: 5; }
+  #close-inspector { width: auto; height: 36px; min-width: 44px; white-space: nowrap; padding: 0 10px; color: #4a5568; }
+  .inspector-head { padding-right: 150px; }
+  #close-inspector .close-label { display: inline; margin-left: 6px; }
   .preview-tools { display: block; }
   .preview-info { margin: 0 0 5px; }
   #inspector-search { width: 100%; min-height: 44px; }
