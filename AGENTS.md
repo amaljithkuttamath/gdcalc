@@ -81,3 +81,5 @@ After **every push**, inspect the workflows for that exact commit SHA, including
 ## Continuous improvement
 
 The [repository audit](docs/improvement-loop.md) runs after releases and weekly. Work evidence-backed findings through issue branches and PRs. Check for an existing matching issue first, record the affected commit and reproduction, distinguish infrastructure failures from product defects, and add a regression test for changed behavior. Passing software checks never grant engineering approval. Do not mark an issue done until acceptance evidence and exact-head CI, including post-merge publishing, pass.
+
+Installed-package checks use `python scripts/test_installed.py` after installing the built wheel. Do not prepend the repository `src` directory during test discovery; that masks broken wheel/container installs. Keep test helpers and synthetic fixtures in the source archive, and validate both distributions with `scripts/check_package.py`.

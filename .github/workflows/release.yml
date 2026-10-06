@@ -58,7 +58,7 @@ jobs:
       - name: Test installed SDK, CLI, calculator and server
         run: |
           mcdxkit setup-engine
-          python -m unittest discover -s tests -v
+          python scripts/test_installed.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: python-release
