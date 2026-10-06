@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from test_pipeline import report, template
-from gdcalc import engine
+from mcdxkit import engine
 
 class EngineTests(unittest.TestCase):
     def test_core_api_converts_without_cli_or_codex(self):

@@ -1,4 +1,4 @@
-"""Installed `gdcalc` command, also runnable as `python scripts/cli.py`."""
+"""Installed `mcdxkit` command, also runnable as `python scripts/cli.py`."""
 import argparse
 import sys
 if __package__:
@@ -10,8 +10,8 @@ else:
 
 def main(argv=None):
     args=list(sys.argv[1:] if argv is None else argv)
-    parser=argparse.ArgumentParser(prog='gdcalc',description='Convert final GROUP local-load summaries to native Mathcad worksheets.')
-    parser.add_argument('--version',action='version',version='gdcalc 0.2.1')
+    parser=argparse.ArgumentParser(prog='mcdxkit',description='Convert final GROUP local-load summaries to native Mathcad worksheets.')
+    parser.add_argument('--version',action='version',version='mcdxkit 0.3.0')
     sub=parser.add_subparsers(dest='command',required=True)
     for name,description in [('inspect','Inspect local loads and strength case selection'),
                              ('convert','Generate and calculate open and Mathcad worksheets'),
@@ -34,9 +34,9 @@ def main(argv=None):
     if selected.command=='serve':
         from .server import main as serve
         return serve(rest)
-    if selected.command=='convert':return generate.main(rest,prog='gdcalc convert')
-    if selected.command=='inspect':return generate.main(rest+['--inspect'],prog='gdcalc inspect')
-    return validate.main(rest,prog='gdcalc validate')
+    if selected.command=='convert':return generate.main(rest,prog='mcdxkit convert')
+    if selected.command=='inspect':return generate.main(rest+['--inspect'],prog='mcdxkit inspect')
+    return validate.main(rest,prog='mcdxkit validate')
 
 
 if __name__=='__main__':sys.exit(main())

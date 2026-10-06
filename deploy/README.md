@@ -7,7 +7,7 @@ The current deployment is **one process/replica for one trusted user or team**. 
 ## Local CLI
 
 ```bash
-gdcalc serve --template /path/to/reference.mcdx --output-dir ./outputs
+mcdxkit serve --template /path/to/reference.mcdx --output-dir ./outputs
 ```
 
 The default binds to `127.0.0.1:8765` and opens a browser. Use `--port 0` for a free port, or `--no-open` to print the URL. Local mode sends no files to a cloud service.
@@ -30,9 +30,9 @@ Compose publishes the application port on host loopback only. The app runs as a 
 Use a Linux VM with Docker Compose, a domain pointing to it, and ports 80/443 available. Run `setup_deploy.py`, then update `.env`:
 
 ```dotenv
-GDCALC_PUBLIC_URL=https://calc.example.com
-GDCALC_DOMAIN=calc.example.com
-GDCALC_PORT=8765
+MCDXKIT_PUBLIC_URL=https://calc.example.com
+MCDXKIT_DOMAIN=calc.example.com
+MCDXKIT_PORT=8765
 ```
 
 Start the optional Caddy TLS proxy:
@@ -45,9 +45,9 @@ Caddy terminates HTTPS and forwards to the application on the private Compose ne
 
 ## Managed container platforms
 
-The GitHub Actions workflow tests Python 3.10 and 3.12, checks JavaScript syntax, builds a wheel/source distribution, checks packaged assets, then builds and tests the Docker image. Successful runs on `main` publish that exact tested image to `ghcr.io/amaljithkuttamath/gdcalc` with `latest` and `sha-<full-commit-sha>` tags. Pull requests run checks without publishing. A manual run from the Actions tab can rebuild `main`.
+The GitHub Actions workflow tests Python 3.10 and 3.12, checks JavaScript syntax, builds a wheel/source distribution, checks packaged assets, then builds and tests the Docker image. Successful runs on `main` publish that exact tested image to `ghcr.io/amaljithkuttamath/mcdxkit` with `latest` and `sha-<full-commit-sha>` tags. Pull requests run checks without publishing. A manual run from the Actions tab can rebuild `main`.
 
-The image currently targets Linux AMD64. Build locally with the Dockerfile for another supported architecture. Python artifacts are downloadable from each workflow run for 30 days; they do not bundle the calculator, so non-container installs still need `gdcalc setup-engine`.
+The image currently targets Linux AMD64. Build locally with the Dockerfile for another supported architecture. Python artifacts are downloadable from each workflow run for 30 days; they do not bundle the calculator, so non-container installs still need `mcdxkit setup-engine`.
 
 No manually created publishing secret is needed: Actions uses its temporary `GITHUB_TOKEN`, with package-write permission limited to the container job. Actions are pinned to commits and Dependabot checks their updates weekly. No cloud hosting environment or deployment credentials are configured by this workflow.
 
@@ -55,8 +55,8 @@ After an image has published, reuse the existing Compose security and storage se
 
 ```bash
 python3 scripts/setup_deploy.py
-# Set GDCALC_IMAGE in .env to the desired sha tag for a reproducible deployment.
-docker compose -f compose.yaml -f compose.registry.yaml pull gdcalc
+# Set MCDXKIT_IMAGE in .env to the desired sha tag for a reproducible deployment.
+docker compose -f compose.yaml -f compose.registry.yaml pull mcdxkit
 docker compose -f compose.yaml -f compose.registry.yaml up --no-build -d
 ```
 
@@ -67,13 +67,13 @@ Build this Dockerfile, deploy **one instance**, and configure:
 | Setting | Value |
 |---|---|
 | `PORT` | Platform's assigned port; default `8765` |
-| `GDCALC_HOST` | `0.0.0.0` |
-| `GDCALC_PUBLIC_URL` | Exact HTTPS origin, without a path |
-| `GDCALC_ACCESS_TOKEN` | Random secret with at least 32 characters, injected by secret manager |
-| `GDCALC_OUTPUT_DIR` | Persistent mounted directory, e.g. `/data/outputs` |
+| `MCDXKIT_HOST` | `0.0.0.0` |
+| `MCDXKIT_PUBLIC_URL` | Exact HTTPS origin, without a path |
+| `MCDXKIT_ACCESS_TOKEN` | Random secret with at least 32 characters, injected by secret manager |
+| `MCDXKIT_OUTPUT_DIR` | Persistent mounted directory, e.g. `/data/outputs` |
 | Health check | `GET /healthz` |
 
-Alternatively mount a token file and set `GDCALC_ACCESS_TOKEN_FILE`. Use a writable persistent volume owned by UID/GID 10001 and allow temporary `/tmp` storage. The default template can be mounted read-only and set with `GDCALC_TEMPLATE`, or selected in the browser. Configure the TLS proxy to preserve the public Host header, allow 32 MiB requests, and use a sufficiently long request timeout for conversion (e.g. 120 seconds). Never disable authentication to make a deployment work.
+Alternatively mount a token file and set `MCDXKIT_ACCESS_TOKEN_FILE`. Use a writable persistent volume owned by UID/GID 10001 and allow temporary `/tmp` storage. The default template can be mounted read-only and set with `MCDXKIT_TEMPLATE`, or selected in the browser. Configure the TLS proxy to preserve the public Host header, allow 32 MiB requests, and use a sufficiently long request timeout for conversion (e.g. 120 seconds). Never disable authentication to make a deployment work.
 
 ## Storage and boundaries
 
@@ -88,6 +88,6 @@ See [Docker build guidance](https://docs.docker.com/build/building/best-practice
 
 ## Required calculation engine
 
-The Docker build compiles the pinned MIT-licensed CalcpadCE source and bundles the self-contained bridge. No calculator setup or network access is needed during conversion. Each worker executes an isolated, time-limited calculator process; size the worker count to available memory. Docker builds need access to GitHub and NuGet. Non-container installs run `gdcalc setup-engine` once with Git and the .NET 10 SDK.
+The Docker build compiles the pinned MIT-licensed CalcpadCE source and bundles the self-contained bridge. No calculator setup or network access is needed during conversion. Each worker executes an isolated, time-limited calculator process; size the worker count to available memory. Docker builds need access to GitHub and NuGet. Non-container installs run `mcdxkit setup-engine` once with Git and the .NET 10 SDK.
 
 A successful job includes `.cpd`, calculated `.html`, `.mcdx` and audit JSON. Resume checks the calculated artifacts too. The browser shows CalcpadCE results; native Mathcad execution remains a separate check.
