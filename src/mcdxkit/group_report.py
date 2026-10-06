@@ -5,16 +5,12 @@ import re
 MARKER = 'SUMMARY FOR LOAD CASES AND COMBINATIONS'
 COMPONENTS = ('P', 'Vy', 'Vz', 'My', 'Mz')
 _LIMIT_STATE = re.compile(r'^(STR|SER)(?:\b|[-_])', re.I)
-_LIMIT_STATE_LONG = re.compile(r'^(?:(STR)(?:ENGTH)?|(SER)(?:VICE)?)(?:\b|[-_])', re.I)
 
 
-def limit_state(name, *, long_names=False):
-    """'STR', 'SER' or None from a case name.
-
-    Default selection recognizes only the STR/SER prefixes. With long_names, AASHTO
-    names such as 'Strength I' and 'Service I' are recognized too (advisory review only).
-    """
-    match = (_LIMIT_STATE_LONG if long_names else _LIMIT_STATE).match(name or '')
+def limit_state(name):
+    """'STR', 'SER' or None from a case name. Default selection recognizes only these prefixes;
+    the advisory review (mcdxkit.review) also recognizes AASHTO long names."""
+    match = _LIMIT_STATE.match(name or '')
     if match is None:
         return None
     return next(group for group in match.groups() if group).upper()
@@ -98,8 +94,8 @@ def parse(text, load_source='effects'):
         pairs['P'] = [row[0] for row in local]
         cases.append({'id':ident, 'name':names.get(ident), 'pairs':pairs, 'pile_ids':sorted(set(ids)),
                       'load_source':load_source, 'source_rows':{'local':raw_local,'effects':raw_effects},
-                      # Both numeric tables, for the advisory review: pairs hold only the chosen
-                      # load source, and source_rows are unparsed text that would need a second parser.
+                      # Both numeric tables, for the advisory review (mcdxkit.review.view): pairs hold only
+                      # the chosen load source, and source_rows are unparsed text.
                       'tables':{'local':local,'effects':effects}})
     if not cases: raise ValueError('No load cases in final summary')
     return {'cases':cases,'load_source':load_source}
@@ -121,17 +117,3 @@ def select(parsed, cases=None):
 
 def envelope(cases):
     return {key: max(peak(c, key) for c in cases) for key in COMPONENTS}
-
-
-def governing(cases):
-    """Name the case behind each envelope component and how far it leads the runner-up case."""
-    result = {}
-    for key in COMPONENTS:
-        peaks = sorted(((peak(c, key), c) for c in cases),
-                       key=lambda pair: (-pair[0], pair[1]['id']))
-        value, case = peaks[0]
-        runner = peaks[1] if len(peaks) > 1 else None
-        result[key] = {'value': value, 'case': case['id'], 'case_name': case['name'],
-                       'runner_up_case': runner[1]['id'] if runner else None,
-                       'lead_ratio': value / runner[0] if runner and runner[0] > 0 else None}
-    return result

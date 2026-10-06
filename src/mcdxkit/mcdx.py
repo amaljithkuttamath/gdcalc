@@ -2,7 +2,6 @@
 import hashlib
 import io
 import math
-import os
 import posixpath
 import tempfile
 import zipfile
@@ -131,7 +130,7 @@ def scalar(definition):
     return reals[0]
 
 
-def generate(template, output, cases, source_name, title=None, overrides=None, geometry_cases=None):
+def generate(template, output, cases, source_name, title=None, overrides=None, geometry_cases=None, review_note=None):
     template=Path(template).resolve();output=Path(output).resolve()
     if output==template or output.exists():raise ValueError('Output must be a new file, distinct from the template')
     if not cases or len(cases)>100:raise ValueError('Select between 1 and 100 load cases')
@@ -209,6 +208,10 @@ def generate(template, output, cases, source_name, title=None, overrides=None, g
             # Single-argument max is kept as an identity reference for portability.
             rhs=maximum(*args) if len(args)>1 else args[0]
             math_region(f'Gd{CODES[key]}G{page+1}',rhs,offset+787.2+(i//2)*28.8,9.6 if i%2==0 else 374.4)
+    if review_note:
+        # Plain text only, created last so every other region keeps its id; it sits in the gap
+        # between the last case row and the envelope formulas of the last generated page.
+        text_region(str(review_note)[:400],(pages-1)*864+752.0,32)
     for key,load in LOADS.items():
         d=definitions[key][0];d.remove(d[1]);d.append(ident(f'Gd{CODES[load]}G{pages}'))
     for r in original:r.set('top',str(float(r.get('top'))+pages*864))

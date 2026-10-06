@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from . import engine, calcpad
+from .review import runner as review_runner
 from .generate import case_ids, default_template
 
 
@@ -95,7 +96,8 @@ def _convert_job(job):
                 artifact = output.with_suffix(suffix)
                 if not artifact.is_file() or digest(artifact) != calculation.get(key):
                     raise ValueError('Calculated worksheet failed artifact hash checks')
-            row.update(status='skipped', sha256=evidence['sha256'], audit=str(audit))
+            row.update(status='skipped', sha256=evidence['sha256'], audit=str(audit),
+                       open_checks=review_runner.open_flags(evidence.get('review_checks')))
         else:
             if Path(job['source']).stat().st_size > 16 * 1024 * 1024:
                 raise ValueError('Raw report exceeds 16 MiB')
@@ -118,7 +120,8 @@ def _convert_job(job):
                     json.dump(identity, stream, indent=2)
             result = engine.convert(snapshots[0][1], snapshots[1][1], output, **job['settings'])
             row.update(status='succeeded', sha256=result['sha256'], audit=str(audit),
-                       cases=result['cases'], envelope=result['envelope'])
+                       cases=result['cases'], envelope=result['envelope'],
+                       open_checks=review_runner.open_flags(result['review_checks']))
     except Exception as exc:
         row.update(status='failed', error=f'{type(exc).__name__}: {exc}')
     if row.get('status') in ('succeeded', 'skipped'):
@@ -129,8 +132,11 @@ def _convert_job(job):
 
 
 def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, resume=False,
-                  cases=None, load_source='effects', overrides=None, progress=None):
-    """Convert files independently; append durable records and verify outputs on resume."""
+                  cases=None, load_source='effects', overrides=None, checks='default', progress=None):
+    """Convert files independently; append durable records and verify outputs on resume.
+
+    The job identity includes the enabled review checks and their versions, so a new check
+    version gives a new job (and a fresh review) on resume."""
     if not 1 <= workers <= 32:
         raise ValueError('workers must be between 1 and 32')
     template = Path(template).resolve(); root = Path(output_dir).resolve()
@@ -138,12 +144,13 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
         raise ValueError('Template not found. Pass --template /path/to/reference.mcdx')
     if template.is_relative_to(root):
         raise ValueError('Keep the reference template outside the batch output directory.')
+    plan = review_runner.prepare(checks)
     files = discover(inputs, root, recursive=recursive)
     if not files:
         raise ValueError('No .gp11t or .txt reports found. Use --recursive for subfolders.')
     root.mkdir(parents=True, exist_ok=True)
     manifest = root / 'batch-manifest.jsonl'
-    settings = {'cases': cases, 'load_source': load_source, 'overrides': overrides or {}}
+    settings = {'cases': cases, 'load_source': load_source, 'overrides': overrides or {}, 'checks': checks}
     template_hash = digest(template)
     counts = {'total': len(files), 'succeeded': 0, 'skipped': 0, 'failed': 0,
               'manifest': str(manifest), 'workers': workers, 'calculation_engine': 'CalcpadCE', 'native_execution_verified': False}
@@ -162,7 +169,7 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
                     if path.stat().st_size > 16 * 1024 * 1024:
                         raise ValueError('Raw report exceeds 16 MiB')
                     source_hash = digest(path)
-                    identity = json.dumps([str(path), source_hash, template_hash, settings, calcpad.REVISION, calcpad.TRANSLATOR_VERSION], sort_keys=True, allow_nan=False)
+                    identity = json.dumps([str(path), source_hash, template_hash, settings, calcpad.REVISION, calcpad.TRANSLATOR_VERSION, plan.identity], sort_keys=True, allow_nan=False)
                     job_id = hashlib.sha256(identity.encode()).hexdigest()[:16]
                     stem = re.sub(r'[^A-Za-z0-9_-]+', '-', path.stem).strip('-')[:80] or 'worksheet'
                     yield {'job_id': job_id, 'source': str(path), 'source_sha256': source_hash,
@@ -212,6 +219,8 @@ def main(argv=None):
     parser.add_argument('--cases', type=case_ids)
     parser.add_argument('--load-source', choices=['effects', 'reactions'], default='effects')
     parser.add_argument('--set', action='append', default=[], metavar='VARIABLE=VALUE')
+    parser.add_argument('--checks', default='default', metavar='SPEC',
+                        help='Advisory review plug-ins: default, none, or a comma list such as default,my_check')
     parser.add_argument('--quiet', action='store_true', help='Suppress per-file progress on stderr')
     args = parser.parse_args(argv)
     try:
@@ -226,7 +235,8 @@ def main(argv=None):
                 print(json.dumps({'source': row['source'], 'status': row['status'], 'error': row.get('error')}), file=sys.stderr, flush=True)
         summary = convert_batch(args.inputs, args.template, args.output_dir, workers=args.workers,
                                 recursive=args.recursive, resume=args.resume, cases=args.cases,
-                                load_source=args.load_source, overrides=overrides, progress=progress)
+                                load_source=args.load_source, overrides=overrides, checks=args.checks,
+                                progress=progress)
         print(json.dumps(summary, indent=2))
         return 1 if summary['failed'] else 0
     except (ValueError, OSError) as exc:

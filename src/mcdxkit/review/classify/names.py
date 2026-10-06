@@ -1,17 +1,18 @@
-"""Local machine learning for load-case review: no network, no model downloads.
+"""Case-name classifier: regex first, then a local naive Bayes model. No network, no downloads.
 
-A multinomial naive Bayes classifier over case-name character n-grams. It starts from a
-seed corpus of common naming conventions and keeps learning from the engineer's own
-completed conversions: every audit records which final-summary cases were selected.
-It is advisory and cannot change inputs on its own. Load review flags live in review.py.
+Stage 1 recognizes STR/SER prefixes and AASHTO long names ('Strength I', 'Service I').
+Stage 2 is a multinomial naive Bayes classifier over case-name character n-grams, trained
+on a seed corpus of common naming conventions plus the engineer's completed conversions
+(Context.history: which final-summary cases were selected). It abstains (value None) below
+80% posterior probability and never changes a selection on its own.
 """
-import json
 import math
 import re
 from collections import Counter, defaultdict
-from pathlib import Path
+from typing import Iterator, Optional
 
-from . import engine, group_report
+from ..api import Context, ReportView, Suggestion, frozen_mapping
+from ..checks._shared import limit_state
 
 LABELS = ('strength', 'service', 'extreme', 'fatigue', 'other')
 CONFIDENCE = 0.8
@@ -48,7 +49,7 @@ def _tokens(name):
     return ['w:' + w for w in words] + grams
 
 
-class CaseClassifier:
+class NameModel:
     """Multinomial naive Bayes with Laplace smoothing over weighted examples."""
     def __init__(self):
         self.counts = defaultdict(Counter)
@@ -106,74 +107,37 @@ class CaseClassifier:
         return (best if probability >= CONFIDENCE else None), probability, evidence
 
 
-def history_examples(output_dir, limit=500):
-    """Labelled names from completed conversion audits: selected cases are strength, others are not."""
-    examples = []
-    root = Path(output_dir)
-    if not root.is_dir():
-        return examples
-    audits = sorted(root.rglob('*.audit.json'), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
-    for path in audits:
-        try:
-            if path.is_symlink() or path.stat().st_size > 2 * 1024 * 1024:
-                continue
-            audit = json.loads(path.read_text(encoding='utf-8'))
-            selected = {str(i) for i in audit['cases']}
-            # case_names lists every final-summary case (audits from gdcalc 0.2.0 and earlier
-            # only record the selected ones, which still teach the strength class).
-            names = audit.get('case_names') or {str(c['id']): c.get('name') for c in audit['source_cases']}
-            for ident, name in names.items():
-                if isinstance(name, str):
-                    examples.append((name, 'strength' if ident in selected else 'not-selected'))
-        except (ValueError, KeyError, TypeError, OSError):
-            continue
-    return examples
+def model(history=None):
+    """Seed model plus history examples: selected names are strength, unselected names are not."""
+    fitted = NameModel().fit(SEED)
+    examples = history.case_examples() if history is not None else ()
+    for name, selected in examples:
+        # A deliberately unselected name is evidence against strength, not for any one class.
+        fitted.add(name, 'strength' if selected else 'other', HISTORY_WEIGHT)
+    fitted.history_examples = len(examples)
+    return fitted
 
 
-def classifier(output_dir=None):
-    model = CaseClassifier().fit(SEED)
-    if output_dir:
-        learned = history_examples(output_dir)
-        for name, label in learned:
-            # A deliberately unselected name is evidence against strength, not for any one class.
-            model.add(name, 'strength' if label == 'strength' else 'other', HISTORY_WEIGHT)
-        model.history_examples = len(learned)
-    return model
+class CaseNames:
+    kind = 'classifier'
+    id = 'case_names'
+    version = '1'
+    title = 'Case-name classifier'
+    params = frozen_mapping({'confidence': CONFIDENCE, 'history_weight': HISTORY_WEIGHT,
+                             'evidence_tokens': EVIDENCE_TOKENS, 'seed_examples': len(SEED)})
 
-
-def suggest_cases(report, *, load_source='effects', output_dir=None):
-    """Classify every final-summary case; recommend confident strength cases. Never applied automatically."""
-    _, parsed = engine._read_report(report, load_source)
-    model = classifier(output_dir)
-    rows = []
-    for case in parsed['cases']:
-        label, probability, evidence = model.predict(case['name'] or '')
-        rows.append({'id': case['id'], 'name': case['name'], 'category': label or 'unknown',
-                     'confidence': round(probability, 3), 'evidence': evidence})
-    recommended = [r['id'] for r in rows if r['category'] == 'strength']
-    issue = None
-    try:
-        group_report.select(parsed, recommended)
-    except ValueError as exc:
-        issue = str(exc)
-    return {'model': 'naive-bayes', 'trained_on': {'seed': len(SEED), 'history': model.history_examples},
-            'cases': rows, 'recommended_cases': recommended, 'selection_issue': issue,
-            'unresolved_case_ids': [r['id'] for r in rows if r['category'] == 'unknown'],
-            'review_flags': engine.review_flags(parsed)}
-
-
-def main(argv=None, prog='mcdxkit learn'):
-    import argparse
-    import sys
-    parser = argparse.ArgumentParser(prog=prog, description='Local ML: classify load cases, with advisory review flags. '
-                                     'Runs offline and learns from completed conversions in --history.')
-    parser.add_argument('input', type=Path, help='GROUP .gp11t or text report')
-    parser.add_argument('--history', type=Path, help='Output directory of earlier conversions to learn naming from')
-    parser.add_argument('--load-source', choices=['effects', 'reactions'], default='effects')
-    args = parser.parse_args(argv)
-    try:
-        print(json.dumps(suggest_cases(args.input, load_source=args.load_source, output_dir=args.history), indent=2))
-        return 0
-    except (ValueError, OSError) as exc:
-        print('mcdxkit: ' + str(exc), file=sys.stderr)
-        return 2
+    def suggest(self, view: ReportView, ctx: Context) -> Iterator[Suggestion]:
+        fitted: Optional[NameModel] = None
+        history = len(ctx.history.case_examples()) if ctx.history is not None else 0
+        for case in view.cases:
+            state = limit_state(case.name)
+            if state:
+                value, probability, evidence, stage = ('strength' if state == 'STR' else 'service'), 1.0, [state], 'regex'
+            else:
+                if fitted is None:
+                    fitted = model(ctx.history)
+                value, probability, evidence = fitted.predict(case.name or '')
+                stage = 'naive-bayes'
+            yield Suggestion(self.id, case.id, 'limit_state', value, round(probability, 3), tuple(evidence),
+                             frozen_mapping({'stage': stage, 'seed': len(SEED),
+                                             'history': history}))
