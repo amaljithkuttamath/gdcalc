@@ -82,8 +82,13 @@ function checkPanel(result){
   const stats=el('dl',undefined,'check-stats');const stat=(label,value)=>{const cell=el('div');cell.append(el('dt',label),el('dd',value));stats.append(cell);};
   stat('Governing D/C',summary.governing?ratioText(summary.governing.ratio):'—');stat('Governing check',summary.governing?.name||'No ratio form');stat('Passed',`${summary.passed} of ${summary.total}`);panel.append(stats);
   const list=(rows)=>{const ul=el('ul',undefined,'check-list');for(const c of rows){const li=el('li',undefined,c.passed?'pass':'fail');li.append(el('span',c.passed?'Pass':'Fail','check-mark'),el('b',c.name),el('span',ratioText(c.ratio),'check-ratio'),el('code',c.expression,'check-expression'));li.title=c.substituted;ul.append(li);}return ul;};
-  const failed=(result.checks||[]).filter(c=>!c.passed);if(failed.length)panel.append(list(failed));
-  if(result.checks?.length){const all=el('details',undefined,'check-details');all.append(el('summary',`All ${result.checks.length} checks`),list(result.checks));panel.append(all);}
+  if(result.checks){const failed=result.checks.filter(c=>!c.passed);if(failed.length)panel.append(list(failed));
+    if(result.checks.length){const all=el('details',undefined,'check-details');all.append(el('summary',`All ${result.checks.length} checks`),list(result.checks));panel.append(all);}}
+  else{
+    // Saved outputs carry the summary only; expressions and ratios are in the downloadable audit.
+    if(summary.failed_checks.length){const ul=el('ul',undefined,'check-list');for(const name of summary.failed_checks){const li=el('li',undefined,'fail');li.append(el('span','Fail','check-mark'),el('b',name));ul.append(li);}panel.append(ul);}
+    panel.append(el('p','Download the audit for every check expression and ratio.','check-note'));
+  }
   panel.append(el('p','Conditions as rendered by CalcpadCE (1 = pass, 0 = fail). Not an engineering approval.','check-note'));return panel;
 }
 function markView(mode){viewerMode=mode;for(const name of ['report','template','worksheet','calculation','diff'])$('view-'+name).setAttribute('aria-current',String(name===mode));}

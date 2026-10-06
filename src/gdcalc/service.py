@@ -7,7 +7,7 @@ import tempfile
 import threading
 import shutil
 from pathlib import Path
-from . import engine, inspection
+from . import checks, engine, inspection
 
 MIB = 1024 * 1024
 
@@ -60,20 +60,20 @@ class Session:
                 rows.append({'worksheet': self.register(output, 'worksheet'), 'audit': self.register(audit, 'audit'),
                              'output': str(output), 'created': audit.stat().st_mtime,
                              'envelope': metadata.get('envelope'), 'native_execution_verified': False,
-                             **self.check_results(metadata),
+                             # History stays small: the summary only. Full checks are in the
+                             # convert response and the downloadable audit.
+                             'check_summary': self.check_summary(metadata),
                              **self.calculated_files(output, metadata.get('calculation'))})
             except (ValueError, OSError, AttributeError):
                 continue
         return rows
 
     @staticmethod
-    def check_results(metadata):
-        # Audits written before check extraction carry no outcomes; report that
-        # as unrecorded (None) rather than re-deriving or assuming a pass.
-        found, summary = metadata.get('checks'), metadata.get('check_summary')
-        if not isinstance(found, list) or not isinstance(summary, dict):
-            return {'checks': None, 'check_summary': None}
-        return {'checks': found, 'check_summary': summary}
+    def check_summary(metadata):
+        # Audits written before check extraction, or with a malformed summary, are
+        # reported as unrecorded (None) rather than re-derived or assumed to pass.
+        summary = metadata.get('check_summary')
+        return summary if checks.valid_summary(summary) else None
 
     def calculated_files(self, output, calculation):
         cpd = output.with_suffix('.cpd'); rendered = output.with_suffix('.html')
@@ -187,5 +187,6 @@ class Session:
                 'audit': state.register(output.with_suffix('.audit.json'), 'audit'),
                 'output': str(output), 'envelope': result['envelope'], 'cases': result['cases'],
                 'validation': result['validation'], 'native_execution_verified': False,
-                'preview': preview, 'diff': changes, **self.check_results(result),
+                'preview': preview, 'diff': changes,
+                'checks': result['checks'], 'check_summary': result['check_summary'],
                 **self.calculated_files(output, result['calculation'])}

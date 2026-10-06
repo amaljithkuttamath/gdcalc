@@ -28,7 +28,9 @@ After calculation, gdcalc reads check outcomes from the published calculated `.h
 
 For `≤`/`<` the left operand is the demand; for `≥`/`>` the right operand is. No ratio is derived for compound operands (`0.75 · 200 kip`), different units (`in` versus `ft`), chains or equality. `check_summary` records totals, failed check names and the governing (largest) ratio. When the page contains no rendered comparisons the status is `no checks found`; gdcalc does not infer checks from other values.
 
-Limits: comparisons hidden inside conditionals and string messages such as `OK`/`NG` are not interpreted, and a displayed stored check variable (`check = 1`) is not a separate check. "Pass" means the rendered condition holds; write checks as conditions that must hold. Outputs created before this feature report checks as not recorded. Check outcomes are not engineering approval.
+Limits: comparisons hidden inside conditionals and string messages such as `OK`/`NG` are not interpreted, and a displayed stored check variable (`check = 1`) is not a separate check. "Pass" means the rendered condition holds; write checks as conditions that must hold. Outputs created before this feature report checks as not recorded. Saved outputs in the browser show the summary only; the full list is in the convert response and the `.audit.json`. Check outcomes are not engineering approval.
+
+Detection depends on how CalcpadCE renders results at the pinned revision (`calcpad.REVISION`): the `eq` span, ` = ` separators, operator glyphs and the final `1`/`0`. A test pins the exact rendered markup from the real engine, so a rendering change after an engine upgrade fails loudly instead of silently reporting no checks. A future translator could emit check metadata directly; that is not implemented.
 
 ## Original file and results
 

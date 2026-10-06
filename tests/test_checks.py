@@ -7,6 +7,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 from lxml import etree as E
 
 from gdcalc import batch, calcpad, checks, engine, mcdx
@@ -97,6 +98,23 @@ class ExtractTests(unittest.TestCase):
                                   {'7': 1, '3': 0})
         self.assertEqual((found[0]['name'], found[0]['region_id'], found[0]['ratio']), ('Expression', '7', 2 / 3))
 
+    def test_region_is_the_last_region_starting_at_or_before_the_line(self):
+        document = page('<span class="eq"><var>a</var> = 1 ≤ 2 = 1</span>', 'x', 'y',
+                        '<span class="eq"><var>b</var> = 1 ≤ 2 = 1</span>', '<span class="eq"><var>c</var> = 1 ≤ 2 = 1</span>')
+        found, _ = checks.extract(document, {'r2': 2, 'r4': 4, 'r9': 9})
+        self.assertEqual([c['region_id'] for c in found], [None, 'r4', 'r4'])
+
+    def test_huge_exponents_and_overflowing_ratios_give_no_ratio(self):
+        found, summary = checks.extract(page(
+            '<span class="eq"><var>a</var> = 1×10<sup>400</sup> <i>kip</i> ≤ 1 <i>kip</i> = 0</span>',
+            '<span class="eq"><var>b</var> = 1×10<sup>300</sup> ≤ 1×10<sup>-300</sup> = 0</span>',
+            '<span class="eq"><var>c</var> = 1.7976931348623157×10<sup>308</sup> ≤ 1×10<sup>999999999</sup> = 1</span>'))
+        self.assertEqual([c['ratio'] for c in found], [None, None, None])
+        self.assertEqual(summary['failed'], 2)
+        json.dumps({'checks': found, 'check_summary': summary}, allow_nan=False)
+        self.assertTrue(checks.valid_summary(summary))
+        self.assertFalse(checks.valid_summary({**summary, 'governing': {'name': 'a', 'ratio': float('inf')}}))
+
 
 class EngineCheckTests(unittest.TestCase):
     def test_real_calcpad_comparisons_are_extracted(self):
@@ -133,58 +151,125 @@ class EngineCheckTests(unittest.TestCase):
                 self.assertAlmostEqual(check['ratio'], 145 / capacity)
                 self.assertEqual(audit['check_summary']['failed'], 0 if passed else 1)
 
-    def test_service_returns_checks_and_marks_older_audits_unrecorded(self):
+    def test_rendering_is_pinned_to_the_real_engine(self):
+        # Detection depends on this exact CalcpadCE markup. If an engine upgrade
+        # changes it, this fails loudly instead of silently reporting no checks.
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); source = root / 'pin.mcdx'
+            worksheet(source, [
+                definition('P_u', mcdx.quantity(mcdx.real(145), 'kip')),
+                definition('P_r', mcdx.quantity(mcdx.real(200), 'kip')),
+                definition('ok', apply('lessOrEqual', mcdx.ident('P_u'), mcdx.ident('P_r'))),
+                definition('chain', apply('lessOrEqual', apply('lessThan', mcdx.real(0), mcdx.ident('P_u')), mcdx.ident('P_r')))])
+            calcpad.calculate(source, root / 'pin.cpd', root / 'pin.html')
+            rendered = (root / 'pin.html').read_text()
+        self.assertEqual(calcpad.REVISION, '0b20dba11ebd50b303eedb57e8ec042c272c68ab')
+        self.assertIn('<span class="eq"><var>ok</var> = <var>P_u</var> ≤ <var>P_r</var> = '
+                      '145\u2009<i>kip</i> ≤ 200\u2009<i>kip</i> = 1</span>', rendered)  # thin spaces
+        self.assertRegex(rendered, r'<span class="eq"><var>chain</var> = .* and .* = 1</span>')
+        found, _ = checks.extract(rendered)
+        self.assertEqual([c['name'] for c in found], ['ok', 'chain'])
+        self.assertEqual((found[0]['substituted'], found[0]['ratio']), ('145 kip ≤ 200 kip', 0.725))
+
+    def test_service_returns_full_checks_on_convert_and_summary_in_history(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); ref = root / 'reference.mcdx'; check_template(ref, 100)
             session = Session(ref, root / 'results')
             try:
                 uploaded = session.upload('loads.txt', 'report', report().encode())
                 converted = session.operation('/api/convert', {'id': uploaded['id']})
+                self.assertEqual([c['expression'] for c in converted['checks']], ['P_u ≤ P_cap'])
                 self.assertEqual(converted['check_summary']['failed_checks'], ['axial_check'])
                 self.assertAlmostEqual(converted['check_summary']['governing']['ratio'], 1.45)
                 (saved,) = session.history()
                 self.assertEqual(saved['check_summary'], converted['check_summary'])
+                self.assertNotIn('checks', saved)
                 audit = Path(converted['output']).with_suffix('.audit.json')
-                legacy = json.loads(audit.read_text()); del legacy['checks'], legacy['check_summary']
-                audit.write_text(json.dumps(legacy))
-                (saved,) = session.history()
-                self.assertIsNone(saved['check_summary']); self.assertIsNone(saved['checks'])
+                original = json.loads(audit.read_text())
+                for broken in ({k: v for k, v in original.items() if k != 'check_summary'},
+                               {**original, 'check_summary': {'status': 'passed', 'total': 1}},
+                               {**original, 'check_summary': {**original['check_summary'], 'governing': {'name': 'x', 'ratio': 'big'}}}):
+                    audit.write_text(json.dumps(broken))
+                    (saved,) = session.history()
+                    self.assertIsNone(saved['check_summary'])
             finally:
                 session.temp.cleanup()
 
 
+def summary(**changes):
+    value = {'status': 'failures', 'total': 1, 'passed': 0, 'failed': 1, 'failed_checks': ['axial_check'],
+             'governing': {'name': 'axial_check', 'ratio': 2.0, 'passed': False, 'region_id': '1'}}
+    value.update(changes)
+    return value
+
+
 class BatchCheckTests(unittest.TestCase):
-    def test_batch_table_reports_governing_ratio_failures_and_conversion_errors(self):
+    def run_batch(self, raw, ref, out, *extra):
+        process = subprocess.run([sys.executable, str(CLI), 'batch', str(raw), '--recursive', '--template', str(ref),
+                                  '--output-dir', str(out), '--workers', '1', '--quiet', *extra],
+                                 capture_output=True, text=True)
+        data = json.loads(process.stdout)
+        with Path(data['checks']['table']).open(encoding='utf-8') as stream:
+            rows = list(csv.DictReader(stream))
+        return process, data, rows
+
+    def test_batch_table_relative_sources_failures_and_verified_resume(self):
         with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder); raw = root / 'raw'; raw.mkdir()
-            (raw / 'good.txt').write_text(report()); (raw / 'bad.txt').write_text('incomplete report')
+            root = Path(folder); raw = root / 'raw'
+            for sub in ('a', 'b'):
+                (raw / sub).mkdir(parents=True); (raw / sub / 'same.txt').write_text(report())
+            (raw / 'bad.txt').write_text('incomplete report')
             ref = root / 'reference.mcdx'; check_template(ref, 100); out = root / 'out'
-            def run(*extra):
-                process = subprocess.run([sys.executable, str(CLI), 'batch', str(raw), '--template', str(ref),
-                                          '--output-dir', str(out), '--workers', '1', '--quiet', *extra],
-                                         capture_output=True, text=True)
-                return process, json.loads(process.stdout)
-            process, data = run()
+            process, data, rows = self.run_batch(raw, ref, out)
             self.assertEqual(process.returncode, 1, process.stderr)
-            self.assertEqual(data['checks']['reports_with_failures'], 1)
-            with Path(data['checks']['table']).open(encoding='utf-8') as stream:
-                rows = {r['source']: r for r in csv.DictReader(stream)}
-            self.assertEqual(rows['good.txt']['governing_dc'], '1.450')
-            self.assertEqual(rows['good.txt']['failed_checks'], 'axial_check')
-            self.assertEqual(rows['bad.txt']['note'], 'conversion failed')
-            self.assertIn('good.txt: failed axial_check', process.stderr)
+            self.assertNotIn('rows', data['checks'])
+            self.assertEqual(data['checks']['reports_with_failures'], 2)
+            # Equal basenames stay distinct; rows are sorted.
+            self.assertEqual([r['source'] for r in rows], ['a/same.txt', 'b/same.txt', 'bad.txt'])
+            self.assertEqual(rows[0]['governing_dc'], '1.450')
+            self.assertEqual(rows[0]['failed_checks'], 'axial_check')
+            self.assertEqual(rows[2]['note'], 'conversion failed')
+            self.assertIn('a/same.txt: failed axial_check', process.stderr)
             first = data['checks']['table']
-            # Resume reads recorded outcomes and writes a new table beside the old one.
-            process, data = run('--resume')
+            # Resume ignores a tampered audit summary and re-reads the verified page.
+            audits = sorted(out.glob('*/*.audit.json'))
+            evidence = json.loads(audits[0].read_text())
+            audits[0].write_text(json.dumps({**evidence, 'check_summary': summary(status='passed', failed=0, passed=1, failed_checks=[])}))
+            legacy = json.loads(audits[1].read_text()); del legacy['calculation']['region_lines']
+            audits[1].write_text(json.dumps(legacy))
+            process, data, rows = self.run_batch(raw, ref, out, '--resume')
             self.assertNotEqual(data['checks']['table'], first)
             self.assertTrue(Path(first).is_file())
-            self.assertEqual(data['checks']['rows'][1]['status'], 'skipped')
-            self.assertEqual(data['checks']['rows'][1]['governing_dc'], '1.450')
+            skipped = {r['source']: r for r in rows if r['status'] == 'skipped'}
+            self.assertEqual(len(skipped), 2)
+            notes = sorted(r['note'] for r in skipped.values())
+            self.assertEqual(notes, ['FAILURES', 'checks not recorded for this output'])
+            self.assertEqual(data['checks']['reports_not_recorded'], 1)
+
+    def test_malformed_or_nonfinite_summary_never_loses_the_manifest_line(self):
+        rows = [summary(failed_checks=None), {'total': 1}, summary(governing={'name': 'x', 'ratio': float('inf')}), 'x']
+        def fake(job):
+            index = int(Path(job['source']).stem)
+            return {'source': job['source'], 'status': 'succeeded', 'native_execution_verified': False,
+                    'check_summary': rows[index] if index < len(rows) else summary(governing={'name': 'n', 'ratio': float('nan')})}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); raw = root / 'raw'; raw.mkdir()
+            for index in range(5):
+                (raw / f'{index}.txt').write_text(report())
+            ref = root / 'reference.mcdx'; template(ref); table = []
+            with patch.object(batch, '_convert_job', fake):
+                result = batch.convert_batch([raw], ref, root / 'out', check_rows=table)
+            manifest = (root / 'out' / 'batch-manifest.jsonl').read_text().splitlines()
+        self.assertEqual(len(manifest), 5)
+        self.assertEqual(result['succeeded'], 5)
+        self.assertEqual([r['note'] for r in table], ['checks not recorded for this output'] * 5)
+        self.assertEqual(result['checks']['reports_not_recorded'], 5)
 
     def test_table_cells_cannot_start_spreadsheet_formulas(self):
-        row = batch.check_row({'source': '/x/r.txt', 'status': 'succeeded', 'check_summary': {
-            'total': 1, 'passed': 0, 'failed': 1, 'failed_checks': ['=HYPERLINK("x")'],
-            'governing': {'name': '+cmd', 'ratio': 2.0, 'passed': False, 'region_id': '1'}}})
+        row = batch.check_row({'source': '/x/r.txt', 'status': 'succeeded', 'check_summary': summary(
+            failed_checks=['=HYPERLINK("x")'], governing={'name': '+cmd', 'ratio': 2.0, 'passed': False, 'region_id': '1'})},
+            Path('/x'))
+        self.assertEqual(row['source'], 'r.txt')
         with tempfile.TemporaryDirectory() as folder:
             path = batch.write_check_table(Path(folder), [row])
             with path.open(encoding='utf-8') as stream:

@@ -8,6 +8,8 @@ both substituted operands are single positive numbers with identical units.
 Hidden conditionals and string messages (for example "OK"/"NG") are not
 interpreted; a worksheet without rendered comparisons reports no checks found.
 """
+import bisect
+import math
 import re
 from lxml import html as H
 
@@ -58,9 +60,11 @@ def _quantity(text):
     match = NUMBER.match(text.strip())
     if not match:
         return None
-    value = float(match.group(1).replace('−', '-'))
-    if match.group(2):
-        value *= 10 ** int(match.group(2).replace('−', '-'))
+    # float() of the decimal form saturates to inf instead of raising on huge exponents.
+    exponent = match.group(2).replace('−', '-') if match.group(2) else '0'
+    value = float(match.group(1).replace('−', '-') + 'e' + exponent)
+    if not math.isfinite(value):
+        return None
     return value, (match.group(3) or '').strip()
 
 
@@ -78,19 +82,31 @@ def _ratio(substituted):
     demand, capacity = (left, right) if operator in ('≤', '<') else (right, left)
     if capacity[0] <= 0 or demand[0] < 0:
         return None
-    return {'ratio': demand[0] / capacity[0], 'demand': demand[0], 'capacity': capacity[0], 'unit': capacity[1]}
+    ratio = demand[0] / capacity[0]
+    if not math.isfinite(ratio):
+        return None
+    return {'ratio': ratio, 'demand': demand[0], 'capacity': capacity[0], 'unit': capacity[1]}
 
 
 def extract(document, region_lines=None):
     """Return (checks, summary) for a calculated HTML document string."""
     root = H.document_fromstring(document)
-    starts = sorted((line, region) for region, line in (region_lines or {}).items())
+    starts = sorted((line, region) for region, line in (region_lines or {}).items()
+                    if type(line) is int)
+    start_lines = [line for line, _ in starts]
     checks, label = [], None
     for paragraph in root.iter('p', 'h1', 'h2'):
         equations = [n for n in paragraph if n.tag == 'span' and 'eq' in _classes(n)]
         if not equations:
             label = ' '.join(paragraph.text_content().split()) or None
             continue
+        line = None
+        match = re.fullmatch(r'line-(\d+)', paragraph.get('id') or '')
+        if match:
+            line = int(match.group(1))
+        # The region is the last one whose first source line precedes this page line.
+        position = bisect.bisect_right(start_lines, line) if line is not None else 0
+        region = starts[position - 1][1] if position else None
         for equation in equations:
             segments = [' '.join(s.split()) for s in _flatten(equation).split(' = ')]
             if len(segments) < 2 or segments[-1] not in ('0', '1'):
@@ -101,14 +117,6 @@ def extract(document, region_lines=None):
                 continue
             defined = not _top_level(body[0], COMPARISONS)
             name = body[0] if defined else (label or 'Expression')
-            line = None
-            match = re.fullmatch(r'line-(\d+)', paragraph.get('id') or '')
-            if match:
-                line = int(match.group(1))
-            region = None
-            for start, region_id in starts:
-                if line is not None and start <= line:
-                    region = region_id
             item = {'name': name, 'expression': comparisons[0], 'substituted': comparisons[-1],
                     'result': int(segments[-1]), 'passed': segments[-1] == '1',
                     'ratio': None, 'demand': None, 'capacity': None, 'unit': None,
@@ -127,3 +135,21 @@ def summarize(checks):
             'failed_checks': failed,
             'governing': None if governing is None else
             {k: governing[k] for k in ('name', 'ratio', 'passed', 'region_id')}}
+
+
+def valid_summary(summary):
+    """True only for a summary in the shape `summarize` writes; anything else is unrecorded."""
+    if not isinstance(summary, dict) or summary.get('status') not in ('passed', 'failures', NO_CHECKS):
+        return False
+    counts = [summary.get(k) for k in ('total', 'passed', 'failed')]
+    if any(type(n) is not int or n < 0 for n in counts) or counts[0] != counts[1] + counts[2]:
+        return False
+    failed = summary.get('failed_checks')
+    if not isinstance(failed, list) or len(failed) != counts[2] or not all(isinstance(n, str) for n in failed):
+        return False
+    governing = summary.get('governing')
+    if governing is None:
+        return True
+    ratio = governing.get('ratio') if isinstance(governing, dict) else None
+    return (isinstance(governing, dict) and isinstance(governing.get('name'), str)
+            and type(ratio) in (int, float) and math.isfinite(ratio) and ratio >= 0)
