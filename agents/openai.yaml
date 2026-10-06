@@ -1,0 +1,4 @@
+interface:
+  display_name: "gdcalc"
+  short_description: "Generate Mathcad files from GROUP local-load reports"
+  default_prompt: "Use $gdcalc to generate a Mathcad worksheet from my raw GROUP report, using final local loads and native worksheet calculations."

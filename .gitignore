@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store
+assets/local/
+outputs/
+*.mcdx
+*.gp11t
+*.xlsm
+*.xlsx
+*.audit.json
+build/
+dist/
+*.egg-info/
