@@ -22,7 +22,8 @@ Requires Python 3.10+. The one-time calculator build needs Git and the .NET 10 S
 pip install gdcalc
 gdcalc setup-engine
 
-gdcalc convert report.gp11t --template reference.mcdx --output results/design.mcdx
+gdcalc convert report.gp11t --template reference.mcdx \
+  --output results/design.mcdx
 ```
 
 Each conversion produces **`.cpd`** (executable worksheet), **`.html`** (calculated results), **`.mcdx`** (native formulas) and **`.audit.json`** (provenance). Existing files are preserved.
