@@ -62,6 +62,7 @@ def main(argv=None,prog=None):
                           'envelope':result['envelope'],'open_worksheet':result['open_worksheet'],
                           'calculated_worksheet':result['calculated_worksheet'],
                           'calculation':{k:result['calculation'][k] for k in ('engine','calculated','translated_math_regions')},
+                          'check_summary':result['check_summary'],
                           'native_execution_verified':False},indent=2))
         return 0
     except (ValueError,OSError,KeyError,IndexError,mcdx.E.XMLSyntaxError,mcdx.zipfile.BadZipFile) as exc:

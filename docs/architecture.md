@@ -50,6 +50,7 @@ flowchart LR
 | `group_report.py` | Final summary parsing, case selection and envelopes |
 | `mcdx.py` | Package safety checks and constrained native template modifications |
 | `calcpad.py` | Strict XML-to-Calcpad translation, subprocess deadline and result validation |
+| `checks.py` | Read rendered comparison outcomes and simple D/C ratios from the calculated HTML; no recalculation |
 | `calcpad_bridge/` | Small .NET executable driving CalcpadCE; source in, HTML/errors out |
 | `setup_engine.py` | Build a pinned engine revision for the current platform |
 | `inspection.py` | Read-only document reconstruction and expression differences |

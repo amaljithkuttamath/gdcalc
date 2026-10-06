@@ -6,7 +6,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from . import group_report, mcdx, calcpad
+from . import group_report, mcdx, calcpad, checks
 
 
 def _read_raw(path):
@@ -63,8 +63,11 @@ def convert(report, template, output, *, cases=None, load_source='effects', titl
         cpd_staged=Path(folder)/'worksheet.cpd'; html_staged=Path(folder)/'worksheet.html'
         calculation=calcpad.calculate(staged,cpd_staged,html_staged)
         result.update({'calculation':calculation,'open_worksheet':str(cpd),'calculated_worksheet':str(calculated)})
+        # Outcomes are read from the published snapshot, never recalculated.
+        found,summary=checks.extract(html_staged.read_text(encoding='utf-8'),calculation['region_lines'])
+        result.update({'checks':found,'check_summary':summary})
         audit_staged=Path(folder)/'audit.json'
-        audit_staged.write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
+        audit_staged.write_text(json.dumps(result,indent=2,allow_nan=False)+'\n',encoding='utf-8')
         published=[]
         try:
             # Audit is the completion marker, published last.
