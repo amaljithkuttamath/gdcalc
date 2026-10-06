@@ -27,13 +27,13 @@ p{line-height:1.7}.eq{white-space:nowrap}var{font-style:italic}.dvc{display:inli
 
 
 def default_engine_dir():
-    return Path(os.environ.get('GDCALC_ENGINE_DIR', str(Path.home()/'.cache'/'gdcalc'/'calcpad')))
+    return Path(os.environ.get('MCDXKIT_ENGINE_DIR', str(Path.home()/'.cache'/'mcdxkit'/'calcpad')))
 
 
 def executable():
-    path = Path(os.environ['GDCALC_CALCPAD']) if os.environ.get('GDCALC_CALCPAD') else default_engine_dir()/('gdcalc-calcpad.exe' if os.name == 'nt' else 'gdcalc-calcpad')
+    path = Path(os.environ['MCDXKIT_CALCPAD']) if os.environ.get('MCDXKIT_CALCPAD') else default_engine_dir()/('mcdxkit-calcpad.exe' if os.name == 'nt' else 'mcdxkit-calcpad')
     if not path.is_file():
-        raise ValueError('The required CalcpadCE calculator is not installed. Run gdcalc setup-engine with the .NET 10 SDK and Git installed.')
+        raise ValueError('The required CalcpadCE calculator is not installed. Run mcdxkit setup-engine with the .NET 10 SDK and Git installed.')
     return path.resolve()
 
 
@@ -206,7 +206,7 @@ class Translator:
                 else: raise ValueError('Unsupported region: '+mcdx.tag(node))
             except (ValueError, IndexError) as exc:
                 raise ValueError('Region '+str(region_id)+': '+str(exc)) from exc
-        self.lines += ["'<p id=\"gdcalc-complete\">Calculation complete.</p>"]
+        self.lines += ["'<p id=\"mcdxkit-complete\">Calculation complete.</p>"]
         source = '\n'.join(self.lines)+'\n'
         if len(source.encode()) > 4*1024*1024: raise ValueError('Translated source exceeds 4 MiB')
         return source
@@ -217,7 +217,7 @@ def calculate(path, cpd_path, html_path):
     translator = Translator(); source = translator.translate(path)
     # Each call gets an isolated process and working directory. No shell, imports,
     # includes, macros, file reads, scripting or user-supplied Calcpad are accepted.
-    with tempfile.TemporaryDirectory(prefix='gdcalc-calculate-') as folder:
+    with tempfile.TemporaryDirectory(prefix='mcdxkit-calculate-') as folder:
         try:
             run = subprocess.run([str(binary)], input=json.dumps({'source': source}), text=True,
                                  capture_output=True, timeout=60, cwd=folder)
@@ -228,7 +228,7 @@ def calculate(path, cpd_path, html_path):
     if run.returncode or result.get('errors'):
         raise ValueError('CalcpadCE calculation failed: '+json.dumps(result.get('errors', []), ensure_ascii=False)[:1500])
     root = H.fragment_fromstring(result['html'], create_parent='div')
-    if root.xpath('.//*[contains(concat(" ",normalize-space(@class)," ")," err ")]') or not root.xpath('.//*[@id="gdcalc-complete"]'):
+    if root.xpath('.//*[contains(concat(" ",normalize-space(@class)," ")," err ")]') or not root.xpath('.//*[@id="mcdxkit-complete"]'):
         raise ValueError('CalcpadCE returned incomplete results or calculation errors')
     # Only inert markup is retained. Render original variable names instead of safe
     # execution aliases; no formulas or result values are changed here.
@@ -242,7 +242,7 @@ def calculate(path, cpd_path, html_path):
         for key in list(node.attrib):
             if key not in ('class', 'id'): del node.attrib[key]
     body = H.tostring(root, encoding='unicode')
-    document = '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'"><title>gdcalc calculated worksheet</title><style>'+STYLE+'</style></head><body>'+body+'</body></html>'
+    document = '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'"><title>MCDXKit calculated worksheet</title><style>'+STYLE+'</style></head><body>'+body+'</body></html>'
     Path(cpd_path).write_text(source, encoding='utf-8'); Path(html_path).write_text(document, encoding='utf-8')
     return {'engine': 'CalcpadCE', 'revision': REVISION, 'translator_version': TRANSLATOR_VERSION,
             'calculated': True, 'translated_math_regions': len(translator.regions),

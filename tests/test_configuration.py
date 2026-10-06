@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from gdcalc import generate
+from mcdxkit import generate
 
 
 class ConfigurationTests(unittest.TestCase):
@@ -14,14 +14,14 @@ class ConfigurationTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
         self.home = self.root / 'home'
-        self.generic = self.home / '.config/gdcalc/reference.mcdx'
+        self.generic = self.home / '.config/mcdxkit/reference.mcdx'
         self.checkout = self.root / 'checkout'
         self.local = self.checkout / 'assets/local/reference.mcdx'
-        self.legacy = self.home / '.codex/skills/gdcalc/assets/local/reference.mcdx'
+        self.legacy = self.home / '.codex/skills/mcdxkit/assets/local/reference.mcdx'
         for context in (
             patch.dict(os.environ, {}, clear=True),
             patch.object(Path, 'home', return_value=self.home),
-            patch.object(generate, '__file__', str(self.checkout / 'src/gdcalc/generate.py')),
+            patch.object(generate, '__file__', str(self.checkout / 'src/mcdxkit/generate.py')),
         ):
             context.start()
             self.addCleanup(context.stop)
@@ -33,7 +33,7 @@ class ConfigurationTests(unittest.TestCase):
     def test_explicit_missing_template_is_not_replaced_by_fallback(self):
         self.make_template(self.generic)
         chosen = self.root / 'explicit.mcdx'
-        os.environ['GDCALC_TEMPLATE'] = str(chosen)
+        os.environ['MCDXKIT_TEMPLATE'] = str(chosen)
         self.assertEqual(generate.default_template(), chosen)
 
     def test_checkout_precedes_generic_and_generic_precedes_legacy(self):
@@ -46,11 +46,11 @@ class ConfigurationTests(unittest.TestCase):
     def test_custom_config_directory_and_agent_neutral_skill(self):
         config = self.root / 'config'
         os.environ['XDG_CONFIG_HOME'] = str(config)
-        configured = config / 'gdcalc/reference.mcdx'
+        configured = config / 'mcdxkit/reference.mcdx'
         self.make_template(configured)
         self.assertEqual(generate.default_template(), configured)
         configured.unlink()
-        skill = self.home / '.agents/skills/gdcalc/assets/local/reference.mcdx'
+        skill = self.home / '.agents/skills/mcdxkit/assets/local/reference.mcdx'
         self.make_template(skill)
         self.assertEqual(generate.default_template(), skill)
 

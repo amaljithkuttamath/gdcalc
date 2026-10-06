@@ -12,7 +12,7 @@ from .calcpad import REVISION, default_engine_dir
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog='gdcalc setup-engine', description=__doc__)
+    parser = argparse.ArgumentParser(prog='mcdxkit setup-engine', description=__doc__)
     parser.add_argument('--dotnet', default='dotnet', help='Path to the .NET 10 SDK executable')
     parser.add_argument('--source', type=Path, help='Existing clean CalcpadCE checkout at the pinned revision')
     parser.add_argument('--install-dir', type=Path, default=default_engine_dir())
@@ -26,7 +26,7 @@ def main(argv=None):
         destination = args.install_dir.resolve()
         if destination.exists(): raise ValueError('Engine directory already exists; choose a new --install-dir to preserve it')
         destination.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix='.gdcalc-build-', dir=destination.parent) as temp:
+        with tempfile.TemporaryDirectory(prefix='.mcdxkit-build-', dir=destination.parent) as temp:
             temp = Path(temp); source = args.source.resolve() if args.source else temp/'source'
             def run(command, **kwargs):
                 subprocess.run(command, check=True, **kwargs)
@@ -45,10 +45,10 @@ def main(argv=None):
                  '-p:UseSharedCompilation=false', '--nologo'], env=env)
             shutil.copyfile(source/'LICENSE', build/'CalcpadCE-LICENSE')
             shutil.copyfile(source/'THIRD-PARTY-NOTICES.txt', build/'CalcpadCE-THIRD-PARTY-NOTICES.txt')
-            (build/'gdcalc-engine.json').write_text(json.dumps({'engine': 'CalcpadCE', 'revision': REVISION})+'\n')
+            (build/'mcdxkit-engine.json').write_text(json.dumps({'engine': 'CalcpadCE', 'revision': REVISION})+'\n')
             os.rename(build, destination)
         print('Calculator installed at '+str(destination))
-        print('Set GDCALC_ENGINE_DIR='+str(destination)+' if this is a custom location.')
+        print('Set MCDXKIT_ENGINE_DIR='+str(destination)+' if this is a custom location.')
         return 0
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
-        print('gdcalc: '+str(exc), file=sys.stderr); return 2
+        print('mcdxkit: '+str(exc), file=sys.stderr); return 2

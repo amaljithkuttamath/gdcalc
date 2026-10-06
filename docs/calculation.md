@@ -10,7 +10,7 @@ The supported worksheet profile is a fixed-head compression-pile template. Geome
 
 CalcpadCE is required for conversion. The adapter translates scalar real arithmetic, `min`/`max`/`abs`, powers/roots, `in`/`ft`/`kip`/`ksi`, comparisons (including chains), conditionals, programs (the last executed statement is the result; `return` exits early) and string check messages. Literals are emitted as plain decimals and negation is always parenthesized. Mathcad zero comparisons adopt the other operand's units. Strings have distinct internal symbols and are never silently treated as numeric inputs. Other constructs fail explicitly.
 
-These are limits of gdcalc's current adapter, not the full CalcpadCE language. CalcpadCE executes the translated formulas; it does not execute `.mcdx` directly. The executable `.cpd` can be opened with CalcpadCE to edit and recalculate independently. The `.html` is a result snapshot.
+These are limits of mcdxkit's current adapter, not the full CalcpadCE language. CalcpadCE executes the translated formulas; it does not execute `.mcdx` directly. The executable `.cpd` can be opened with CalcpadCE to edit and recalculate independently. The `.html` is a result snapshot.
 
 Native `.mcdx` files retain formulas and dependencies; stale result caches are removed. Open in Mathcad Prime and press **Ctrl+F5** to calculate there. Native opening, rendering and calculation remain unverified until tested in Prime. ZIP/XML validation does not establish native compatibility or engineering adequacy. A successful calculation can contain failing design checks; general code-compliance validation is not implemented. See the proposed [standards register](engineering-standards.md).
 
@@ -20,10 +20,10 @@ The browser reconstructs the original worksheet from saved region coordinates, p
 
 Completed outputs and private source snapshots persist in the output directory. Saved outputs restores them after a restart; the visible upload queue and temporary previews do not survive refresh. Back up the whole output directory. Local mode keeps files local; hosted mode uploads them to the configured server. The server is a shared trusted workspace, not a multi-tenant service.
 
-The UI bundles IBM Plex Sans under the [SIL Open Font License](../src/gdcalc/web/fonts/OFL.txt) without font CDN requests. [Calculator attribution](../THIRD_PARTY.md) identifies the pinned CalcpadCE dependency.
+The UI bundles IBM Plex Sans under the [SIL Open Font License](../src/mcdxkit/web/fonts/OFL.txt) without font CDN requests. [Calculator attribution](../THIRD_PARTY.md) identifies the pinned CalcpadCE dependency.
 
 ## Batch pipeline
 
 The batch engine uses bounded workers, an append-only `batch-manifest.jsonl`, source/template snapshots and per-file failures. Duplicate basenames receive separate job directories. Identity includes source path/content, template content, case selection, load basis, overrides and engine/translator versions. Changed inputs create new outputs; verified resume checks identities, hashes and calculation evidence before skipping work. Corrupted or incomplete outputs are not silently reused.
 
-Use the [batch CLI](cli.md#batch-conversion) or `gdcalc.batch.convert_batch(inputs, template, output_dir, workers=4, recursive=True, resume=True)`. For distributed scheduling, partition jobs into separate output directories. Two batches must not write to the same output directory. The browser is not a distributed job queue.
+Use the [batch CLI](cli.md#batch-conversion) or `mcdxkit.batch.convert_batch(inputs, template, output_dir, workers=4, recursive=True, resume=True)`. For distributed scheduling, partition jobs into separate output directories. Two batches must not write to the same output directory. The browser is not a distributed job queue.
