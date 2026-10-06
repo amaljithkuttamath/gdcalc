@@ -34,10 +34,12 @@ print(result["calculated_worksheet"])
 
 | Function | Contract |
 | --- | --- |
-| `inspect_report(report, *, cases=None, load_source='effects')` | Returns cases, selected IDs, unresolved selection reason, envelope, governing case per component, load outliers (`anomalies`) and largest observed pile ID. Does not execute the calculator. Explicit invalid selection raises `ValueError`. |
-| `gdcalc.learn.suggest_cases(report, *, load_source='effects', output_dir=None)` | Offline case-name classification with confidence and evidence, recommended strength cases and outliers; learns from audits under `output_dir`. Advisory: pass the IDs to `cases` explicitly. See [machine learning](machine-learning.md). |
-| `convert(report, template, output, *, cases=None, load_source='effects', title=None, overrides=None)` | Calculates and returns the audit dictionary with final artifact paths, source hash, selection/envelope and calculation evidence. Publishes `.mcdx`, `.cpd`, `.html`, `.audit.json`, with audit last. |
+| `inspect_report(report, *, cases=None, load_source='effects')` | Returns cases, selected IDs, unresolved selection reason, envelope, governing case per component, advisory `review_flags` and largest observed pile ID. Does not execute the calculator. Explicit invalid selection raises `ValueError`. |
+| `gdcalc.learn.suggest_cases(report, *, load_source='effects', output_dir=None)` | Offline case-name classification with confidence and evidence, recommended strength cases and the same `review_flags`; learns from audits under `output_dir`. Advisory: pass the IDs to `cases` explicitly. See [machine learning](machine-learning.md). |
+| `convert(report, template, output, *, cases=None, load_source='effects', title=None, overrides=None)` | Calculates and returns the audit dictionary with final artifact paths, source hash, selection/envelope, `review_flags` and calculation evidence. Publishes `.mcdx`, `.cpd`, `.html`, `.audit.json`, with audit last. |
 | `validate(worksheet)` | Returns package integrity results. Does not execute Prime or prove engineering compliance. |
+
+`review_flags` is `{advisory: true, method, version, load_source, checks, skipped, flags}`; each flag is `{rule, case, component, detail, values}`. `skipped` lists checks that could not run on this report and why; an empty `flags` list means no flag was raised by the checks in `checks`, not that the report was verified. Flags never change selection, envelope or results. This replaces the earlier `anomalies` key. See [machine learning](machine-learning.md#review-flags).
 
 Paths accept strings or `pathlib.Path`. `cases` is a list of integer case IDs, not the CLI's comma-separated string. `load_source` is `effects` or `reactions`; see [load semantics](cli.md). `overrides` is a mapping of supported literal template input names to numeric values in that input's existing units, subject to the template contract. Never derive geometry from a desired pass result.
 

@@ -1,4 +1,4 @@
-"""Offline models: case-name classifier, learning from audits, and load outliers."""
+"""Offline models: case-name classifier, learning from audits, and governing cases."""
 import json
 import tempfile
 import unittest
@@ -106,27 +106,13 @@ class SuggestionTests(unittest.TestCase):
         self.assertEqual(learn.history_examples(history), [])
 
 
-class AnomalyTests(unittest.TestCase):
-    def cases(self, moments):
-        return group_report.parse(summary([(i + 1, f'STR-{i + 1}', 100 + i, m) for i, m in enumerate(moments)]))['cases']
-
-    def test_flags_moment_twelve_times_typical_as_unit_error(self):
-        found = learn.anomalies(self.cases([900, 950, 870, 1000, 920, 11000]))
-        mz = [f for f in found if f['component'] == 'Mz']
-        self.assertEqual([f['case'] for f in mz], [6])
-        self.assertEqual(mz[0]['possible_unit_error'], 'kip-ft vs kip-in')
-        self.assertGreater(mz[0]['score'], 3.5)
-
-    def test_ordinary_scatter_and_small_reports_are_not_flagged(self):
-        self.assertEqual(learn.anomalies(self.cases([900, 950, 870, 1000, 920, 1300])), [])
-        self.assertEqual(learn.anomalies(self.cases([900, 950, 9000])), [])
-
-    def test_inspect_reports_anomalies_and_governing(self):
+class GoverningTests(unittest.TestCase):
+    def test_inspect_reports_governing_cases(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'r.txt'
             path.write_text(report())
             inspected = engine.inspect_report(path)
-        self.assertEqual(inspected['anomalies'], [])
+        self.assertNotIn('anomalies', inspected)
         governing = inspected['governing']
         self.assertEqual((governing['P']['case'], governing['P']['value'], governing['P']['runner_up_case']), (7, 140, 1))
         self.assertAlmostEqual(governing['P']['lead_ratio'], 140 / 120)
@@ -161,7 +147,7 @@ class SuggestEndpointTests(unittest.TestCase):
                 token = request('/api/session', None)[1]['token']
                 status, uploaded = request('/api/upload?' + urlencode({'name': 'r.txt', 'kind': 'report'}), report().encode(), token)
                 self.assertEqual(status, 200, uploaded)
-                self.assertEqual(uploaded['inspection']['anomalies'], [])
+                self.assertTrue(uploaded['inspection']['review_flags']['advisory'])
                 status, result = request('/api/suggest-cases', {'id': uploaded['id'], 'load_source': 'reactions'}, token)
                 self.assertEqual((status, result['recommended_cases']), (200, [1, 7]))
                 self.assertEqual(request('/api/suggest-cases', {'id': 'missing'}, token)[0], 404)

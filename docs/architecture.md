@@ -32,7 +32,8 @@ flowchart LR
 | `server.py` | FastAPI/Uvicorn, authentication, origin checks, limits and static assets |
 | `web/` | Browser workflow and file viewer; no independent design solver |
 | `batch.py` | Input discovery, bounded process pool, job identity, manifest and resume |
-| `learn.py` | Offline case-name classifier that learns from completed audits, and load outlier detection; advisory only |
+| `learn.py` | Offline case-name classifier that learns from completed audits; advisory only |
+| `review.py` | Advisory review flags (consistency rules and robust ratio statistics) shared by inspect, convert, batch and browser |
 
 ## Public Python API
 

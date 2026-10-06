@@ -1,5 +1,4 @@
 """Synthetic fixtures only: no engineering files or project identities."""
-import io
 import sys
 import tempfile
 import unittest
@@ -62,8 +61,51 @@ Max. .2 .3 450 190 16 8 .4 .5 10
 '''
 
 
+def clean_report():
+    """Internally consistent variant of report(): along-pile effects reach at least the
+    pile-top reactions, and the service case stays below both strength cases."""
+    return '''LOAD CASE : 1
+CASE NAME : STR-I
+LOAD CASE : 2
+CASE NAME : SER-I
+LOAD CASE : 7
+CASE NAME : STR-V
+SUMMARY FOR LOAD CASES AND COMBINATIONS
+LOAD CASE : 1
+* PILE TOP REACTIONS, LOCAL *
+AXIAL,KIP LAT. y,KIP LAT. z,KIP MOM x,KIP-IN MOM y,KIP-IN MOM z,KIP-IN
+MINIMUM 90 -20 -4 1 -100 -900
+MAXIMUM 120 15 8 1 200 500
+* EFFECTS FOR LATERALLY LOADED PILE *
+y-DIR z-DIR z-DIR y-DIR y-DIR z-DIR y-DIR z-DIR STRESS
+IN IN KIP-IN KIP-IN KIP KIP KIP/IN KIP/IN KIP/IN**2
+Min. -.1 -.2 -950 -90 -20 -3 -.4 -.5 1
+Max. .2 .3 400 210 14 8 .4 .5 10
+LOAD CASE : 2
+* PILE TOP REACTIONS, LOCAL *
+AXIAL,KIP LAT. y,KIP LAT. z,KIP MOM x,KIP-IN MOM y,KIP-IN MOM z,KIP-IN
+MINIMUM 70 -15 -3 1 -75 -680
+MAXIMUM 90 11 6 1 150 375
+* EFFECTS FOR LATERALLY LOADED PILE *
+y-DIR z-DIR z-DIR y-DIR y-DIR z-DIR y-DIR z-DIR STRESS
+IN IN KIP-IN KIP-IN KIP KIP KIP/IN KIP/IN KIP/IN**2
+Min. -.1 -.2 -700 -60 -15 -2 -.4 -.5 1
+Max. .2 .3 300 160 10 6 .4 .5 10
+LOAD CASE : 7
+* PILE TOP REACTIONS, LOCAL *
+AXIAL,KIP LAT. y,KIP LAT. z,KIP MOM x,KIP-IN MOM y,KIP-IN MOM z,KIP-IN
+MINIMUM 100 -25 -5 1 -110 -950
+MAXIMUM 140 18 9 1 220 550
+* EFFECTS FOR LATERALLY LOADED PILE *
+y-DIR z-DIR z-DIR y-DIR y-DIR z-DIR y-DIR z-DIR STRESS
+IN IN KIP-IN KIP-IN KIP KIP KIP/IN KIP/IN KIP/IN**2
+Min. -.1 -.2 -1000 -90 -25 -4 -.4 -.5 1
+Max. .2 .3 450 230 16 9 .4 .5 10
+'''
+
+
 def template(path):
-    W, M, X = mcdx.W, mcdx.M, mcdx.X
+    W, M = mcdx.W, mcdx.M
     root = E.Element('{'+W+'}worksheet', nsmap={None:W,'ml':M})
     regions = E.SubElement(root,'{'+W+'}regions')
     inputs = [('P_a',10,'kip'),('V_u',1,'kip'),('M_uy',10,'kip'),('M_uz',20,'kip'),

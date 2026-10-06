@@ -4,8 +4,8 @@ import sys
 if __package__:
     from . import generate, validate
 else:
-    import generate
-    import validate
+    import generate  # type: ignore[no-redef]
+    import validate  # type: ignore[no-redef]
 
 
 def main(argv=None):
@@ -19,7 +19,7 @@ def main(argv=None):
                              ('validate','Check an .mcdx package without executing Mathcad'),
                              ('serve','Start the local browser interface'),
                              ('batch','Convert files or folders with parallel workers and resume'),
-                             ('learn','Local ML: suggest strength cases and flag load outliers')]:
+                             ('learn','Local ML: suggest strength cases, with advisory review flags')]:
         sub.add_parser(name,help=description,add_help=False)
     selected,rest=parser.parse_known_args(args)
     if selected.command=='setup-engine':

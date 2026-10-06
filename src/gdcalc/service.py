@@ -179,5 +179,5 @@ class Session:
                 'audit': state.register(output.with_suffix('.audit.json'), 'audit'),
                 'output': str(output), 'envelope': result['envelope'], 'cases': result['cases'],
                 'validation': result['validation'], 'native_execution_verified': False,
-                'preview': preview, 'diff': changes,
+                'preview': preview, 'diff': changes, 'review_flags': result['review_flags'],
                 **self.calculated_files(output, result['calculation'])}

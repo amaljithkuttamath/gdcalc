@@ -1,13 +1,9 @@
 """Local machine learning for load-case review: no network, no model downloads.
 
-Two advisory models, both explainable and both unable to change inputs on their own:
-
-* A multinomial naive Bayes classifier over case-name character n-grams. It starts from a
-  seed corpus of common naming conventions and keeps learning from the engineer's own
-  completed conversions: every audit records which final-summary cases were selected.
-* A robust outlier detector (median/MAD modified z-scores on log magnitudes) that flags
-  cases whose loads disagree with the rest of the report, including the 12x and 1000x
-  signatures of kip-ft/kip-in or lb/kip mix-ups.
+A multinomial naive Bayes classifier over case-name character n-grams. It starts from a
+seed corpus of common naming conventions and keeps learning from the engineer's own
+completed conversions: every audit records which final-summary cases were selected.
+It is advisory and cannot change inputs on its own. Load review flags live in review.py.
 """
 import json
 import math
@@ -15,14 +11,12 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from . import engine, group_report
+from . import engine, group_report, review
 
 LABELS = ('strength', 'service', 'extreme', 'fatigue', 'other')
-COMPONENTS = ('P', 'Vy', 'Vz', 'My', 'Mz')
 CONFIDENCE = 0.8
 HISTORY_WEIGHT = 3
 EVIDENCE_TOKENS = 4
-MAD_FLOOR = 0.1
 
 # Seed corpus: AASHTO LRFD limit-state names and common abbreviations seen in GROUP input.
 _ROMAN = ['I', 'II', 'III', 'IV', 'V', 'IA', 'IB']
@@ -165,55 +159,13 @@ def suggest_cases(report, *, load_source='effects', output_dir=None):
     return {'model': 'naive-bayes', 'trained_on': {'seed': len(SEED), 'history': model.history_examples},
             'cases': rows, 'recommended_cases': recommended, 'selection_issue': issue,
             'unresolved_case_ids': [r['id'] for r in rows if r['category'] == 'unknown'],
-            'anomalies': anomalies(parsed['cases'])}
-
-
-def _peak(case, key):
-    return max(case['pairs'][key]) if key == 'P' else max(map(abs, case['pairs'][key]))
-
-
-def anomalies(cases, threshold=3.5):
-    """Flag cases whose load magnitudes are outliers among this report's cases.
-
-    Uses the Iglewicz-Hoaglin modified z-score of log10 peaks, which tolerates a few
-    outliers in small samples. Needs at least five cases with nonzero values.
-    """
-    found = []
-    for key in COMPONENTS:
-        values = [(c, _peak(c, key)) for c in cases]
-        logs = [(c, math.log10(v)) for c, v in values if v > 0]
-        if len(logs) < 5:
-            continue
-        median = _median([v for _, v in logs])
-        mad = _median([abs(v - median) for _, v in logs])
-        # Floor the spread at 0.1 decades so tightly clustered reports only flag departures of
-        # roughly 3x or more; ordinary case-to-case scatter is not an anomaly.
-        mad = max(mad, MAD_FLOOR)
-        for case, value in logs:
-            score = 0.6745 * (value - median) / mad
-            if abs(score) < threshold:
-                continue
-            factor = 10 ** (value - median)
-            scale = next((label for target, label in ((12, 'kip-ft vs kip-in'), (1 / 12, 'kip-in vs kip-ft'),
-                                                      (1000, 'lb vs kip'), (1 / 1000, 'kip vs lb'))
-                          if key.startswith('M') or 'ft' not in label
-                          if abs(math.log10(factor / target)) < 0.08), None)
-            found.append({'case': case['id'], 'case_name': case['name'], 'component': key,
-                          'value': 10 ** value, 'median': 10 ** median, 'ratio': round(factor, 3),
-                          'score': round(score, 2), 'possible_unit_error': scale})
-    return sorted(found, key=lambda a: -abs(a['score']))
-
-
-def _median(values):
-    ordered = sorted(values)
-    middle = len(ordered) // 2
-    return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
+            'review_flags': review.review(parsed)}
 
 
 def main(argv=None, prog='gdcalc learn'):
     import argparse
     import sys
-    parser = argparse.ArgumentParser(prog=prog, description='Local ML: classify load cases and flag load outliers. '
+    parser = argparse.ArgumentParser(prog=prog, description='Local ML: classify load cases, with advisory review flags. '
                                      'Runs offline and learns from completed conversions in --history.')
     parser.add_argument('input', type=Path, help='GROUP .gp11t or text report')
     parser.add_argument('--history', type=Path, help='Output directory of earlier conversions to learn naming from')

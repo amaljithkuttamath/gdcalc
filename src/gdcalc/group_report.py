@@ -27,7 +27,7 @@ def _table(block, header, minimum, maximum, columns):
             raise ValueError('Non-finite numeric value in ' + header)
         rows.append(values)
         locations.append(found[0].group(0).strip())
-    if any(a > b for a, b in zip(*rows)):
+    if any(a > b for a, b in zip(*rows, strict=True)):
         raise ValueError('Minimum exceeds maximum in ' + header)
     ids = []
     for line in re.findall(r'^\s*Pile N\.\s+([^\r\n]+)', tail, re.M | re.I):
@@ -72,11 +72,12 @@ def parse(text, load_source='effects'):
             pairs = {key: [row[col] for row in effects] for key, col in [('Vy',4),('Vz',5),('My',3),('Mz',2)]}
             ids += effect_ids
         else:
-            raw_effects = []
+            effects, raw_effects = None, []
             pairs = {key: [row[col] for row in local] for key, col in [('Vy',1),('Vz',2),('My',4),('Mz',5)]}
         pairs['P'] = [row[0] for row in local]
         cases.append({'id':ident, 'name':names.get(ident), 'pairs':pairs, 'pile_ids':sorted(set(ids)),
-                      'load_source':load_source, 'source_rows':{'local':raw_local,'effects':raw_effects}})
+                      'load_source':load_source, 'source_rows':{'local':raw_local,'effects':raw_effects},
+                      'tables':{'local':local,'effects':effects}})
     if not cases: raise ValueError('No load cases in final summary')
     return {'cases':cases,'load_source':load_source}
 
