@@ -23,15 +23,15 @@ def case_ids(value):
 
 def default_template():
     """Resolve explicit, checkout, generic user and legacy template locations."""
-    if os.environ.get('GDCALC_TEMPLATE'):
-        return Path(os.environ['GDCALC_TEMPLATE'])
+    if os.environ.get('MCDXKIT_TEMPLATE'):
+        return Path(os.environ['MCDXKIT_TEMPLATE'])
     home = Path.home()
-    generic = Path(os.environ.get('XDG_CONFIG_HOME', str(home / '.config'))) / 'gdcalc/reference.mcdx'
+    generic = Path(os.environ.get('XDG_CONFIG_HOME', str(home / '.config'))) / 'mcdxkit/reference.mcdx'
     candidates = (
         Path(__file__).resolve().parents[2] / 'assets/local/reference.mcdx',
         generic,
-        home / '.agents/skills/gdcalc/assets/local/reference.mcdx',
-        Path(os.environ.get('CODEX_HOME', str(home / '.codex'))) / 'skills/gdcalc/assets/local/reference.mcdx',
+        home / '.agents/skills/mcdxkit/assets/local/reference.mcdx',
+        Path(os.environ.get('CODEX_HOME', str(home / '.codex'))) / 'skills/mcdxkit/assets/local/reference.mcdx',
     )
     return next((path for path in candidates if path.is_file()), generic)
 
@@ -39,7 +39,7 @@ def default_template():
 def main(argv=None,prog=None):
     parser=argparse.ArgumentParser(prog=prog,description=__doc__)
     parser.add_argument('input',type=Path,help='GROUP .gp11t or text report, in kip/in units')
-    parser.add_argument('--template',type=Path,default=default_template(),help='Compatible .mcdx template; also GDCALC_TEMPLATE or installed private template')
+    parser.add_argument('--template',type=Path,default=default_template(),help='Compatible .mcdx template; also MCDXKIT_TEMPLATE or installed private template')
     parser.add_argument('--output',type=Path,help='New .mcdx output path (never overwritten)')
     parser.add_argument('--inspect',action='store_true',help='Inspect case selection and load envelopes without generating')
     parser.add_argument('--cases',type=case_ids,help='Explicit strength case IDs; default detects STR case names')
@@ -66,7 +66,7 @@ def main(argv=None,prog=None):
                           'native_execution_verified':False},indent=2))
         return 0
     except (ValueError,OSError,KeyError,IndexError,mcdx.E.XMLSyntaxError,mcdx.zipfile.BadZipFile) as exc:
-        print('gdcalc: '+str(exc),file=sys.stderr);return 2
+        print('mcdxkit: '+str(exc),file=sys.stderr);return 2
 
 
 if __name__=='__main__':sys.exit(main())

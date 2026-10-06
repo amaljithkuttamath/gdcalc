@@ -1,6 +1,6 @@
 # Documentation
 
-## Use gdcalc
+## Use mcdxkit
 
 | Start here | What it covers |
 | --- | --- |
