@@ -1,0 +1,32 @@
+name: Infrastructure contracts
+on:
+  pull_request:
+    paths: ['deploy/terraform/**', '.github/workflows/infrastructure.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Terraform ${{ matrix.cloud }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        cloud: [aws, gcp]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install checksum-pinned Terraform
+        run: |
+          curl --fail --silent --show-error -o /tmp/terraform.zip https://releases.hashicorp.com/terraform/1.13.3/terraform_1.13.3_linux_amd64.zip
+          echo '71fc43d92ea09907be5d416d2405a6a9c2d1ceaed633f5e175c0af26e8c4b365  /tmp/terraform.zip' | sha256sum --check
+          unzip /tmp/terraform.zip -d /tmp/terraform-tool
+          echo /tmp/terraform-tool >> "$GITHUB_PATH"
+      - name: Validate and test with mocked providers
+        working-directory: deploy/terraform/${{ matrix.cloud }}
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false -lockfile=readonly
+          terraform validate
+          terraform test

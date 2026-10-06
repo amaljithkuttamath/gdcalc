@@ -179,10 +179,11 @@ def create_app(*, origin, template=None, output_dir='mcdxkit-output', access_tok
 
     @app.post('/api/{operation}')
     async def operation(operation: str, request: Request):
-        if operation not in ('inspect', 'convert', 'validate', 'preview', 'view', 'diff'):
+        if operation not in ('inspect', 'convert', 'validate', 'preview', 'view', 'diff', 'summary'):
             raise RequestError('Not found.', 404)
         try:
-            data = json.loads(await read_body(request, 16384, 'application/json'))
+            # A summary lists up to 100 report IDs with their selected cases.
+            data = json.loads(await read_body(request, 65536 if operation == 'summary' else 16384, 'application/json'))
         except (ValueError, UnicodeError):
             raise RequestError('Expected a JSON object.')
         if not isinstance(data, dict):

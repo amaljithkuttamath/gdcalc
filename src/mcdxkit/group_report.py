@@ -31,7 +31,7 @@ def _table(block, header, minimum, maximum, columns):
             raise ValueError('Non-finite numeric value in ' + header)
         rows.append(values)
         locations.append(found[0].group(0).strip())
-    if any(a > b for a, b in zip(*rows)):
+    if any(a > b for a, b in zip(*rows, strict=True)):
         raise ValueError('Minimum exceeds maximum in ' + header)
     ids = []
     for line in re.findall('^' + H + r'*Pile N\.' + H + r'+([^\r\n]+)', tail, re.M | re.I):

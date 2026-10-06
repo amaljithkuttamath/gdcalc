@@ -4,7 +4,7 @@
 
 | Start here | What it covers |
 | --- | --- |
-| [CLI and browser](cli.md) | Install, calculator setup, inspect, convert, batch/resume, server startup and configuration |
+| [CLI and browser](cli.md) | Install, calculator setup, inspect, convert, batch/resume, [summary CSV](cli.md#summary-csv-across-reports), server startup and configuration |
 | [Python SDK](sdk.md) | Imports, function contracts, output artifacts and error handling |
 | [Calculation and compatibility](calculation.md) | Supported expressions, load basis, execution evidence and browser inspection |
 | [Template contract](../references/template-contract.md) | Required worksheet profile, geometry, inputs and overrides |
@@ -26,3 +26,5 @@ These describe direction and requirements, not completed features:
 - [Template-driven 3D reuse research](research/template-driven-3d.md): existing open-source implementations, license considerations and prototype acceptance criteria.
 
 [Engineering workflow and offline project plan](engineering-workflow.md) records the source-to-review product direction and separates shipped capabilities from future acceptance gates.
+
+[Product and engineering principles](design-principles.md) explain workflow, evidence, calculation and offline boundaries for contributors.

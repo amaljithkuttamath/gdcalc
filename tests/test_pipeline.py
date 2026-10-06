@@ -65,7 +65,7 @@ Max. .2 .3 450 190 16 8 .4 .5 10
 
 
 def template(path):
-    W, M, X = mcdx.W, mcdx.M, mcdx.X
+    W, M = mcdx.W, mcdx.M
     root = E.Element('{'+W+'}worksheet', nsmap={None:W,'ml':M})
     regions = E.SubElement(root,'{'+W+'}regions')
     inputs = [('P_a',10,'kip'),('V_u',1,'kip'),('M_uy',10,'kip'),('M_uz',20,'kip'),

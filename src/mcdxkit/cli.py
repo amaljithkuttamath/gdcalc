@@ -4,8 +4,8 @@ import sys
 if __package__:
     from . import generate, validate
 else:
-    import generate
-    import validate
+    import generate  # type: ignore[no-redef]
+    import validate  # type: ignore[no-redef]
 
 
 def main(argv=None):
@@ -18,7 +18,8 @@ def main(argv=None):
                              ('setup-engine','Install the required local CalcpadCE calculator'),
                              ('validate','Check an .mcdx package without executing Mathcad'),
                              ('serve','Start the local browser interface'),
-                             ('batch','Convert files or folders with parallel workers and resume')]:
+                             ('batch','Convert files or folders with parallel workers and resume'),
+                             ('summary','Write a CSV of per-case loads for several reports or output directories')]:
         sub.add_parser(name,help=description,add_help=False)
     selected,rest=parser.parse_known_args(args)
     if selected.command=='setup-engine':
@@ -27,6 +28,9 @@ def main(argv=None):
     if selected.command=='batch':
         from .batch import main as batch
         return batch(rest)
+    if selected.command=='summary':
+        from .summary import main as summary
+        return summary(rest)
     if selected.command=='serve':
         from .server import main as serve
         return serve(rest)
