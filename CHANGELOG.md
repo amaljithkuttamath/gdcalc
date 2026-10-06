@@ -8,10 +8,6 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 - CI lint and type-check job: `ruff check` (correctness rules) and `mypy`, pinned in `requirements-dev.txt`.
 
-### Fixed
-
-- Unused imports and a late-binding closure in equation inspection flagged by the new lint rules.
-
 ## 0.3.0
 
 ### Changed

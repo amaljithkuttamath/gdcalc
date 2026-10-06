@@ -26,7 +26,6 @@ where = ["src"]
 mcdxkit = ["web/*.html", "web/*.css", "web/*.js", "web/fonts/*.ttf", "web/fonts/OFL.txt", "calcpad_bridge/*.cs", "calcpad_bridge/*.csproj"]
 
 [tool.ruff]
-target-version = "py310"
 extend-exclude = ["agents", "references"]
 
 [tool.ruff.lint]
