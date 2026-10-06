@@ -18,6 +18,16 @@ def main():
     with ZipFile(wheels[0]) as wheel:
         metadata_path = next(name for name in wheel.namelist() if name.endswith('.dist-info/METADATA'))
         metadata = BytesParser().parsebytes(wheel.read(metadata_path))
+        if metadata.get('License-Expression') != 'MIT':
+            raise SystemExit('Package must declare the MIT license')
+        license_dir = metadata_path.rsplit('/', 1)[0] + '/licenses/'
+        for license_file in ('LICENSE', 'THIRD_PARTY.md'):
+            if license_file not in metadata.get_all('License-File', []):
+                raise SystemExit('Missing license metadata: ' + license_file)
+            if license_dir + license_file not in wheel.namelist():
+                raise SystemExit('Missing packaged license: ' + license_file)
+            if not wheel.read(license_dir + license_file).strip():
+                raise SystemExit('Empty packaged license: ' + license_file)
         description = metadata.get_payload()
         for target in re.findall(r'\]\(([^)]+)\)', description):
             if not re.match(r'(https?://|mailto:|#)', target):
@@ -27,7 +37,7 @@ def main():
             raise SystemExit('Missing package assets: ' + ', '.join(sorted(missing)))
         if any(not wheel.read(name) for name in required):
             raise SystemExit('Package contains an empty required asset')
-    print(f'{wheels[0].name}: browser assets, font license and bridge included')
+    print(f'{wheels[0].name}: browser assets, licenses and bridge included')
 
 
 if __name__ == '__main__':
