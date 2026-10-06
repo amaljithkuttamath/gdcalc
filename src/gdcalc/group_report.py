@@ -4,6 +4,10 @@ import re
 
 MARKER = 'SUMMARY FOR LOAD CASES AND COMBINATIONS'
 NUMBER = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[EeDd][-+]?\d+)?'
+# Line patterns use horizontal whitespace only: \s spans newlines and backtracks quadratically.
+H = r'[^\S\r\n]'
+LOCAL_UNITS = (r'AXIAL *, *KIP +LAT\. *y *, *KIP +LAT\. *z *, *KIP +MOM *x *, *KIP-IN +MOM *y *, *KIP-IN +MOM *z *, *KIP-IN\b'
+               .replace(' *', H + '*').replace(' +', H + '+'))
 
 
 def _table(block, header, minimum, maximum, columns):
@@ -11,12 +15,12 @@ def _table(block, header, minimum, maximum, columns):
     if len(matches) != 1:
         raise ValueError('Missing or ambiguous ' + header)
     tail = block[matches[0].end():]
-    following = re.search(r'\n\s*\*\s+[A-Z]', tail)
+    following = re.search(r'\n' + H + r'*\*' + H + '+[A-Z]', tail)
     if following:
         tail = tail[:following.start()]
     rows, locations = [], []
     for label in [minimum, maximum]:
-        found = list(re.finditer(r'^\s*' + re.escape(label) + r'\s+([^\r\n]+)', tail, re.M))
+        found = list(re.finditer('^' + H + '*' + re.escape(label) + H + r'+([^\r\n]+)', tail, re.M))
         if len(found) != 1:
             raise ValueError('Missing or duplicate ' + label + ' in ' + header)
         words = found[0].group(1).split()
@@ -30,7 +34,7 @@ def _table(block, header, minimum, maximum, columns):
     if any(a > b for a, b in zip(*rows)):
         raise ValueError('Minimum exceeds maximum in ' + header)
     ids = []
-    for line in re.findall(r'^\s*Pile N\.\s+([^\r\n]+)', tail, re.M | re.I):
+    for line in re.findall('^' + H + r'*Pile N\.' + H + r'+([^\r\n]+)', tail, re.M | re.I):
         words = line.split()
         if len(words) != columns or any(not w.isdigit() or int(w) < 1 for w in words):
             raise ValueError('Malformed local pile identifiers')
@@ -61,7 +65,7 @@ def parse(text, load_source='effects'):
         if any(c['id'] == ident for c in cases):
             raise ValueError('Duplicate case in final summary: ' + str(ident))
         local, ids, raw_local, local_text = _table(block, r'\* PILE TOP REACTIONS, LOCAL \*', 'MINIMUM', 'MAXIMUM', 6)
-        if not re.search(r'AXIAL\s*,\s*KIP\b', local_text, re.I) or not re.search(r'KIP-IN\b', local_text, re.I):
+        if not re.search(LOCAL_UNITS, local_text, re.I):
             raise ValueError('Expected local reaction units: kip and kip-in')
         if load_source == 'effects':
             effects, effect_ids, raw_effects, effect_text = _table(block, r'\* EFFECTS FOR LATERALLY LOADED PILE \*', 'Min.', 'Max.', 9)

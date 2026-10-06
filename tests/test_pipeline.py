@@ -2,6 +2,7 @@
 import io
 import sys
 import tempfile
+import time
 import unittest
 import zipfile
 from pathlib import Path
@@ -120,6 +121,21 @@ class ParserTests(unittest.TestCase):
     def test_wrong_units_and_duplicate_cases_are_rejected(self):
         with self.assertRaises(ValueError):group_report.parse(report().replace('AXIAL,KIP','AXIAL,KN'))
         with self.assertRaises(ValueError):group_report.parse(report().replace('LOAD CASE : 7\n*','LOAD CASE : 1\n*'))
+
+    def test_every_local_reaction_column_unit_is_checked(self):
+        spaced=report().replace('AXIAL,KIP LAT. y,KIP','axial , kip   LAT. y\t, KIP')
+        self.assertEqual(group_report.envelope(group_report.select(group_report.parse(spaced,load_source='reactions')))['Vy'],25)
+        for old,new in [('LAT. y,KIP','LAT. y,KN'),('MOM y,KIP-IN','MOM y,KIP-FT')]:
+            for source in ['effects','reactions']:
+                with self.subTest(new=new,source=source),self.assertRaisesRegex(ValueError,'local reaction units'):
+                    group_report.parse(report().replace(old,new),load_source=source)
+
+    def test_long_blank_runs_parse_in_linear_time(self):
+        # Line regexes once let \s span newlines: 100 KB of blank lines took ~28 s.
+        bad='SUMMARY FOR LOAD CASES AND COMBINATIONS\nLOAD CASE: 1\n* PILE TOP REACTIONS, LOCAL *\n'+'\n'*200000+'x'
+        start=time.perf_counter()
+        with self.assertRaisesRegex(ValueError,'MINIMUM'):group_report.parse(bad)
+        self.assertLess(time.perf_counter()-start,2)
 
     def test_unknown_selection_and_nonfinite_numbers_are_rejected(self):
         with self.assertRaises(ValueError):group_report.select(group_report.parse(report()),[99])
