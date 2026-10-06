@@ -1,17 +1,17 @@
 services:
-  gdcalc:
+  mcdxkit:
     build: .
     init: true
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${GDCALC_PORT:-8765}:8765"
+      - "127.0.0.1:${MCDXKIT_PORT:-8765}:8765"
     environment:
-      GDCALC_PUBLIC_URL: ${GDCALC_PUBLIC_URL:-http://127.0.0.1:8765}
-      GDCALC_ACCESS_TOKEN_FILE: /run/secrets/access_token
+      MCDXKIT_PUBLIC_URL: ${MCDXKIT_PUBLIC_URL:-http://127.0.0.1:8765}
+      MCDXKIT_ACCESS_TOKEN_FILE: /run/secrets/access_token
     secrets:
       - access_token
     volumes:
-      - gdcalc_data:/data
+      - mcdxkit_data:/data
     read_only: true
     tmpfs:
       - /tmp:size=536870912,mode=1777
@@ -25,19 +25,19 @@ services:
     profiles: [cloud]
     restart: unless-stopped
     environment:
-      GDCALC_DOMAIN: ${GDCALC_DOMAIN:-localhost}
+      MCDXKIT_DOMAIN: ${MCDXKIT_DOMAIN:-localhost}
     ports: ["80:80", "443:443"]
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      gdcalc:
+      mcdxkit:
         condition: service_healthy
 secrets:
   access_token:
     file: ./.secrets/access-token
 volumes:
-  gdcalc_data:
+  mcdxkit_data:
   caddy_data:
   caddy_config:

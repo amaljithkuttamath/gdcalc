@@ -45,7 +45,7 @@ def convert(report, template, output, *, cases=None, load_source='effects', titl
     output.parent.mkdir(parents=True,exist_ok=True)
     # Stage both artifacts before publishing either. Hard links fail if a destination
     # was concurrently created and avoid replacing it; all paths share a filesystem.
-    with tempfile.TemporaryDirectory(prefix='.gdcalc-',dir=output.parent) as folder:
+    with tempfile.TemporaryDirectory(prefix='.mcdxkit-',dir=output.parent) as folder:
         staged=Path(folder)/'worksheet.mcdx'
         result=mcdx.generate(template,staged,selected,report.name,title,overrides,geometry_cases=parsed['cases'])
         result.update({'output':str(output),'audit':str(audit),'source_sha256':hashlib.sha256(raw).hexdigest(),
