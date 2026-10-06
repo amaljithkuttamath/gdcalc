@@ -4,24 +4,24 @@
 
 A CLI-first application that turns ENSOFT GROUP raw reports into executable engineering worksheets. **CalcpadCE is the required open-source calculation engine** for both CLI and browser workflows. Every conversion also exports native Mathcad Prime formulas. An optional, agent-neutral skill uses the same engine.
 
-For the broader worksheet application direction, see the [Mathcad Prime feature review and open-source architecture assessment](docs/mathcad-prime-review.md). It separates current capabilities from planned equation editing, broader calculation support and native compatibility testing.
+For the broader worksheet application direction, see the [Mathcad Prime feature review and open-source architecture assessment](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/mathcad-prime-review.md). It separates current capabilities from planned equation editing, broader calculation support and native compatibility testing.
 
-Coding agents: start with [AGENTS.md](AGENTS.md). See the [CLI/server guide](docs/cli.md), [architecture](docs/architecture.md), [contribution guide](CONTRIBUTING.md) and [deployment guide](deploy/README.md).
+Coding agents: start with [AGENTS.md](https://github.com/amaljithkuttamath/gdcalc/blob/main/AGENTS.md). See the [CLI/server guide](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/cli.md), [architecture](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/architecture.md), [contribution guide](https://github.com/amaljithkuttamath/gdcalc/blob/main/CONTRIBUTING.md) and [deployment guide](https://github.com/amaljithkuttamath/gdcalc/blob/main/deploy/README.md).
 
 ## Usage
 
-Python 3.10+ is required. Install directly from GitHub:
+Python 3.10+ is required. Install the CLI from [PyPI](https://pypi.org/project/gdcalc/):
 
 ```bash
-uv tool install git+https://github.com/amaljithkuttamath/gdcalc.git
+uv tool install gdcalc==0.2.1
 ```
 
-From a clone, use `uv tool install .`, or an isolated virtual environment:
+For the Python SDK and CLI in an isolated environment:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install .
+python3 -m pip install gdcalc==0.2.1
 
 # One-time setup; requires Git and the .NET 10 SDK.
 gdcalc setup-engine
@@ -78,24 +78,24 @@ gdcalc serve --template reference.mcdx --output-dir ./outputs
 
 This opens the converter with four steps: **Files → Inputs → Changes → Outputs**. Select multiple files or a folder, inspect the original report and template, review cases and load envelopes, compare changed expressions, then generate worksheets and audits. The document viewer stays beside the controls and switches between report, template, worksheet and diff. Existing `.mcdx` files can be uploaded for inspection and package validation.
 
-The primary file view reconstructs the worksheet using its saved region coordinates, page settings, header, formatted text, images and native equations. A collapsible strip of actual page thumbnails, page navigation, zoom and search preserve the document layout. Input review emphasizes the five local load values; case selection stays in an expandable section. Saved Mathcad values are labeled as cached, never as recalculated. A separate Results tab shows fresh CalcpadCE results; Changes compares native expressions. CalcpadCE executes translated scalar formulas locally on the server; the original-file inspector does not reproduce Prime's layout. The `.cpd` and `.mcdx` files retain their executable formulas. Complete outputs and source snapshots persist; Saved outputs restores them after a server restart. The input queue resets on refresh. Interface fonts are bundled locally: IBM Plex Sans under the [SIL Open Font License](src/gdcalc/web/fonts/OFL.txt); the browser makes no font CDN requests.
+The primary file view reconstructs the worksheet using its saved region coordinates, page settings, header, formatted text, images and native equations. A collapsible strip of actual page thumbnails, page navigation, zoom and search preserve the document layout. Input review emphasizes the five local load values; case selection stays in an expandable section. Saved Mathcad values are labeled as cached, never as recalculated. A separate Results tab shows fresh CalcpadCE results; Changes compares native expressions. CalcpadCE executes translated scalar formulas locally on the server; the original-file inspector does not reproduce Prime's layout. The `.cpd` and `.mcdx` files retain their executable formulas. Complete outputs and source snapshots persist; Saved outputs restores them after a server restart. The input queue resets on refresh. Interface fonts are bundled locally: IBM Plex Sans under the [SIL Open Font License](https://github.com/amaljithkuttamath/gdcalc/blob/main/src/gdcalc/web/fonts/OFL.txt); the browser makes no font CDN requests.
 
-For Docker and HTTPS cloud deployment, see [deployment instructions](deploy/README.md). The repository includes a non-root Docker image, Compose with persistent storage, an optional Caddy TLS proxy, and authenticated network mode. Public deployment contains no engineering documents. Cloud mode explicitly identifies that files are uploaded to the server.
+For Docker and HTTPS cloud deployment, see [deployment instructions](https://github.com/amaljithkuttamath/gdcalc/blob/main/deploy/README.md). The repository includes a non-root Docker image, Compose with persistent storage, an optional Caddy TLS proxy, and authenticated network mode. Public deployment contains no engineering documents. Cloud mode explicitly identifies that files are uploaded to the server.
 
 ## Use with coding agents
 
-The app works without an agent. The root [SKILL.md](SKILL.md) follows the open [Agent Skills format](https://agentskills.io/specification): ordinary Markdown instructions, relative references and shell commands. Install the repository as a directory named `gdcalc` in a skill location supported by your agent. For example, clients supporting personal `.agents/skills` discovery can use:
+The app works without an agent. The root [SKILL.md](https://github.com/amaljithkuttamath/gdcalc/blob/main/SKILL.md) follows the open [Agent Skills format](https://agentskills.io/specification): ordinary Markdown instructions, relative references and shell commands. Install the repository as a directory named `gdcalc` in a skill location supported by your agent. For example, clients supporting personal `.agents/skills` discovery can use:
 
 ```bash
 git clone https://github.com/amaljithkuttamath/gdcalc.git ~/.agents/skills/gdcalc
 uv tool install ~/.agents/skills/gdcalc
 ```
 
-Select/invoke `gdcalc` using your agent's own skill mechanism and provide your report/template. Discovery paths and invocation syntax vary by client. An agent without skill discovery can read `SKILL.md` from a normal checkout and use the same CLI. See [agent integration](docs/agent-integration.md). `agents/openai.yaml` is optional OpenAI UI metadata; other clients can ignore it.
+Select/invoke `gdcalc` using your agent's own skill mechanism and provide your report/template. Discovery paths and invocation syntax vary by client. An agent without skill discovery can read `SKILL.md` from a normal checkout and use the same CLI. See [agent integration](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/agent-integration.md). `agents/openai.yaml` is optional OpenAI UI metadata; other clients can ignore it.
 
 ## Python SDK
 
-The Python package ships the SDK, CLI and browser server together. See the [SDK contract](docs/sdk.md) and [PyPI release setup](docs/releasing.md). The API works independently of the CLI or any agent host:
+The Python package ships the SDK, CLI and browser server together. See the [SDK contract](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/sdk.md) and [PyPI release setup](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/releasing.md). The API works independently of the CLI or any agent host:
 
 ```python
 from gdcalc.engine import inspect_report, convert, validate
@@ -113,7 +113,7 @@ Source layout: `src/gdcalc/engine.py` exposes the API, `group_report.py` parses 
 
 - Inputs: `.gp11t` and text GROUP reports using kip/in units.
 - Outputs: executable `.cpd`, calculated `.html`, native `.mcdx` and audit JSON.
-- Template: the fixed-head compression-pile profile described in [the template contract](references/template-contract.md).
+- Template: the fixed-head compression-pile profile described in [the template contract](https://github.com/amaljithkuttamath/gdcalc/blob/main/references/template-contract.md).
 - Local mode does not upload to the cloud. Hosted mode sends selected files to your configured server. No Excel macros or GROUP execution.
 - No bundled engineering data or design template in the public repository.
 
@@ -133,4 +133,4 @@ python3 -m unittest discover -s tests -v
 
 Install the calculator with `gdcalc setup-engine` before running tests. Tests execute the real calculator with synthetic text and package fixtures and check source selection, native formula dependencies, validation failures, and overwrite protection. No proprietary report or worksheet is required.
 
-Engineering values need source and code-edition provenance. See the proposed [engineering standards register](docs/engineering-standards.md); general standards-compliance validation is not implemented yet.
+Engineering values need source and code-edition provenance. See the proposed [engineering standards register](https://github.com/amaljithkuttamath/gdcalc/blob/main/docs/engineering-standards.md); general standards-compliance validation is not implemented yet.
