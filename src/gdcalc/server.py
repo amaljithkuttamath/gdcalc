@@ -201,6 +201,12 @@ def create_app(*, origin, template=None, output_dir='gdcalc-output', access_toke
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
 
+    @app.get('/fonts/{name}')
+    async def font(name: str):
+        if name not in ('plex-regular.ttf', 'plex-medium.ttf', 'plex-semibold.ttf'):
+            raise RequestError('Not found.', 404)
+        return FileResponse(STATIC / 'fonts' / name, media_type='font/ttf')
+
     @app.get('/{asset}')
     async def asset(asset: str):
         if asset not in ('app.js', 'style.css'):

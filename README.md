@@ -1,6 +1,12 @@
 # gdcalc
 
+[![Test, package and publish](https://github.com/amaljithkuttamath/gdcalc/actions/workflows/test.yml/badge.svg)](https://github.com/amaljithkuttamath/gdcalc/actions/workflows/test.yml)
+
 A CLI-first pipeline that turns ENSOFT GROUP raw reports into executable engineering worksheets. **CalcpadCE is the required open-source calculation engine** for both CLI and browser workflows. Every conversion also exports native Mathcad Prime formulas. A bundled Codex skill uses the same engine.
+
+For the broader worksheet application direction, see the [Mathcad Prime feature review and open-source architecture assessment](docs/mathcad-prime-review.md). It separates current capabilities from planned equation editing, broader calculation support and native compatibility testing.
+
+Coding agents: start with [AGENTS.md](AGENTS.md). See the [CLI/server guide](docs/cli.md), [architecture](docs/architecture.md), [contribution guide](CONTRIBUTING.md) and [deployment guide](deploy/README.md).
 
 ## Usage
 
@@ -72,7 +78,7 @@ gdcalc serve --template reference.mcdx --output-dir ./outputs
 
 This opens the converter with four steps: **Files → Inputs → Changes → Outputs**. Select multiple files or a folder, inspect the original report and template, review cases and load envelopes, compare changed expressions, then generate worksheets and audits. The document viewer stays beside the controls and switches between report, template, worksheet and diff. Existing `.mcdx` files can be uploaded for inspection and package validation.
 
-The primary file view reconstructs the worksheet using its saved region coordinates, page settings, header, formatted text, images and native equations. A collapsible strip of actual page thumbnails, page navigation, zoom and search preserve the document layout. Input review emphasizes the five local load values; case selection stays in an expandable section. Saved Mathcad values are labeled as cached, never as recalculated. A separate Results tab shows fresh CalcpadCE results; Changes compares native expressions. CalcpadCE executes translated scalar formulas locally on the server; the original-file inspector does not reproduce Prime's layout. The `.cpd` and `.mcdx` files retain their executable formulas. Complete outputs and source snapshots persist; Saved outputs restores them after a server restart. The input queue resets on refresh.
+The primary file view reconstructs the worksheet using its saved region coordinates, page settings, header, formatted text, images and native equations. A collapsible strip of actual page thumbnails, page navigation, zoom and search preserve the document layout. Input review emphasizes the five local load values; case selection stays in an expandable section. Saved Mathcad values are labeled as cached, never as recalculated. A separate Results tab shows fresh CalcpadCE results; Changes compares native expressions. CalcpadCE executes translated scalar formulas locally on the server; the original-file inspector does not reproduce Prime's layout. The `.cpd` and `.mcdx` files retain their executable formulas. Complete outputs and source snapshots persist; Saved outputs restores them after a server restart. The input queue resets on refresh. Interface fonts are bundled locally: IBM Plex Sans under the [SIL Open Font License](src/gdcalc/web/fonts/OFL.txt); the browser makes no font CDN requests.
 
 For Docker and HTTPS cloud deployment, see [deployment instructions](deploy/README.md). The repository includes a non-root Docker image, Compose with persistent storage, an optional Caddy TLS proxy, and authenticated network mode. Public deployment contains no engineering documents. Cloud mode explicitly identifies that files are uploaded to the server.
 

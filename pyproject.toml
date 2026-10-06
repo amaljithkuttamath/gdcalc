@@ -17,4 +17,4 @@ gdcalc = "gdcalc.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-gdcalc = ["web/*.html", "web/*.css", "web/*.js", "calcpad_bridge/*.cs", "calcpad_bridge/*.csproj"]
+gdcalc = ["web/*.html", "web/*.css", "web/*.js", "web/fonts/*.ttf", "web/fonts/OFL.txt", "calcpad_bridge/*.cs", "calcpad_bridge/*.csproj"]

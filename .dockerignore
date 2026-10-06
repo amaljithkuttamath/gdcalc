@@ -9,6 +9,9 @@
 !src/gdcalc/web/*.html
 !src/gdcalc/web/*.css
 !src/gdcalc/web/*.js
+!src/gdcalc/web/fonts/
+!src/gdcalc/web/fonts/*.ttf
+!src/gdcalc/web/fonts/OFL.txt
 
 !src/gdcalc/calcpad_bridge/
 !src/gdcalc/calcpad_bridge/*.cs

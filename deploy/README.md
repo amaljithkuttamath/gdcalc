@@ -45,6 +45,23 @@ Caddy terminates HTTPS and forwards to the application on the private Compose ne
 
 ## Managed container platforms
 
+The GitHub Actions workflow tests Python 3.10 and 3.12, checks JavaScript syntax, builds a wheel/source distribution, checks packaged assets, then builds and tests the Docker image. Successful runs on `main` publish that exact tested image to `ghcr.io/amaljithkuttamath/gdcalc` with `latest` and `sha-<full-commit-sha>` tags. Pull requests run checks without publishing. A manual run from the Actions tab can rebuild `main`.
+
+The image currently targets Linux AMD64. Build locally with the Dockerfile for another supported architecture. Python artifacts are downloadable from each workflow run for 30 days; they do not bundle the calculator, so non-container installs still need `gdcalc setup-engine`.
+
+No manually created publishing secret is needed: Actions uses its temporary `GITHUB_TOKEN`, with package-write permission limited to the container job. Actions are pinned to commits and Dependabot checks their updates weekly. No cloud hosting environment or deployment credentials are configured by this workflow.
+
+After an image has published, reuse the existing Compose security and storage settings:
+
+```bash
+python3 scripts/setup_deploy.py
+# Set GDCALC_IMAGE in .env to the desired sha tag for a reproducible deployment.
+docker compose -f compose.yaml -f compose.registry.yaml pull gdcalc
+docker compose -f compose.yaml -f compose.registry.yaml up --no-build -d
+```
+
+The container package's visibility is separate from the repository's. If it is private, authenticate to GHCR with an account authorized to read the package. Public anonymous pulls require the package to be made public in GitHub Packages settings. Do not place registry credentials in `.env` or source control. Deployment access tokens remain in the generated `.secrets/access-token` file or a hosting provider's secret manager.
+
 Build this Dockerfile, deploy **one instance**, and configure:
 
 | Setting | Value |
