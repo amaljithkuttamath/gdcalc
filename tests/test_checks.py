@@ -10,8 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 from lxml import etree as E
 
-from gdcalc import batch, calcpad, checks, engine, mcdx
-from gdcalc.service import Session
+from mcdxkit import batch, calcpad, checks, engine, mcdx
+from mcdxkit.service import Session
 from test_calcpad import apply, definition, worksheet
 from test_pipeline import report, template
 

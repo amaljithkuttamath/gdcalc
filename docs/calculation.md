@@ -16,7 +16,7 @@ Native `.mcdx` files retain formulas and dependencies; stale result caches are r
 
 ## Check results
 
-After calculation, gdcalc reads check outcomes from the published calculated `.html`; nothing is recalculated. CalcpadCE renders a comparison (`<`, `≤`, `>`, `≥`, `≡`, `≠`, or a chain joined by `and`) as `name = symbolic = substituted = 1` (condition holds) or `= 0` (condition does not hold). Each rendered comparison becomes one entry in the audit's `checks` list:
+After calculation, MCDXKit reads check outcomes from the published calculated `.html`; nothing is recalculated. CalcpadCE renders a comparison (`<`, `≤`, `>`, `≥`, `≡`, `≠`, or a chain joined by `and`) as `name = symbolic = substituted = 1` (condition holds) or `= 0` (condition does not hold). Each rendered comparison becomes one entry in the audit's `checks` list:
 
 | Field | Meaning |
 | --- | --- |
@@ -26,7 +26,7 @@ After calculation, gdcalc reads check outcomes from the published calculated `.h
 | `ratio`, `demand`, `capacity`, `unit` | Demand/capacity, only when both substituted operands are single non-negative numbers with identical unit text and a positive capacity; otherwise `null` |
 | `region_id`, `line` | Source Mathcad region and calculated-page line |
 
-For `≤`/`<` the left operand is the demand; for `≥`/`>` the right operand is. No ratio is derived for compound operands (`0.75 · 200 kip`), different units (`in` versus `ft`), chains or equality. `check_summary` records totals, failed check names and the governing (largest) ratio. When the page contains no rendered comparisons the status is `no checks found`; gdcalc does not infer checks from other values.
+For `≤`/`<` the left operand is the demand; for `≥`/`>` the right operand is. No ratio is derived for compound operands (`0.75 · 200 kip`), different units (`in` versus `ft`), chains or equality. `check_summary` records totals, failed check names and the governing (largest) ratio. When the page contains no rendered comparisons the status is `no checks found`; MCDXKit does not infer checks from other values.
 
 Limits: comparisons hidden inside conditionals and string messages such as `OK`/`NG` are not interpreted, and a displayed stored check variable (`check = 1`) is not a separate check. "Pass" means the rendered condition holds; write checks as conditions that must hold. Outputs created before this feature report checks as not recorded. Saved outputs in the browser show the summary only; the full list is in the convert response and the `.audit.json`. Check outcomes are not engineering approval.
 
