@@ -7,7 +7,7 @@ import tempfile
 import threading
 import shutil
 from pathlib import Path
-from . import engine, inspection
+from . import engine, inspection, learn
 
 MIB = 1024 * 1024
 
@@ -138,6 +138,8 @@ class Session:
             raise RequestError('Load source must be effects or reactions.')
         if route == '/api/inspect':
             return engine.inspect_report(entry['path'], cases=cases, load_source=basis)
+        if route == '/api/suggest-cases':
+            return learn.suggest_cases(entry['path'], load_source=basis, output_dir=self.output_dir)
         template = state.get(data['template_id'], ['template'])['path'] if data.get('template_id') else state.template
         if template is None or not template.is_file():
             raise RequestError('Select a compatible .mcdx template before converting.')

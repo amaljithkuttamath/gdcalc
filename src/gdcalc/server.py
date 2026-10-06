@@ -3,7 +3,6 @@ import argparse
 import asyncio
 import hashlib
 import hmac
-import importlib.util
 import json
 import os
 import secrets
@@ -20,7 +19,7 @@ from fastapi import FastAPI, Request
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import FileResponse, JSONResponse
 
-from . import assist, mcdx
+from . import mcdx
 from .generate import default_template
 from .service import MIB, RequestError, Session
 
@@ -48,13 +47,11 @@ def check_configuration(host, public_url, access_token):
             raise ValueError('Remote deployments require an HTTPS public URL and a TLS reverse proxy.')
 
 
-def create_app(*, origin, template=None, output_dir='gdcalc-output', access_token=None, network=False, ai=False, ai_client=None):
+def create_app(*, origin, template=None, output_dir='gdcalc-output', access_token=None, network=False):
     """Create one workspace. Deploy one process/replica per trusted user or team."""
     state = Session(template, output_dir)
     cookie_key = secrets.token_bytes(32)
     failed_logins = []
-    ai_lock = threading.Lock()
-    ai_calls = [0]
     secure = origin.startswith('https:')
 
     @asynccontextmanager
@@ -144,7 +141,6 @@ def create_app(*, origin, template=None, output_dir='gdcalc-output', access_toke
     async def session():
         return {'token': state.token, 'output_dir': str(state.output_dir), 'network': network,
                 'template': state.template.name if state.template and state.template.is_file() else None,
-                'ai': {'enabled': ai, 'model': assist.model() if ai else None},
                 'limits': {'files': 100, 'report_mib': 16, 'worksheet_mib': 32, 'session_mib': 256}}
 
     @app.post('/api/login')
@@ -182,7 +178,7 @@ def create_app(*, origin, template=None, output_dir='gdcalc-output', access_toke
 
     @app.post('/api/{operation}')
     async def operation(operation: str, request: Request):
-        if operation not in ('inspect', 'convert', 'validate', 'preview', 'view', 'diff'):
+        if operation not in ('inspect', 'convert', 'validate', 'preview', 'view', 'diff', 'suggest-cases'):
             raise RequestError('Not found.', 404)
         try:
             data = json.loads(await read_body(request, 16384, 'application/json'))
@@ -191,35 +187,6 @@ def create_app(*, origin, template=None, output_dir='gdcalc-output', access_toke
         if not isinstance(data, dict):
             raise RequestError('Expected a JSON object.')
         return await run_in_threadpool(execute, state.operation, '/api/' + operation, data)
-
-    @app.post('/api/assist/{action}')
-    async def assistant(action: str, request: Request):
-        if not ai or action not in ('cases', 'review'):
-            raise RequestError('Not found.', 404)
-        try:
-            data = json.loads(await read_body(request, 4096, 'application/json'))
-        except (ValueError, UnicodeError):
-            raise RequestError('Expected a JSON object.')
-        if not isinstance(data, dict):
-            raise RequestError('Expected a JSON object.')
-        basis = data.get('load_source', 'effects')
-        if basis not in ('effects', 'reactions'):
-            raise RequestError('Load source must be effects or reactions.')
-        # Resolve the file under the workspace lock, then call the model without holding it.
-        path = (await run_in_threadpool(execute, state.get, data.get('id'), ['report' if action == 'cases' else 'worksheet']))['path']
-        if not ai_lock.acquire(blocking=False):
-            raise RequestError('The assistant is already working on another request. Please retry.', 409)
-        try:
-            if ai_calls[0] >= 200:
-                raise RequestError('Session reached 200 assistant requests. Restart the server for a new session.', 429)
-            ai_calls[0] += 1
-            if action == 'cases':
-                return await run_in_threadpool(lambda: assist.suggest_cases(path, load_source=basis, client=ai_client))
-            return await run_in_threadpool(lambda: assist.review(path, client=ai_client))
-        except (ValueError, OSError) as exc:
-            raise RequestError(str(exc), getattr(exc, 'status', 400)) from exc
-        finally:
-            ai_lock.release()
 
     @app.get('/api/download/{file_id}')
     async def download(file_id: str):
@@ -251,7 +218,7 @@ def create_app(*, origin, template=None, output_dir='gdcalc-output', access_toke
 
 class WebServer:
     """Lifecycle wrapper used by the CLI and real-HTTP integration tests."""
-    def __init__(self, *, port, template, output_dir, host='127.0.0.1', public_url=None, access_token=None, ai=False, ai_client=None):
+    def __init__(self, *, port, template, output_dir, host='127.0.0.1', public_url=None, access_token=None):
         check_configuration(host, public_url, access_token)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -263,8 +230,7 @@ class WebServer:
             raise
         self.server_port = self.socket.getsockname()[1]
         self.origin = public_url.rstrip('/') if public_url else f'http://127.0.0.1:{self.server_port}'
-        app = create_app(origin=self.origin, template=template, output_dir=output_dir, access_token=access_token, network=host != '127.0.0.1',
-                         ai=ai, ai_client=ai_client)
+        app = create_app(origin=self.origin, template=template, output_dir=output_dir, access_token=access_token, network=host != '127.0.0.1')
         self.state = app.state.workspace
         self.stopped = threading.Event()
         self.stopped.set()
@@ -300,26 +266,20 @@ def main(argv=None, prog='gdcalc serve'):
     parser.add_argument('--template', type=Path, default=default_template(), help='Private default template; may also be selected in the browser')
     parser.add_argument('--output-dir', type=Path, default=Path(os.environ.get('GDCALC_OUTPUT_DIR', str(Path.cwd() / 'gdcalc-output'))), help='Persistent generated worksheets and audits')
     parser.add_argument('--no-open', action='store_true', help='Print the URL without opening a browser')
-    parser.add_argument('--ai', action='store_true', default=os.environ.get('GDCALC_AI') == '1',
-                        help='Enable the optional Claude assistant (also GDCALC_AI=1). Sends case names, load extrema, '
-                             'audit metadata and calculated results to Anthropic when a user asks for a suggestion or review.')
     args = parser.parse_args(argv)
     if not 0 <= args.port <= 65535:
         parser.error('--port must be between 0 and 65535')
     token = os.environ.get('GDCALC_ACCESS_TOKEN')
     token_file = os.environ.get('GDCALC_ACCESS_TOKEN_FILE')
-    if args.ai and importlib.util.find_spec('anthropic') is None:
-        parser.exit(2, 'gdcalc: --ai needs the anthropic package: pip install "gdcalc[ai]"\n')
     try:
         if token_file:
             token = Path(token_file).read_text().strip()
         server = create_server(port=args.port, host=args.host, public_url=args.public_url, access_token=token,
-                               template=args.template, output_dir=args.output_dir, ai=args.ai)
+                               template=args.template, output_dir=args.output_dir)
     except (OSError, ValueError) as exc:
         parser.exit(2, f'gdcalc: Cannot start server: {exc}\n')
     print(f'gdcalc browser: {server.origin}\nOutputs: {server.state.output_dir}\n' +
           ('Files are uploaded to this server.' if args.host == '0.0.0.0' else 'Local files stay on this computer.') +
-          (f'\nAI assistant enabled ({assist.model()}): requested suggestions and reviews send load data and results to Anthropic.' if args.ai else '') +
           '\nCtrl+C stops the server. Generated outputs are retained.', flush=True)
     if not args.no_open:
         webbrowser.open(server.origin)

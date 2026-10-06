@@ -34,7 +34,8 @@ print(result["calculated_worksheet"])
 
 | Function | Contract |
 | --- | --- |
-| `inspect_report(report, *, cases=None, load_source='effects')` | Returns cases, selected IDs, unresolved selection reason, envelope and largest observed pile ID. Does not execute the calculator. Explicit invalid selection raises `ValueError`. |
+| `inspect_report(report, *, cases=None, load_source='effects')` | Returns cases, selected IDs, unresolved selection reason, envelope, governing case per component, load outliers (`anomalies`) and largest observed pile ID. Does not execute the calculator. Explicit invalid selection raises `ValueError`. |
+| `gdcalc.learn.suggest_cases(report, *, load_source='effects', output_dir=None)` | Offline case-name classification with confidence and evidence, recommended strength cases and outliers; learns from audits under `output_dir`. Advisory: pass the IDs to `cases` explicitly. See [machine learning](machine-learning.md). |
 | `convert(report, template, output, *, cases=None, load_source='effects', title=None, overrides=None)` | Calculates and returns the audit dictionary with final artifact paths, source hash, selection/envelope and calculation evidence. Publishes `.mcdx`, `.cpd`, `.html`, `.audit.json`, with audit last. |
 | `validate(worksheet)` | Returns package integrity results. Does not execute Prime or prove engineering compliance. |
 

@@ -88,9 +88,9 @@ Open the printed URL. Omit `--template` to select it in the browser; omit `--no-
 
 Workflow: Files → Inputs → Changes → Outputs. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
 
-## Optional AI assistant
+## Suggest cases and flag unusual loads
 
-`gdcalc assist cases REPORT` suggests strength cases; `gdcalc assist review WORKSHEET.mcdx [--output review.md] [--json]` reviews a completed conversion. `gdcalc serve --ai` adds the same actions to the browser. Requires `pip install "gdcalc[ai]"` and Anthropic credentials, sends limited data to Anthropic and is advisory only; see [AI assistant](ai-assistant.md).
+`gdcalc learn REPORT [--history OUTPUT_DIR] [--load-source reactions]` prints a JSON classification of every final-summary case with confidence and evidence, the recommended strength cases, cases it could not resolve and load outliers. `--history` learns naming conventions from earlier conversions; the browser uses its output directory automatically. Runs offline; see [machine learning](machine-learning.md).
 
 ## Environment variables
 
@@ -107,8 +107,6 @@ Default template lookup: explicit `--template`, then `GDCALC_TEMPLATE`, checkout
 | `GDCALC_OUTPUT_DIR` | Server output location; `--output-dir` overrides |
 | `GDCALC_ACCESS_TOKEN` | Hosting secret, at least 32 characters |
 | `GDCALC_ACCESS_TOKEN_FILE` | Read the hosting secret from this file; takes precedence |
-| `GDCALC_AI` | `1` enables the optional AI assistant in `serve`, like `--ai` |
-| `GDCALC_AI_MODEL` | Assistant model; default `claude-opus-5-5` |
 
 For a host reachable over the network, follow [deployment instructions](../deploy/README.md). CLI startup does not automatically load `.env`; Compose reads it. `GDCALC_PORT`, `GDCALC_DOMAIN` and `GDCALC_IMAGE` in the example environment are Compose settings, distinct from direct CLI variables.
 
@@ -121,7 +119,7 @@ For a host reachable over the network, follow [deployment instructions](../deplo
 | Template missing | Pass/select a compatible private template |
 | Unsupported expression | Report the exact construct and extend the adapter with tests; no cache fallback |
 | Pile ID beyond template capacity | Review actual geometry before an explicit override |
-| Unknown case names | Supply reviewed `--cases`; `gdcalc assist cases` can suggest them ([AI assistant](ai-assistant.md)) |
+| Unknown case names | Supply reviewed `--cases`; `gdcalc learn` can suggest them |
 | Output exists | Choose another basename, or verified batch resume |
 | Port occupied | Use `--port 0` or another port |
 | Hosted login/origin error | Check exact HTTPS origin, secret and proxy Host forwarding; do not disable protections |

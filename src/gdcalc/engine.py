@@ -19,6 +19,7 @@ def _read_report(path, load_source):
 
 def inspect_report(report, *, cases=None, load_source='effects'):
     """Inspect available cases; selection_required explains unresolved classification."""
+    from . import learn
     _,parsed=_read_report(report,load_source)
     issue=None
     try:selected=group_report.select(parsed,cases)
@@ -29,6 +30,7 @@ def inspect_report(report, *, cases=None, load_source='effects'):
             'selected_cases':[c['id'] for c in selected],'selection_required':issue,
             'load_source':load_source,'envelope':group_report.envelope(selected) if selected else None,
             'governing':group_report.governing(selected) if selected else None,
+            'anomalies':learn.anomalies(parsed['cases']),
             'largest_observed_pile_id':max((p for c in parsed['cases'] for p in c['pile_ids']),default=0)}
 
 
@@ -50,7 +52,8 @@ def convert(report, template, output, *, cases=None, load_source='effects', titl
         staged=Path(folder)/'worksheet.mcdx'
         result=mcdx.generate(template,staged,selected,report.name,title,overrides,geometry_cases=parsed['cases'])
         result.update({'output':str(output),'audit':str(audit),'source_sha256':hashlib.sha256(raw).hexdigest(),
-                       'geometry_case_ids':[c['id'] for c in parsed['cases']]})
+                       'geometry_case_ids':[c['id'] for c in parsed['cases']],
+                       'case_names':{str(c['id']):c['name'] for c in parsed['cases']}})
         cpd_staged=Path(folder)/'worksheet.cpd'; html_staged=Path(folder)/'worksheet.html'
         calculation=calcpad.calculate(staged,cpd_staged,html_staged)
         result.update({'calculation':calculation,'open_worksheet':str(cpd),'calculated_worksheet':str(calculated)})
