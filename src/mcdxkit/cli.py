@@ -4,8 +4,8 @@ import sys
 if __package__:
     from . import generate, validate
 else:
-    import generate
-    import validate
+    import generate  # type: ignore[no-redef]
+    import validate  # type: ignore[no-redef]
 
 
 def main(argv=None):

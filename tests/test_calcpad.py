@@ -1,6 +1,5 @@
 """Numerical contract tests against the real required CalcpadCE process."""
 import copy
-import json
 import os
 import tempfile
 import unittest

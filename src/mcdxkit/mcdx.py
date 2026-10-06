@@ -2,7 +2,6 @@
 import hashlib
 import io
 import math
-import os
 import posixpath
 import tempfile
 import zipfile
@@ -11,7 +10,7 @@ from lxml import etree as E
 if __package__:
     from .group_report import envelope
 else:
-    from group_report import envelope
+    from group_report import envelope  # type: ignore[no-redef]
 
 W='http://schemas.mathsoft.com/worksheet50'
 M='http://schemas.mathsoft.com/math50'

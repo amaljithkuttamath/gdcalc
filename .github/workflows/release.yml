@@ -50,6 +50,11 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: '10.0.112'
+      - name: Lint and type check
+        run: |
+          python -m pip install -r requirements-dev.txt
+          ruff check src tests scripts
+          mypy
       - name: Test installed SDK, CLI, calculator and server
         run: |
           mcdxkit setup-engine
