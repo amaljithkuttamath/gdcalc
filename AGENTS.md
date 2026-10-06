@@ -56,6 +56,9 @@ Work through a GitHub issue and a feature/fix branch. Claim or comment on the is
 ```bash
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
+python -m pip install -r requirements-dev.txt
+ruff check src tests scripts
+mypy
 python -m pip install build
 python -m build
 python scripts/check_package.py

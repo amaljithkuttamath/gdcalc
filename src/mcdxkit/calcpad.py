@@ -12,11 +12,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 from decimal import Decimal
-from lxml import etree as E, html as H
+from lxml import html as H
 from . import mcdx
 
 REVISION = '0b20dba11ebd50b303eedb57e8ec042c272c68ab'
-TRANSLATOR_VERSION = 1
+TRANSLATOR_VERSION = 2
 OPS = {'mult': '*', 'scale': '*', 'plus': '+', 'minus': '-', 'div': '/', 'pow': '^',
        'lessThan': '<', 'lessOrEqual': '≤', 'greaterThan': '>', 'greaterOrEqual': '≥',
        'equal': '≡', 'and': '∧'}
@@ -74,7 +74,9 @@ class Translator:
         if tag == 'real':
             value = float(node.text)
             if not math.isfinite(value): raise ValueError('Nonfinite literal')
-            return str(Decimal(node.text)).replace('E', 'e')
+            # Calcpad reads an exponent letter as a unit, so always emit plain decimals.
+            text = format(Decimal(node.text), 'f')
+            return '('+text+')' if text.startswith('-') else text
         if tag == 'id':
             name = mcdx.name(node)
             if node.get('labels') == 'UNIT':
@@ -110,7 +112,7 @@ class Translator:
                         return '('+OPS[op].join(terms)+')'
             if op == 'nthRoot' and len(args) == 2:
                 return '('+expr(args[1])+')^(1/'+('2' if mcdx.tag(args[0]) == 'placeholder' else expr(args[0]))+')'
-            if op == 'neg' and len(args) == 1: return '-('+expr(args[0])+')'
+            if op == 'neg' and len(args) == 1: return '(-('+expr(args[0])+'))'
             if op in OPS and len(args) == 2: return '('+(' '+OPS[op]+' ').join(expr(a) for a in args)+')'
         raise ValueError('Unsupported expression: '+tag)
 
@@ -123,29 +125,39 @@ class Translator:
             return result
         return {self.kind(node)}
 
-    def program(self, node, target, done, kind, depth=0):
+    def program(self, node, target, done, kind, depth=0, exits=False):
+        # Mathcad returns the last statement executed; only return exits early.
         if depth > 100: raise ValueError('Program nesting exceeds 100')
         tag = mcdx.tag(node); children = list(node)
-        def emit(child): self.program(child, target, done, kind, depth+1)
+        def emit(child, exits=exits): self.program(child, target, done, kind, depth+1, exits)
         if tag == 'placeholder': return
         if tag in ('then', 'else', 'return', 'parens'):
             if len(children) != 1: raise ValueError('Invalid program wrapper')
-            emit(children[0])
+            emit(children[0], exits or tag == 'return')
         elif tag == 'program':
             for child in children:
-                self.lines += ['#if '+done+' ≡ 0']; emit(child); self.lines += ['#end if']
+                self.lines += ['#if '+done+' ≡ 0']; emit(child, False); self.lines += ['#end if']
         elif tag in ('if', 'alsoif', 'elseif'):
-            if len(children) < 2 or mcdx.tag(children[0]) != 'test' or mcdx.tag(children[1]) != 'then':
-                raise ValueError('Invalid conditional')
-            self.lines += ['#if '+self.expr(children[0][0])]; emit(children[1]); self.lines += ['#end if']
-            for child in children[2:]:
-                if mcdx.tag(child) not in ('else', 'alsoif', 'elseif'): raise ValueError('Unsupported conditional branch')
-                self.lines += ['#if '+done+' ≡ 0']; emit(child); self.lines += ['#end if']
+            taken = 'taken'+str(len(self.lines))
+            self.lines += [taken+' = 0']
+            self.conditional(node, taken, emit)
         else:
             # Some original numeric programs return a diagnostic string on failure.
             # Fail calculation if that branch is selected; never coerce it to a number.
             value = self.expr(node) if self.kind(node) == kind else 'gdInvalidReturnType'
-            self.lines += [target+' = '+value, done+' = 1']
+            self.lines += [target+' = '+value, done+'set = 1']+([done+' = 1'] if exits else [])
+
+    def conditional(self, node, taken, emit):
+        children = list(node)
+        if len(children) < 2 or mcdx.tag(children[0]) != 'test' or mcdx.tag(children[1]) != 'then':
+            raise ValueError('Invalid conditional')
+        self.lines += ['#if '+self.expr(children[0][0]), taken+' = 1']; emit(children[1]); self.lines += ['#end if']
+        for child in children[2:]:
+            if mcdx.tag(child) not in ('else', 'alsoif', 'elseif'): raise ValueError('Unsupported conditional branch')
+            self.lines += ['#if '+taken+' ≡ 0']
+            if mcdx.tag(child) == 'else': emit(child)
+            else: self.conditional(child, taken, emit)
+            self.lines += ['#end if']
 
     def display(self, node):
         if self.kind(node) == 'string':
@@ -176,9 +188,9 @@ class Translator:
                     self.lines += [self.text(name)]
                     if mcdx.tag(rhs) in ('program', 'if'):
                         done = 'done'+str(len(self.regions))
-                        self.lines += ['#hide', done+' = 0']
+                        self.lines += ['#hide', done+' = 0', done+'set = 0']
                         self.program(rhs, target, done, kind)
-                        self.lines += ['#if '+done+' ≡ 0', target+' = gdMissingBranch', '#end if', '#end hide']
+                        self.lines += ['#if '+done+'set ≡ 0', target+' = gdMissingBranch', '#end if', '#end hide']
                         self.types[name] = kind
                         self.display(node[0])
                     else:
