@@ -25,6 +25,8 @@ Open http://127.0.0.1:8765 and sign in with the contents of `.secrets/access-tok
 
 Compose publishes the application port on host loopback only. The app runs as a non-root user with a read-only root filesystem, temporary scratch storage, dropped capabilities, a memory limit, a health check, and a persistent named volume at `/data`. `docker compose stop` preserves that volume. Do not use `down -v` unless you intend to delete the stored files.
 
+See [AWS/GCP infrastructure and operator runbook](cloud.md) for reviewed-plan examples, usage, backups and rollback. The [distributed architecture](../docs/distributed-architecture.md) states the separate requirements before adding replicas.
+
 ## Cloud VM with HTTPS
 
 Use a Linux VM with Docker Compose, a domain pointing to it, and ports 80/443 available. Run `setup_deploy.py`, then update `.env`:

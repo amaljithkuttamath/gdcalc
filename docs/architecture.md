@@ -2,6 +2,31 @@
 
 This describes the shipped application. The [Prime feature review](mathcad-prime-review.md) describes the larger product target and gaps.
 
+## Repository decision: one monorepo
+
+Keep the calculation engine, SDK, CLI, HTTP server, shared browser interface and portable skill in this repository. Future Windows/Linux desktop applications belong here too. They are delivery surfaces for the same calculation workflow and should evolve through coordinated changes and releases.
+
+Use the existing paths until a concrete build or dependency requirement justifies extraction:
+
+| Component | Location | Dependency boundary |
+| --- | --- | --- |
+| Engine and SDK | `src/mcdxkit/engine.py` and calculation/parser modules | Independent of HTTP, browser, desktop and AI integrations |
+| CLI and batch | `src/mcdxkit/cli.py`, `src/mcdxkit/batch.py` | Call the shared engine; own arguments, scheduling and progress |
+| HTTP adapter | `src/mcdxkit/server.py`, `src/mcdxkit/service.py` | Own sessions, authentication and file access; call the shared engine |
+| Shared UI | `src/mcdxkit/web/` | Use the server API; no duplicated calculation logic |
+| Portable skill | `SKILL.md`, `references/`, `scripts/` | Instruct agents to use the public CLI/SDK |
+| Desktop wrapper (planned) | Future `desktop/` directory | Reuse the shared UI; own window, file dialogs and local backend lifecycle |
+
+The current Python distribution bundles the SDK, CLI, server and web assets. Preserve public imports and CLI compatibility when moving modules. Do not create empty packages or introduce workspace tooling solely to match a proposed folder tree. Optional AI integrations must not become dependencies of ordinary calculation.
+
+### Deliverables and release boundaries
+
+PyPI, container images and future desktop installers are separate artifacts built from a coordinated source revision. Record that revision and the pinned calculator version in release evidence. The current workflows publish PyPI on versioned releases and containers from tested `main` commits; a monorepo decision does not change those triggers.
+
+Desktop installers have not shipped. Their implementation should bundle the backend, shared UI and platform-compatible calculator, without requiring users to install Python or build tools. Validate installed-app startup, offline conversion, paths with spaces/Unicode, owned-process cleanup and preservation of user files during upgrade/uninstall on each supported operating system. Linux container tests do not establish Windows compatibility. Signing and platform release jobs belong in the desktop implementation tickets.
+
+Keep one issue and PR per coherent change, with affected interfaces and tests updated together. Extract a separate repository only when a component has independent maintainers, release needs or external consumers that justify the coordination cost.
+
 ## Conversion path
 
 ```mermaid
@@ -79,3 +104,5 @@ The HTTP layer checks Host/Origin, request tokens and hosted login state. Networ
 `pyproject.toml` defines the Python package and assets. The multi-stage Dockerfile builds the pinned calculator, installs Python dependencies, then runs as UID/GID 10001. `.dockerignore` is an allowlist to prevent private project data entering images.
 
 Actions tests Python versions and package contents before container checks. Only a successful `main` run pushes the exact tested image to GHCR. Pull-request code is tested without registry login or publication. The repository's public source, registry package visibility and a live hosted deployment are separate states.
+
+See [distributed execution boundaries](distributed-architecture.md) for the future API/job/worker/storage contract and its acceptance gates.
