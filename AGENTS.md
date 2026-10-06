@@ -29,9 +29,12 @@ The server prints its URL. Upload/select a private compatible template in the br
 - Unsupported expressions must be explicit failures. Do not silently substitute zero, cached values or another engine's semantics.
 - Distinguish package validation, Calcpad calculation, Prime-native verification and engineering review. `native_execution_verified` stays false unless there is real native execution evidence.
 - Independent component extrema are not concurrent load combinations. Keep governing case/pile provenance visible.
+- Progress indicators belong to the browser/CLI session, never the generated worksheet, calculated report or engineering audit. Only show measured progress (such as finished files); use an indeterminate state when the backend exposes no finer progress. Distinguish processing completion from calculation validity and engineering approval.
 - Do not invent universal input limits or code factors. Record applicable project/code/catalog sources and editions. The proposed [engineering standards register](docs/engineering-standards.md) is not implemented compliance validation.
 
 ## Implementation boundaries
+
+Reuse before rebuilding. Search existing repository code and established open-source implementations before adding an engine, renderer, parser or framework. In the ticket/PR, record what can be reused, its license and offline fit, and the specific gap that warrants new code. Keep adapters small. Template equations remain authoritative: worksheet outputs and future 3D views must use the same calculated result and provenance, not duplicate formulas in the UI. Rendering geometry is not evidence of a physical simulation; deformation requires actual displacement results or a separately validated solver.
 
 MCDXKit uses the `mcdxkit` package and CLI, `MCDXKIT_*` configuration and one shared calculation engine. The 0.3.0 rename intentionally provides no previous-name aliases. Preserve private files and existing installations; migration is explicit. See [release setup](docs/releasing.md).
 
@@ -50,6 +53,7 @@ Work through a GitHub issue and a feature/fix branch. Claim or comment on the is
 ```bash
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
+node --test tests/*.test.cjs
 python -m pip install build
 python -m build
 python scripts/check_package.py

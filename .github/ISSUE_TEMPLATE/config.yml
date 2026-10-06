@@ -1,1 +1,8 @@
 blank_issues_enabled: true
+contact_links:
+  - name: Questions and workflow ideas
+    url: https://github.com/amaljithkuttamath/mcdxkit/discussions
+    about: Discuss usage or an idea before turning it into an implementation ticket.
+  - name: Report a security vulnerability privately
+    url: https://github.com/amaljithkuttamath/mcdxkit/security/advisories/new
+    about: Use a sanitized reproducer; do not post secrets or client engineering files.

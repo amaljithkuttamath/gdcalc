@@ -6,21 +6,28 @@
 <main>
 <section id="login" class="login" hidden><h2>Sign in</h2><p>Selected files will be uploaded to this server.</p><label for="access-token">Access token</label><input id="access-token" type="password" autocomplete="current-password"><button id="sign-in" class="primary-button">Sign in</button></section>
 <fieldset id="workspace" disabled>
+<p id="workflow-position" class="workflow-position">Step 1 of 4</p>
 <nav class="workflow" aria-label="Conversion steps"><button data-step="1" class="active"><span>1</span> Files</button><button data-step="2"><span>2</span> Inputs</button><button data-step="3"><span>3</span> Changes</button><button data-step="4"><span>4</span> Outputs</button></nav>
+<section class="template-panel"><h3>Design template</h3><div class="template-file"><b id="template-name">No template selected</b><small id="template-status"></small></div><div class="actions"><button id="choose-template">Choose template</button><button id="inspect-template">Open template</button></div><input id="template" type="file" accept=".mcdx" hidden></section>
 <p id="notice" class="statusline" role="status" aria-live="polite">Connecting…</p><span id="file-count" hidden></span>
+<section id="operation-progress" class="operation-progress" aria-labelledby="operation-title" hidden>
+<div class="operation-heading"><strong id="operation-title"></strong><span id="operation-count"></span></div>
+<progress id="operation-bar" aria-labelledby="operation-title" aria-describedby="operation-count operation-current"></progress>
+<p id="operation-current" role="status" aria-live="polite" aria-atomic="true"></p>
+</section>
 <section id="step-1" class="step-page">
 <h2>Add your reports</h2>
 <div id="dropzone" class="dropzone"><svg class="upload-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4"/></svg><p>Drop files here</p><div class="actions"><button id="choose-files" class="primary-button">Add files</button><button id="choose-folder">Add folder</button></div><small>GROUP reports (.gp11t, .txt)<br>Or open a Mathcad file (.mcdx) to inspect it.</small><input id="files" type="file" multiple accept=".gp11t,.txt,.mcdx" hidden><input id="folder" type="file" multiple webkitdirectory hidden></div>
 <div id="import-list" class="import-list"></div>
-<section class="template-panel"><h3>Design template</h3><p>The Mathcad file containing your design equations.</p><div class="template-file"><b id="template-name">No template selected</b><small id="template-status"></small></div><div class="actions"><button id="choose-template">Choose template</button><button id="inspect-template">Open</button></div><input id="template" type="file" accept=".mcdx" hidden></section>
+
 <div class="step-footer"><button id="review-next" class="primary-button" disabled>Check inputs</button></div><p id="storage-note" class="small">Files stay on this computer.</p>
 </section>
 <section id="step-2" class="step-page" hidden>
 <h2>Check the inputs</h2><div class="queue-heading"><span>Reports <span id="count">0</span></span><span id="queue-summary"></span></div><div id="queue"></div>
 <details class="settings"><summary>Design settings</summary><label for="basis">Shear and moments</label><select id="basis"><option value="effects">Local pile effects</option><option value="reactions">Local pile-top reactions</option></select><p class="small">Axial loads use local pile-top reactions. All loads come from the last summary. Component peaks may come from different cases or piles.</p><label for="overrides">Template input overrides</label><textarea id="overrides" aria-describedby="override-help override-error" rows="3" placeholder="n_z=11&#10;n_y=1" spellcheck="false"></textarea><p id="override-error" class="error-text" role="alert" hidden></p><p id="override-help" class="small">One VARIABLE=VALUE per line. Existing units are retained.</p><button id="inspect-template-review">Open template</button></details>
-<div class="step-footer"><button data-back="1">Back</button><button id="compare-next" class="primary-button">Review changes</button></div>
+<div class="step-footer"><button data-back="1">Back to files</button><button id="compare-next" class="primary-button">Review changes</button></div>
 </section>
-<section id="step-3" class="step-page" hidden><h2>Review the changes</h2><p class="small">Compare the new inputs with the template before saving.</p><div id="comparisons"></div><div class="step-footer"><button data-back="2">Back</button><button id="convert-all" class="primary-button" disabled>Create outputs</button></div></section>
+<section id="step-3" class="step-page" hidden><h2>Review the changes</h2><p class="small">Compare the new inputs with the template before saving.</p><div id="comparisons"></div><div class="step-footer"><button data-back="2">Back to inputs</button><button id="convert-all" class="primary-button" disabled>Create outputs</button></div></section>
 <section id="step-4" class="step-page" hidden><h2>Your outputs</h2><div id="results"></div><div class="step-footer"><button data-back="1">Add more reports</button><button id="refresh-history">Saved outputs</button></div></section>
 </fieldset><span id="output-dir" hidden></span>
 </main>

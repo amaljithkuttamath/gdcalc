@@ -12,7 +12,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.lock ./
 RUN pip install -r requirements.lock
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md LICENSE THIRD_PARTY.md ./
 COPY src ./src
 RUN pip install --no-deps .
 

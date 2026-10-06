@@ -48,6 +48,7 @@ The [testing contract](docs/testing.md) maps each change type to required positi
 ```bash
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
+node --test tests/*.test.cjs
 python -m pip install build
 python -m build
 python scripts/check_package.py
@@ -68,8 +69,11 @@ The Actions workflow also starts the container, checks health, checks bundled fo
 
 For UI changes, use the real browser flow: upload → inputs → changes → generated outputs, then inspect the original file and fresh calculation view. Check the affected errors, keyboard focus and narrow layout. A rendered screenshot or syntax check alone does not establish a working conversion.
 
+For progress feedback, test pending requests, mixed success/failure, retries and cleanup after errors. Advance counts only on observed completion; do not simulate equation percentages or ETAs. Keep UI progress outside generated `.mcdx`, `.cpd`, result HTML and audit data. Browser orchestration tests use controlled HTTP responses; retain real-engine checks and actual browser verification as separate evidence.
+
 ## Change expectations
 
+- Reuse existing modules and established open-source implementations before rebuilding. Record candidates, licenses, offline requirements and any concrete gap in the issue/PR. New solvers need separate numerical validation; a renderer must consume shared results rather than reproduce template formulas.
 - Keep domain calculations and file semantics outside HTTP/UI glue. Reuse the common engine.
 - Fail visibly on unsupported expressions or incompatible units. Preserve original source and governing-case provenance.
 - Keep old caches distinct from calculated results. Never change native verification flags without actual Prime evidence.
@@ -87,3 +91,5 @@ Every pull request runs checks. Pushes to `main` and manual `main` runs publish 
 When intentionally releasing a new application version, keep `pyproject.toml` and the version in `src/mcdxkit/cli.py` aligned. Check the workflow for the exact commit before claiming the package/image is published. Deployment to a live server is a separate operation; follow [deployment guidance](deploy/README.md).
 
 Versioned Python releases use the separate [PyPI release workflow](docs/releasing.md), which tests the installed wheel before Trusted Publishing. Ordinary main CI artifacts are not a PyPI upload.
+
+See [GitHub workflow](docs/github-workflow.md) for the roadmap, triage and security controls. Contributions are distributed under the repository's [MIT license](LICENSE); dependencies keep their own terms and attribution.

@@ -55,6 +55,8 @@ jobs:
         with:
           node-version: '22'
       - run: node --check src/mcdxkit/web/app.js
+      - name: Browser progress orchestration
+        run: node --test tests/*.test.cjs
       - name: Build and inspect distribution
         run: |
           python -m pip install build twine
