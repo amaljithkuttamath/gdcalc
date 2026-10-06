@@ -44,6 +44,16 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(corrupt.returncode, 1)
             self.assertEqual(data['failed'], 1)
 
+    def test_python_api_resume_with_tuple_cases(self):
+        from gdcalc.batch import convert_batch
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); source = root/'a.txt'; source.write_text(report())
+            ref = root/'reference.mcdx'; template(ref); out = root/'out'
+            first = convert_batch([source], ref, out, cases=(1, 7))
+            self.assertEqual((first['succeeded'], first['failed']), (1, 0))
+            again = convert_batch([source], ref, out, cases=(1, 7), resume=True)
+            self.assertEqual((again['skipped'], again['failed']), (1, 0))
+
     def test_explicit_files_and_output_subtree_exclusion(self):
         from gdcalc.batch import discover
         with tempfile.TemporaryDirectory() as folder:
