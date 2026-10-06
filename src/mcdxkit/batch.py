@@ -234,6 +234,7 @@ def format_check_table(rows):
 def review_counts(rows):
     """Batch-level advisory review tally over the per-report table rows."""
     return {'reports': len(rows),
+            'reports_checked': sum(1 for r in rows if r['review_items'] != ''),
             'reports_with_items': sum(1 for r in rows if r['review_items'] not in ('', 0)),
             'items': sum(r['review_items'] for r in rows if r['review_items'] != ''),
             'reports_with_check_errors': sum(1 for r in rows if r['check_error'] == 'yes')}
@@ -244,6 +245,9 @@ def format_review_summary(counts):
     def reports(count):
         return f'{count} report' + ('' if count == 1 else 's')
     line = f"{reports(counts['reports'])}, {counts['reports_with_items']} with items to review"
+    # A report where no check ran is never counted as having nothing to review.
+    if counts['reports_checked'] < counts['reports']:
+        line += f", {counts['reports'] - counts['reports_checked']} not checked"
     if counts['reports_with_check_errors']:
         line += f", {reports(counts['reports_with_check_errors'])} where some checks could not run"
     return line

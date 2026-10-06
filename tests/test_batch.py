@@ -159,3 +159,13 @@ class BatchReviewCountTests(unittest.TestCase):
                              '1 report, 1 with items to review, 1 report where some checks could not run')
             names, rows = self.rows(summary['checks']['table'])
             self.assertEqual([(r['review_items'], r['check_error']) for r in rows], [('1', 'yes')])
+
+    def test_reports_without_checks_are_not_counted_as_clean(self):
+        from mcdxkit.batch import convert_batch
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            raw = self.copy(root, 'seed505_mislabel_str_as_ser.txt')
+            ref = root/'reference.mcdx'; template(ref)
+            summary = convert_batch([raw], ref, root/'out', overrides=PILES, checks='none')
+            self.assertEqual(summary['review']['reports_checked'], 0)
+            self.assertEqual(summary['review']['summary'], '1 report, 0 with items to review, 1 not checked')
