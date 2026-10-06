@@ -2,7 +2,9 @@
 import io
 import sys
 import tempfile
+import time
 import unittest
+from unittest import mock
 import zipfile
 from pathlib import Path
 from lxml import etree as E
@@ -121,6 +123,21 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(ValueError):group_report.parse(report().replace('AXIAL,KIP','AXIAL,KN'))
         with self.assertRaises(ValueError):group_report.parse(report().replace('LOAD CASE : 7\n*','LOAD CASE : 1\n*'))
 
+    def test_every_local_reaction_column_unit_is_checked(self):
+        spaced=report().replace('AXIAL,KIP LAT. y,KIP','axial , kip   LAT. y\t, KIP')
+        self.assertEqual(group_report.envelope(group_report.select(group_report.parse(spaced,load_source='reactions')))['Vy'],25)
+        for old,new in [('LAT. y,KIP','LAT. y,KN'),('MOM y,KIP-IN','MOM y,KIP-FT')]:
+            for source in ['effects','reactions']:
+                with self.subTest(new=new,source=source),self.assertRaisesRegex(ValueError,'local reaction units'):
+                    group_report.parse(report().replace(old,new),load_source=source)
+
+    def test_long_blank_runs_parse_in_linear_time(self):
+        # Line regexes once let \s span newlines: 100 KB of blank lines took ~28 s.
+        bad='SUMMARY FOR LOAD CASES AND COMBINATIONS\nLOAD CASE: 1\n* PILE TOP REACTIONS, LOCAL *\n'+'\n'*200000+'x'
+        start=time.perf_counter()
+        with self.assertRaisesRegex(ValueError,'MINIMUM'):group_report.parse(bad)
+        self.assertLess(time.perf_counter()-start,2)
+
     def test_unknown_selection_and_nonfinite_numbers_are_rejected(self):
         with self.assertRaises(ValueError):group_report.select(group_report.parse(report()),[99])
         with self.assertRaises(ValueError):group_report.parse(report().replace('MAXIMUM 140','MAXIMUM 1e999'))
@@ -182,6 +199,22 @@ class PackageTests(unittest.TestCase):
             cases=group_report.select(group_report.parse(report()))
             with self.assertRaises(ValueError):mcdx.generate(src,out,cases,source_name='x',overrides={'n_z':5})
             with self.assertRaises(ValueError):mcdx.generate(src,out,cases,source_name='x')
+
+    def test_nested_packages_share_one_decompression_budget(self):
+        inner=io.BytesIO()
+        with zipfile.ZipFile(inner,'w',zipfile.ZIP_DEFLATED) as z:
+            z.writestr('Xaml/Document.xaml',b'<r/>');z.writestr('zeros.bin',bytes(1024*1024))
+        with tempfile.TemporaryDirectory() as folder:
+            src=Path(folder)/'t.mcdx';template(src)
+            with zipfile.ZipFile(src,'a',zipfile.ZIP_STORED) as z:
+                for i in range(100):z.writestr('mathcad/xaml/p%d.XamlPackage'%i,inner.getvalue())
+            self.assertLess(src.stat().st_size,1024*1024)
+            with mock.patch.object(mcdx,'read_package',wraps=mcdx.read_package) as reads:
+                with self.assertRaisesRegex(ValueError,'size limits'):mcdx.validate(src)
+            self.assertLessEqual(reads.call_count,65)
+            with mock.patch.object(mcdx,'MAX_NESTED',3):
+                with self.assertRaisesRegex(ValueError,'too many nested'):mcdx.validate(src)
+            with self.assertRaisesRegex(ValueError,'too deep'):mcdx.read_package(io.BytesIO(inner.getvalue()),depth=2)
 
 
 if __name__=='__main__':unittest.main()
