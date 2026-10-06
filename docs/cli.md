@@ -7,7 +7,7 @@ All commands use the same conversion engine. No Codex or Mathcad installation is
 For command-line use:
 
 ```bash
-uv tool install git+https://github.com/amaljithkuttamath/gdcalc.git
+uv tool install gdcalc==0.2.1
 gdcalc --version
 gdcalc setup-engine
 ```

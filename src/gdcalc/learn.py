@@ -107,7 +107,7 @@ class CaseClassifier:
             text = t.removeprefix('w:').strip()
             if lift(t) <= 0 or len(evidence) == 3:
                 break
-            if len(text) > 2 and not any(text in e or e in text for e in evidence):
+            if len(text) > 1 and not any(text in e or e in text for e in evidence):
                 evidence.append(text)
         return (best if probability >= CONFIDENCE else None), probability, evidence
 

@@ -37,6 +37,8 @@ Use `engine.py` for conversion logic shared by CLI and server. Keep HTTP/session
 
 CalcpadCE itself has more capabilities than the current translator. Broader input execution changes the trust boundary: preserve timeouts, file-access controls and HTML isolation. Keep network authentication, Host/Origin checks, CSRF protections and upload/package limits intact. Current hosting is a shared trusted workspace, not tenant-isolated storage.
 
+The root README is also the PyPI package description. Use absolute GitHub URLs for repository-file links in README.md; relative links break on PyPI and fail `scripts/check_package.py`. Relative links remain appropriate inside the repository docs.
+
 If adding browser assets, update both `pyproject.toml` package data and `.dockerignore`; add required distribution assets to `scripts/check_package.py` when appropriate. If adding CLI flags, update `--help`, docs and applicable tests. Keep the CLI version and project version consistent when changing a release version.
 
 ## Verification and publishing

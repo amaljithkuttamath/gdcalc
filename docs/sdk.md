@@ -2,13 +2,13 @@
 
 The `gdcalc` Python distribution contains the SDK, `gdcalc` command and browser server. The supported import surface is `gdcalc.engine`. The CLI and server call this same engine; no agent host is required.
 
-Until the first PyPI release is verified, install from GitHub:
+Install the published SDK from PyPI in an isolated Python environment:
 
 ```bash
-python -m pip install git+https://github.com/amaljithkuttamath/gdcalc.git
+python -m pip install gdcalc==0.2.1
 ```
 
-After publication, the equivalent versioned installation is `python -m pip install gdcalc==0.2.0`. Installation includes web assets and calculator bridge source, but not a compiled Calcpad runtime, Mathcad, engineering standards or a private template. Run `gdcalc setup-engine` once with Git and .NET 10 SDK available, or point `GDCALC_CALCPAD` at a compatible existing calculator. Conversion requires the [supported template](../references/template-contract.md).
+For source development, install a clone with `python -m pip install -e .`. Installation includes web assets and calculator bridge source, but not a compiled Calcpad runtime, Mathcad, engineering standards or a private template. Run `gdcalc setup-engine` once with Git and .NET 10 SDK available, or point `GDCALC_CALCPAD` at a compatible existing calculator. Conversion requires the [supported template](../references/template-contract.md).
 
 ## Inspect, convert and validate
 
