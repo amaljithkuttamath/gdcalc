@@ -1,4 +1,4 @@
 # Use with compose.yaml and --no-build to run the image published by Actions.
 services:
-  gdcalc:
-    image: ${GDCALC_IMAGE:-ghcr.io/amaljithkuttamath/gdcalc:latest}
+  mcdxkit:
+    image: ${MCDXKIT_IMAGE:-ghcr.io/amaljithkuttamath/mcdxkit:latest}

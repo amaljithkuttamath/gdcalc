@@ -1,4 +1,4 @@
 interface:
-  display_name: "gdcalc"
+  display_name: "MCDXKit"
   short_description: "Calculate open and Mathcad worksheets from GROUP reports"
-  default_prompt: "Use $gdcalc to generate and calculate executable worksheets from my raw GROUP report, using final local loads, CalcpadCE and native Mathcad export."
+  default_prompt: "Use $mcdxkit to generate and calculate executable worksheets from my raw GROUP report, using final local loads, CalcpadCE and native Mathcad export."
