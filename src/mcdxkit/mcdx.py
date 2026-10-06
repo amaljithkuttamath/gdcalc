@@ -39,29 +39,48 @@ def name(e):
     return (e.text or '')+''.join(name(c)+(c.tail or '') for c in e)
 
 
-def read_package(path):
+MAX_PARTS=3000
+MAX_BYTES=64*1024*1024
+MAX_NESTED=1000
+MAX_DEPTH=1
+REQUIRED=['mathcad/worksheet.xml','mathcad/result.xml','[Content_Types].xml',
+          'mathcad/_rels/worksheet.xml.rels','mathcad/settings/calculation.xml']
+
+
+class Budget:
+    """Uncompressed bytes and nested packages shared by one package and everything nested in it."""
+    def __init__(self):self.bytes=MAX_BYTES;self.nested=MAX_NESTED
+
+
+def read_package(path,budget=None,depth=0):
+    if budget is None:budget=Budget()
+    if depth:
+        if depth>MAX_DEPTH:raise ValueError('Nested packages are too deep')
+        budget.nested-=1
+        if budget.nested<0:raise ValueError('Template has too many nested packages')
     with zipfile.ZipFile(path) as z:
         info=z.infolist()
-        if len(info)>3000 or sum(i.file_size for i in info)>64*1024*1024:
-            raise ValueError('Template exceeds package size limits')
+        budget.bytes-=sum(i.file_size for i in info)
+        if len(info)>MAX_PARTS or budget.bytes<0:raise ValueError('Template exceeds package size limits')
         if len({i.filename for i in info})!=len(info):raise ValueError('Duplicate package parts')
         if any(i.flag_bits & 1 for i in info):raise ValueError('Encrypted packages are not supported')
-        if z.testzip() is not None:raise ValueError('Corrupt ZIP package')
-        return {i.filename:z.read(i) for i in info}
+        # Reads stop at the declared size and verify each CRC.
+        try:return {i.filename:z.read(i) for i in info}
+        except zipfile.BadZipFile as error:raise ValueError('Corrupt ZIP package') from error
 
 
 def validate(path):
-    data=read_package(path)
-    required=['mathcad/worksheet.xml','mathcad/result.xml','[Content_Types].xml',
-              'mathcad/_rels/worksheet.xml.rels','mathcad/settings/calculation.xml']
-    if any(p not in data for p in required):raise ValueError('Missing required MCDX package part')
+    budget=Budget();data=read_package(path,budget)
+    if any(p not in data for p in REQUIRED):raise ValueError('Missing required MCDX package part')
+    types=read_xml(data['[Content_Types].xml'])
+    defaults={e.get('Extension') for e in types if tag(e)=='Default'}
+    overrides={e.get('PartName','').lstrip('/') for e in types if tag(e)=='Override'}
+    if any(n!='[Content_Types].xml' and n not in overrides and n.rsplit('.',1)[-1] not in defaults for n in data):
+        raise ValueError('Package part has no declared content type')
+    nested=[n for n in data if n.endswith('.XamlPackage')]
+    if len(nested)>MAX_NESTED:raise ValueError('Template has too many nested packages')
     for n,b in data.items():
         if n.endswith(('.xml','.rels')):read_xml(b)
-        if n.endswith('.XamlPackage'):
-            nested=read_package(io.BytesIO(b))
-            if 'Xaml/Document.xaml' not in nested:raise ValueError('Missing XAML document')
-            for key,value in nested.items():
-                if key.endswith(('.xml','.rels','.xaml')):read_xml(value)
         if n.endswith('.rels'):
             folder=posixpath.dirname(posixpath.dirname(n))
             for rel in read_xml(b):
@@ -69,11 +88,11 @@ def validate(path):
                 dest=rel.get('Target','')
                 dest=dest.lstrip('/') if dest.startswith('/') else posixpath.normpath(posixpath.join(folder,dest))
                 if dest not in data:raise ValueError('Missing relationship target: '+dest)
-    types=read_xml(data['[Content_Types].xml'])
-    defaults={e.get('Extension') for e in types if tag(e)=='Default'}
-    overrides={e.get('PartName','').lstrip('/') for e in types if tag(e)=='Override'}
-    if any(n!='[Content_Types].xml' and n not in overrides and n.rsplit('.',1)[-1] not in defaults for n in data):
-        raise ValueError('Package part has no declared content type')
+    for n in nested:
+        parts=read_package(io.BytesIO(data[n]),budget,1)
+        if 'Xaml/Document.xaml' not in parts:raise ValueError('Missing XAML document')
+        for key,value in parts.items():
+            if key.endswith(('.xml','.rels','.xaml')):read_xml(value)
     root=read_xml(data['mathcad/worksheet.xml']);regions=root.findall('.//w:region',NS)
     if len({r.get('region-id') for r in regions})!=len(regions):raise ValueError('Duplicate region IDs')
     references=[m.get('resultRef') for m in root.findall('.//w:math',NS) if m.get('resultRef')]
