@@ -97,7 +97,8 @@ def _convert_job(job):
                 if not artifact.is_file() or digest(artifact) != calculation.get(key):
                     raise ValueError('Calculated worksheet failed artifact hash checks')
             row.update(status='skipped', sha256=evidence['sha256'], audit=str(audit),
-                       open_checks=review_runner.open_flags(evidence.get('review_checks')))
+                       open_checks=review_runner.open_flags(evidence.get('review_checks')),
+                       check_errors=review_runner.check_errors(evidence.get('review_checks')))
         else:
             if Path(job['source']).stat().st_size > 16 * 1024 * 1024:
                 raise ValueError('Raw report exceeds 16 MiB')
@@ -121,7 +122,8 @@ def _convert_job(job):
             result = engine.convert(snapshots[0][1], snapshots[1][1], output, **job['settings'])
             row.update(status='succeeded', sha256=result['sha256'], audit=str(audit),
                        cases=result['cases'], envelope=result['envelope'],
-                       open_checks=review_runner.open_flags(result['review_checks']))
+                       open_checks=review_runner.open_flags(result['review_checks']),
+                       check_errors=review_runner.check_errors(result['review_checks']))
     except Exception as exc:
         row.update(status='failed', error=f'{type(exc).__name__}: {exc}')
     if row.get('status') in ('succeeded', 'skipped'):

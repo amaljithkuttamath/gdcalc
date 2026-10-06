@@ -50,9 +50,10 @@ def check_configuration(host, public_url, access_token):
             raise ValueError('Remote deployments require an HTTPS public URL and a TLS reverse proxy.')
 
 
-def create_app(*, origin, template=None, output_dir='mcdxkit-output', access_token=None, network=False, checks='default'):
+def create_app(*, origin, template=None, output_dir='mcdxkit-output', access_token=None, network=False, checks='default',
+               plan=None):
     """Create one workspace. Deploy one process/replica per trusted user or team."""
-    state = Session(template, output_dir, checks)
+    state = Session(template, output_dir, checks, plan)
     cookie_key = secrets.token_bytes(32)
     failed_logins = []
     secure = origin.startswith('https:')
@@ -224,7 +225,7 @@ class WebServer:
         check_configuration(host, public_url, access_token)
         # Built-in review checks only, unless MCDXKIT_CHECKS names installed plug-ins.
         checks = checks or os.environ.get('MCDXKIT_CHECKS') or 'default'
-        review_runner.prepare(checks)
+        plan = review_runner.prepare(checks)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -236,7 +237,7 @@ class WebServer:
         self.server_port = self.socket.getsockname()[1]
         self.origin = public_url.rstrip('/') if public_url else f'http://127.0.0.1:{self.server_port}'
         app = create_app(origin=self.origin, template=template, output_dir=output_dir, access_token=access_token,
-                         network=host != '127.0.0.1', checks=checks)
+                         network=host != '127.0.0.1', checks=checks, plan=plan)
         self.state = app.state.workspace
         self.stopped = threading.Event()
         self.stopped.set()

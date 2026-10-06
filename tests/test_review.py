@@ -369,6 +369,48 @@ class OutputTests(unittest.TestCase):
         self.assertEqual(engine.review_note(result['review_checks']).splitlines()[0],
                          'Automated input checks: 5 run, 1 item raised, reviewed by the engineer')
 
+    def test_decision_for_a_rule_that_did_not_run_is_kept_unverified(self):
+        decision = {'rule': 'service_axial_above_strength', 'case': 2, 'component': 'P', 'decision': 'kept_service',
+                    'note': None, 'decided_at': '2026-10-06T09:30:00Z'}
+        with mock.patch.object(ServiceAxialAboveStrength, 'run', side_effect=RuntimeError('crash')):
+            result = self.convert(report(), 'crashed', review_decisions=[decision])
+        block = result['review_checks']
+        self.assertEqual(block['decisions'], [dict(decision, unverified=True)])
+        self.assertIn('service_axial_above_strength', {e['id'] for e in block['errors']})
+        # Rules that ran successfully still reject decisions that match none of their flags.
+        with self.assertRaisesRegex(ValueError, 'does not match a raised flag'):
+            self.convert(report(), 'stale', review_decisions=[dict(decision, rule='ratio_outlier')])
+
+    def test_malformed_decision_values_raise_value_error(self):
+        decision = {'rule': 'service_axial_above_strength', 'case': 2, 'component': 'P', 'decision': 'kept_service',
+                    'note': None, 'decided_at': '2026-10-06T09:30:00'}
+        flagged = {'flags': [{'rule': decision['rule'], 'case': 2, 'component': 'P'}],
+                   'checks_run': [{'id': decision['rule'], 'kind': 'check', 'status': 'ok'}]}
+        for bad in (dict(decision, case=[1]), dict(decision, rule={}), dict(decision, case=True),
+                    dict(decision, component=['P']), dict(decision, decision=['kept_service']),
+                    dict(decision, decided_at=20261006), dict(decision, decided_at='2026-10-06'),
+                    dict(decision, decided_at='2026-10-06T09'), dict(decision, decided_at='2026-13-06T09:30:00'),
+                    dict(decision, decided_at='20261006T093000')):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                engine._decisions(flagged, [bad])
+        for good in ('2026-10-06T09:30', '2026-10-06T09:30:00Z', '2026-10-06T09:30:00.123Z',
+                     '2026-10-06T09:30:00.123456+02:00'):
+            with self.subTest(good=good):
+                self.assertEqual(engine._decisions(flagged, [dict(decision, decided_at=good)])[0]['decided_at'], good)
+
+    def test_open_checks_is_null_when_no_check_ran(self):
+        path = self.root / 'r.txt'
+        path.write_text(report())
+        with mock.patch.object(runner.views, 'build', side_effect=RuntimeError('boom')):
+            failed = engine.inspect_report(path)['review_checks']
+        self.assertIsNone(runner.open_flags(failed))
+        self.assertEqual(runner.check_errors(failed), 1)
+        self.assertIsNone(runner.open_flags(engine.inspect_report(path, checks='none')['review_checks']))
+        clean = self.root / 'clean.txt'
+        clean.write_text(clean_report())
+        block = engine.inspect_report(clean)['review_checks']
+        self.assertEqual((runner.open_flags(block), runner.check_errors(block)), (0, 0))
+
     def test_review_failure_never_fails_inspect_or_convert(self):
         path = self.root / 'r.txt'
         path.write_text(report())

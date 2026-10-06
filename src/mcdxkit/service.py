@@ -8,7 +8,8 @@ import threading
 import shutil
 from pathlib import Path
 from . import engine, inspection
-from .review.history import AuditHistory
+from .review import runner as review_runner
+from .review.history import AuditHistory, newest
 
 MIB = 1024 * 1024
 
@@ -19,9 +20,11 @@ class RequestError(Exception):
 
 
 class Session:
-    def __init__(self, template, output_dir, checks='default'):
+    def __init__(self, template, output_dir, checks='default', plan=None):
         self.template = Path(template).resolve() if template else None
         self.checks = checks
+        # Resolved once: installed plug-ins are imported here, not on every request.
+        self.plan = plan if plan is not None else review_runner.prepare(checks)
         self._history = None
         self.output_dir = Path(output_dir).resolve()
         self.temp = tempfile.TemporaryDirectory(prefix='mcdxkit-browser-')
@@ -52,8 +55,7 @@ class Session:
     def history(self):
         """Recover complete generated pairs after a restart, without trusting saved paths."""
         rows = []
-        candidates = sorted(self.output_dir.glob('*/*.audit.json'), key=lambda p: p.stat().st_mtime, reverse=True)
-        for audit in candidates[:100]:
+        for audit in newest(self.output_dir.glob('*/*.audit.json'), 100)[0]:
             output = audit.with_name(audit.name.removesuffix('.audit.json') + '.mcdx')
             if (not re.fullmatch('[0-9a-f]{16}', audit.parent.name) or audit.parent.is_symlink()
                     or audit.is_symlink() or output.is_symlink() or not output.is_file() or audit.stat().st_size > 2 * MIB):
@@ -110,7 +112,7 @@ class Session:
         # read once per completed conversion rather than on every inspection.
         if self._history is None or self._history[0] != self.conversions:
             self._history = (self.conversions, AuditHistory(self.output_dir))
-        return engine.inspect_report(path, cases=cases, load_source=load_source, checks=self.checks,
+        return engine.inspect_report(path, cases=cases, load_source=load_source, checks=self.plan,
                                      history=self._history[1])
 
     def operation(self, route, data):
@@ -176,7 +178,7 @@ class Session:
             shutil.copyfile(entry['path'], snapshot_report)
             shutil.copyfile(template, snapshot_template)
             result = engine.convert(snapshot_report, snapshot_template, output, cases=cases,
-                                    load_source=basis, title=title, overrides=overrides, checks=self.checks)
+                                    load_source=basis, title=title, overrides=overrides, checks=self.plan)
             changes = inspection.diff(snapshot_template, output)
         except Exception:
             shutil.rmtree(folder)

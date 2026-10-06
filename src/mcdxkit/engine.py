@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -17,13 +18,6 @@ def _read_report(path, load_source):
     try:text=raw.decode('utf-8-sig')
     except UnicodeDecodeError:text=raw.decode('cp1252')
     return raw,group_report.parse(text,load_source)
-
-
-def review_checks(parsed, selected=None, *, checks='default', history=None, plan=None):
-    """Advisory review-checks/1 block. Never fails the caller; an invalid ``checks`` value raises
-    ValueError before any work when ``plan`` is not supplied."""
-    plan=plan if plan is not None else review_runner.prepare(checks)
-    return review_runner.review(parsed,selected,plan=plan,history=history)
 
 
 def _governing(block):
@@ -42,7 +36,8 @@ def _case_suggestions(parsed, block):
     try:group_report.select(parsed,recommended)
     except ValueError as exc:issue=str(exc)
     basis=rows[0]['basis']
-    return {'classifier':rows[0]['classifier'],'trained_on':{'seed':basis.get('seed'),'history':basis.get('history')},
+    return {'classifier':rows[0]['classifier'],'trained_on':{'seed':basis.get('seed'),'history':basis.get('history'),
+                                                     'history_skipped':basis.get('history_skipped')},
             'cases':[{'id':s['case'],'name':names.get(s['case']),'category':s['value'] or 'unknown',
                       'confidence':s['confidence'],'evidence':s['evidence'],'stage':s['basis'].get('stage')} for s in rows],
             'recommended_cases':recommended,'selection_issue':issue,
@@ -51,22 +46,39 @@ def _case_suggestions(parsed, block):
 
 DECISIONS=('included_case','kept_service','will_fix_in_group')
 DECISION_FIELDS={'rule','case','component','decision','note','decided_at'}
+# ISO 8601 date and time (minutes required; seconds, milliseconds or microseconds optional),
+# with an optional Z or +hh:mm offset. Explicit so Python 3.10 and 3.12 accept the same values.
+DECIDED_AT=re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{3}(?:\d{3})?)?)?(?:Z|[+-]\d{2}:\d{2})?')
+
+
+def _decided_at(value):
+    if not isinstance(value,str) or not DECIDED_AT.fullmatch(value):return False
+    try:datetime.fromisoformat(value[:-1]+'+00:00' if value.endswith('Z') else value)
+    except ValueError:return False
+    return True
 
 
 def _decisions(block, decisions):
     """Validate engineer decisions on raised flags. Each names a flag (rule, case, component),
-    one of DECISIONS, an optional note and an ISO 8601 decided_at time."""
+    one of DECISIONS, an optional note and an ISO 8601 decided_at date and time.
+
+    A decision whose rule ran successfully must match a flag it raised. When the rule did not
+    run successfully (error, timeout, skipped or not enabled) the decision cannot be checked;
+    it is kept in the audit with ``unverified: true`` instead of failing the conversion."""
     if decisions is None:return None
     if not isinstance(decisions,(list,tuple)) or len(decisions)>500:
         raise ValueError('review_decisions must be a list of at most 500 decisions')
     flags={(f['rule'],f['case'],f['component']) for f in block['flags']}
+    ran={c['id'] for c in block['checks_run'] if c['kind']=='check' and c['status']=='ok'}
     result=[];seen=set()
     for item in decisions:
         if not isinstance(item,dict) or set(item)-DECISION_FIELDS or not {'rule','case','component','decision','decided_at'}<=set(item):
             raise ValueError('Each review decision is {rule, case, component, decision, note, decided_at}')
+        if (not isinstance(item['rule'],str) or not isinstance(item['decision'],str)
+                or not (item['case'] is None or (isinstance(item['case'],int) and not isinstance(item['case'],bool)))
+                or not (item['component'] is None or isinstance(item['component'],str))):
+            raise ValueError('Review decision rule and decision are text, case is an integer or null, component is text or null')
         key=(item['rule'],item['case'],item['component'])
-        if key not in flags:
-            raise ValueError(f'Review decision does not match a raised flag: {key}')
         if key in seen:raise ValueError(f'More than one review decision for flag {key}')
         seen.add(key)
         if item['decision'] not in DECISIONS:
@@ -74,10 +86,15 @@ def _decisions(block, decisions):
         note=item.get('note')
         if note is not None and (not isinstance(note,str) or len(note)>500):
             raise ValueError('Review decision note must be text of at most 500 characters')
-        try:datetime.fromisoformat(item['decided_at'])
-        except (TypeError,ValueError):raise ValueError('Review decision decided_at must be an ISO 8601 date-time')
-        result.append({'rule':key[0],'case':key[1],'component':key[2],'decision':item['decision'],
-                       'note':note,'decided_at':item['decided_at']})
+        if not _decided_at(item['decided_at']):
+            raise ValueError('Review decision decided_at must be an ISO 8601 date and time such as 2026-10-06T09:30:00Z')
+        unverified=key not in flags
+        if unverified and key[0] in ran:
+            raise ValueError(f'Review decision does not match a raised flag: {key}')
+        row={'rule':key[0],'case':key[1],'component':key[2],'decision':item['decision'],
+             'note':note,'decided_at':item['decided_at']}
+        if unverified:row['unverified']=True
+        result.append(row)
     return result
 
 
@@ -88,7 +105,8 @@ def review_note(block):
     run=sum(c['kind']=='check' and c['status']=='ok' for c in block['checks_run'])
     raised=len(block['flags'])
     items=f'{raised} item{"" if raised==1 else "s"} raised'
-    reviewed='reviewed by the engineer' if len(decisions)>=raised else f'{len(decisions)} reviewed by the engineer'
+    verified=sum(not d.get('unverified') for d in decisions)
+    reviewed='reviewed by the engineer' if verified>=raised else f'{verified} reviewed by the engineer'
     return (f'Automated input checks: {run} run, {items}, {reviewed}\n'
             'Checks review the GROUP summary for consistency. They do not verify the design.')
 
@@ -96,7 +114,8 @@ def review_note(block):
 def inspect_report(report, *, cases=None, load_source='effects', checks='default', history=None):
     """Inspect available cases; selection_required explains unresolved classification.
 
-    ``checks`` selects review plug-ins ('default', 'none' or a comma list of ids); ``history``
+    ``checks`` selects review plug-ins ('default', 'none', a comma list of ids, or a plan from
+    review.runner.prepare() resolved once by a long-running caller); ``history``
     is an optional review.api.HistoryStore the case-name classifier learns from."""
     plan=review_runner.prepare(checks)
     _,parsed=_read_report(report,load_source)
@@ -105,7 +124,7 @@ def inspect_report(report, *, cases=None, load_source='effects', checks='default
     except ValueError as exc:
         if cases is not None:raise
         selected=[];issue=str(exc)
-    block=review_checks(parsed,[c['id'] for c in selected],plan=plan,history=history)
+    block=review_runner.review(parsed,[c['id'] for c in selected],plan=plan,history=history)
     return {'source':Path(report).name,'cases':[{'id':c['id'],'name':c['name']} for c in parsed['cases']],
             'selected_cases':[c['id'] for c in selected],'selection_required':issue,
             'load_source':load_source,'envelope':group_report.envelope(selected) if selected else None,
@@ -132,7 +151,7 @@ def convert(report, template, output, *, cases=None, load_source='effects', titl
     if not template.is_file():raise ValueError('Template not found. Provide --template /path/to/reference.mcdx')
     raw,parsed=_read_report(report,load_source)
     selected=group_report.select(parsed,cases)
-    block=review_checks(parsed,[c['id'] for c in selected],plan=plan)
+    block=review_runner.review(parsed,[c['id'] for c in selected],plan=plan)
     decisions=_decisions(block,review_decisions)
     if decisions is not None:block['decisions']=decisions
     output.parent.mkdir(parents=True,exist_ok=True)

@@ -44,7 +44,7 @@ class CliTests(unittest.TestCase):
             a=command('inspect',src);self.assertEqual(a.returncode,0,a.stderr)
             self.assertEqual(json.loads(a.stdout)['selected_cases'],[1,7])
             b=command('convert',src,'--template',t,'--output',out);self.assertEqual(b.returncode,0,b.stderr)
-            self.assertGreater(json.loads(b.stdout)['open_checks'],0)
+            self.assertGreater(json.loads(b.stdout)['open_checks'],0);self.assertEqual(json.loads(b.stdout)['check_errors'],0)
             c=command('validate',out);self.assertEqual(c.returncode,0,c.stderr)
             self.assertEqual(json.loads(c.stdout)['cached_results'],0)
 
@@ -60,7 +60,9 @@ class CliTests(unittest.TestCase):
             bad=command('inspect',src,'--checks','default,no_such_check')
             self.assertEqual(bad.returncode,2);self.assertIn('Unknown review check',bad.stderr)
             out=d/'none.mcdx';r=command('convert',src,'--template',t,'--output',out,'--checks','none')
-            self.assertEqual(r.returncode,0,r.stderr);self.assertEqual(json.loads(r.stdout)['open_checks'],0)
+            self.assertEqual(r.returncode,0,r.stderr)
+            # No check ran: open_checks is null, not zero.
+            self.assertEqual({k:json.loads(r.stdout)[k] for k in ('open_checks','check_errors')},{'open_checks':None,'check_errors':0})
             history=command('inspect',src,'--history',d);self.assertEqual(history.returncode,0,history.stderr)
             self.assertEqual(json.loads(history.stdout)['case_suggestions']['trained_on']['history'],3)
             misuse=command('convert',src,'--template',t,'--output',d/'x.mcdx','--history',d)

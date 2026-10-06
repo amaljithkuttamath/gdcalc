@@ -89,6 +89,51 @@ class DuplicateId(PileCount):
     id = 'duplicate_case'
 
 
+class BadParams(PileCount):
+    id = 'bad_params'
+    params = 5
+
+
+class RaisingKind(PileCount):
+    id = 'raising_kind'
+
+    @property
+    def kind(self):
+        raise RuntimeError('metadata bug')
+
+
+class Exits(PileCount):
+    id = 'exits'
+
+    def run(self, report_view, ctx):
+        raise SystemExit(3)
+
+
+class Interrupts(PileCount):
+    id = 'interrupts'
+
+    def run(self, report_view, ctx):
+        raise KeyboardInterrupt
+
+
+class ClosesGenerator(PileCount):
+    id = 'closes_generator'
+
+    def run(self, report_view, ctx):
+        raise GeneratorExit
+
+
+LOADED = []
+
+
+class Counted(PileCount):
+    """Records each instantiation, to show that unnamed plug-ins are never imported."""
+    id = 'counted'
+
+    def __init__(self):
+        LOADED.append(self.id)
+
+
 def point(name, target):
     return importlib.metadata.EntryPoint(name=name, value='test_review_plugins:' + target, group=registry.GROUP)
 
@@ -196,6 +241,12 @@ class ContractTests(unittest.TestCase):
 
 
 class IsolationTests(unittest.TestCase):
+    def setUp(self):
+        # Plug-ins that time out are disabled for the process; start each test with none.
+        patcher = mock.patch.object(runner, 'TIMED_OUT', set())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_failing_slow_and_malformed_plugins_become_check_errors(self):
         points = [point('raises', 'Raises'), point('sleeps', 'Sleeps'), point('wrong_type', 'WrongType')]
         with installed(*points):
@@ -280,6 +331,80 @@ class RegistryTests(unittest.TestCase):
                                   '--checks', 'none'], capture_output=True, text=True)
         self.assertEqual(process.returncode, 0, process.stderr)
         self.assertFalse(any(row['enabled'] for row in json.loads(process.stdout)))
+
+
+class RobustnessTests(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.object(runner, 'TIMED_OUT', set())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_plugin_metadata_errors_are_load_errors(self):
+        points = [point('bad_params', 'BadParams'), point('raising_kind', 'RaisingKind')]
+        with installed(*points):
+            errors = dict(registry.discover().errors)
+            self.assertIn('TypeError', errors['bad_params'])
+            self.assertIn('metadata bug', errors['raising_kind'])
+            plan = runner.prepare('default,bad_params,raising_kind')
+            self.assertEqual({name for name, _ in plan.load_errors}, {'bad_params', 'raising_kind'})
+            with tempfile.TemporaryDirectory() as folder:
+                source = Path(folder) / 'r.txt'
+                source.write_text(report())
+                self.assertEqual(engine.inspect_report(source)['review_checks']['errors'], [])
+        # checks=none never looks at installed plug-ins at all.
+        with mock.patch.object(registry, 'discover', side_effect=AssertionError('discovered')):
+            self.assertEqual(runner.prepare('none').entries, ())
+
+    def test_base_exceptions_from_plugins_become_check_errors(self):
+        points = [point('exits', 'Exits'), point('interrupts', 'Interrupts'),
+                  point('closes_generator', 'ClosesGenerator')]
+        with installed(*points):
+            plan = runner.prepare('default,exits,interrupts,closes_generator')
+        result = runner.review(group_report.parse(report()), [1, 7], plan=plan)
+        errors = {e['id']: e['message'] for e in result['errors']}
+        self.assertEqual(set(errors), {'exits', 'interrupts', 'closes_generator'})
+        self.assertIn('SystemExit', errors['exits'])
+        self.assertIn('KeyboardInterrupt', errors['interrupts'])
+        self.assertIn('GeneratorExit', errors['closes_generator'])
+
+    def test_only_named_entry_points_are_imported(self):
+        LOADED.clear()
+        points = [point('counted', 'Counted'), point('broken', 'NoSuchClass')]
+        with installed(*points):
+            plan = runner.prepare('default')
+            self.assertEqual((LOADED, plan.load_errors), ([], ()))
+            self.assertEqual(runner.prepare('default,counted').entries[-1].id, 'counted')
+            self.assertEqual(LOADED, ['counted'])
+            registry.listing()
+            self.assertEqual(LOADED, ['counted', 'counted'])
+
+    def test_server_session_resolves_checks_once(self):
+        from mcdxkit.service import Session
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / 'r.txt'
+            source.write_text(report())
+            with mock.patch.object(registry, 'discover', wraps=registry.discover) as discover:
+                session = Session(None, root / 'out')
+                try:
+                    session.inspect(source)
+                    session.inspect(source)
+                finally:
+                    session.temp.cleanup()
+            self.assertEqual(discover.call_count, 1)
+
+    def test_timed_out_plugin_is_disabled_for_the_process(self):
+        with installed(point('sleeps', 'Sleeps')):
+            plan = runner.prepare('sleeps')
+        parsed = group_report.parse(report())
+        first = runner.review(parsed, [1, 7], plan=plan, budget=0.2)
+        self.assertIn('time budget', first['errors'][0]['message'])
+        started = time.monotonic()
+        second = runner.review(parsed, [1, 7], plan=plan, budget=0.2)
+        self.assertLess(time.monotonic() - started, 0.15)
+        self.assertEqual([(e['type'], e['id']) for e in second['errors']], [('check_error', 'sleeps')])
+        self.assertIn('disabled after timeout', second['errors'][0]['message'])
+        self.assertEqual(second['checks_run'][0]['status'], 'error')
 
 
 class ServerConfigurationTests(unittest.TestCase):

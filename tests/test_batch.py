@@ -34,7 +34,8 @@ class BatchTests(unittest.TestCase):
             manifest = [json.loads(line) for line in Path(data['manifest']).read_text().splitlines()]
             self.assertTrue(all('source_sha256' in row for row in manifest))
             # report() raises review items; every converted or verified row counts them.
-            self.assertTrue(all(row['open_checks'] > 0 for row in manifest if row['status'] != 'failed'))
+            self.assertTrue(all(row['open_checks'] > 0 and row['check_errors'] == 0
+                                for row in manifest if row['status'] != 'failed'))
             # Calculation artifacts are part of the resume contract too.
             rendered = next(out.glob('*/*.html')); saved = rendered.read_bytes(); rendered.write_bytes(b'corrupt')
             broken, data = run('--resume')

@@ -11,9 +11,7 @@ def limit_state(name):
     """'STR', 'SER' or None from a case name. Default selection recognizes only these prefixes;
     the advisory review (mcdxkit.review) also recognizes AASHTO long names."""
     match = _LIMIT_STATE.match(name or '')
-    if match is None:
-        return None
-    return next(group for group in match.groups() if group).upper()
+    return None if match is None else match.group(1).upper()
 
 
 def peak(case, key):

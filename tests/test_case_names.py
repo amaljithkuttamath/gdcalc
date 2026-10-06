@@ -1,5 +1,8 @@
 """Case-name classifier (regex, then naive Bayes), learning from audits, and governing cases."""
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -115,8 +118,31 @@ class SuggestionTests(unittest.TestCase):
         history.mkdir()
         (history / 'bad.audit.json').write_text('{"cases": 3}')
         (history / 'worse.audit.json').write_text('not json')
-        self.assertEqual(audit_examples(history), ())
+        self.assertEqual(audit_examples(history), ((), 2))
         self.assertEqual(AuditHistory(self.root / 'missing').case_examples(), ())
+
+    def test_dangling_audit_is_skipped_and_counted(self):
+        cases = [(1, 'LC-A', 100, 900), (2, 'LC-B', 80, 700), (3, 'LC-C', 110, 950)]
+        path = self.write('r.txt', summary(cases))
+        history = self.root / 'outputs'
+        engine.convert(path, self.template, history / 'job' / 'w.mcdx', cases=[1, 3])
+        (history / 'job' / 'gone.audit.json').symlink_to(history / 'missing.json')
+        store = AuditHistory(history)
+        self.assertEqual((len(store.case_examples()), store.skipped), (3, 1))
+        trained = suggestions(path, store)['trained_on']
+        self.assertEqual((trained['history'], trained['history_skipped']), (3, 1))
+
+    def test_evidence_does_not_depend_on_hash_seed(self):
+        code = ('import json; from mcdxkit.review.classify.names import model; m = model(); '
+                'print(json.dumps([m.predict(n) for n in ("ULS 2", "Ultimate-3", "LC-WIND", "Working B", '
+                '"Seis X", "EV-II", "Comb 12")]))')
+        outputs = set()
+        for seed in ('0', '1', '2', '12345'):
+            env = dict(os.environ, PYTHONHASHSEED=seed, PYTHONPATH=str(Path(names.__file__).parents[3]))
+            process = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, env=env)
+            self.assertEqual(process.returncode, 0, process.stderr)
+            outputs.add(process.stdout)
+        self.assertEqual(len(outputs), 1)
 
 
 def path_for(text):

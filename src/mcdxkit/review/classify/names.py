@@ -56,7 +56,6 @@ class NameModel:
         self.totals = Counter()
         self.docs = Counter()
         self.vocab = set()
-        self.history_examples = 0
 
     def add(self, name, label, weight=1):
         if label not in LABELS or not name or not name.strip():
@@ -98,7 +97,8 @@ class NameModel:
             return math.log((self.counts[best][t] + 1) / (self.totals[best] + size)) - max(
                 math.log((self.counts[o][t] + 1) / (self.totals[o] + size)) for o in scores if o != best)
         evidence = []
-        for t in sorted(set(tokens), key=lift, reverse=True):
+        # Ties broken by the token itself, so the evidence never depends on PYTHONHASHSEED.
+        for t in sorted(sorted(set(tokens)), key=lambda t: (-lift(t), t)):
             text = t.removeprefix('w:').strip()
             if lift(t) <= 0 or len(evidence) == 3:
                 break
@@ -114,7 +114,6 @@ def model(history=None):
     for name, selected in examples:
         # A deliberately unselected name is evidence against strength, not for any one class.
         fitted.add(name, 'strength' if selected else 'other', HISTORY_WEIGHT)
-    fitted.history_examples = len(examples)
     return fitted
 
 
@@ -129,6 +128,7 @@ class CaseNames:
     def suggest(self, view: ReportView, ctx: Context) -> Iterator[Suggestion]:
         fitted: Optional[NameModel] = None
         history = len(ctx.history.case_examples()) if ctx.history is not None else 0
+        skipped = getattr(ctx.history, 'skipped', 0) if ctx.history is not None else 0
         for case in view.cases:
             state = limit_state(case.name)
             if state:
@@ -140,4 +140,4 @@ class CaseNames:
                 stage = 'naive-bayes'
             yield Suggestion(self.id, case.id, 'limit_state', value, round(probability, 3), tuple(evidence),
                              frozen_mapping({'stage': stage, 'seed': len(SEED),
-                                             'history': history}))
+                                             'history': history, 'history_skipped': skipped}))

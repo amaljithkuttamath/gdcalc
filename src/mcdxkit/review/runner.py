@@ -7,7 +7,8 @@ so inspection and conversion never fail because of it.
 
 Python cannot kill a thread: a plug-in that overruns its budget is abandoned (it is a
 daemon thread, so it does not keep the process alive) and may keep using CPU until it
-returns. Its late results are discarded.
+returns. Its late results are discarded, and the plug-in is disabled for the rest of the
+process so abandoned threads cannot pile up.
 """
 import json
 import math
@@ -22,6 +23,8 @@ from .api import SCHEMA, Annotation, Context, Flag, NotApplicable, ReportView, S
 BUDGET_SECONDS = 5.0
 RESULT_TYPES = {'check': Flag, 'annotator': Annotation, 'classifier': Suggestion}
 OWNER_FIELDS = {'check': 'rule', 'annotator': 'annotator', 'classifier': 'classifier'}
+# (id, version) of plug-ins that overran their budget in this process; they are not run again.
+TIMED_OUT: set = set()
 
 
 @dataclass(frozen=True)
@@ -36,8 +39,11 @@ class Plan:
         return [[e.id, e.plugin.version] for e in self.entries]
 
 
-def prepare(checks: Optional[str] = 'default', catalog: Optional[registry.Catalog] = None) -> Plan:
-    """Resolve a --checks value. Raises ValueError for an invalid value or unknown id."""
+def prepare(checks: Any = 'default', catalog: Optional[registry.Catalog] = None) -> Plan:
+    """Resolve a --checks value; a Plan is returned unchanged, so callers can resolve once.
+    Raises ValueError for an invalid value or unknown id."""
+    if isinstance(checks, Plan):
+        return checks
     entries, errors = registry.select(checks, catalog)
     return Plan(entries, errors)
 
@@ -85,9 +91,14 @@ def _call(plugin: Any, view: ReportView, ctx: Context, budget: float) -> List[An
     thread.start()
     thread.join(budget)
     if thread.is_alive():
+        TIMED_OUT.add((plugin.id, plugin.version))
         raise TimeoutError(f'exceeded its {budget:g} s time budget')
     if 'error' in box:
-        raise box['error']
+        error = box['error']
+        if not isinstance(error, Exception):
+            # SystemExit, KeyboardInterrupt or GeneratorExit from a plug-in is its failure, not ours.
+            raise RuntimeError(f'{type(error).__name__}: {error}') from error
+        raise error
     return box['result']
 
 
@@ -140,6 +151,8 @@ def review(parsed: Mapping[str, Any], selected: Optional[Sequence[int]] = None, 
         record = {'id': plugin.id, 'version': plugin.version, 'kind': plugin.kind, 'source': entry.source}
         try:
             record['params'] = jsonable(plugin.params)
+            if (plugin.id, plugin.version) in TIMED_OUT:
+                raise RuntimeError('disabled after timeout')
             rows = _validate(plugin, _call(plugin, view, ctx, budget), view)
         except NotApplicable as exc:
             report['skipped'].append({'id': plugin.id, 'reason': str(exc)})
@@ -157,8 +170,18 @@ def review(parsed: Mapping[str, Any], selected: Optional[Sequence[int]] = None, 
 
 
 def open_flags(report: Optional[Mapping[str, Any]]) -> Optional[int]:
-    """Flags without an engineer decision, or None when there is no review block."""
+    """Flags without an engineer decision, or None when there is no review block or no check
+    ran successfully (so "nothing ran" is never reported as zero open flags)."""
     if not isinstance(report, Mapping):
+        return None
+    if not any(c.get('kind') == 'check' and c.get('status') == 'ok' for c in report.get('checks_run') or ()):
         return None
     decided = {(d.get('rule'), d.get('case'), d.get('component')) for d in report.get('decisions') or ()}
     return sum((f['rule'], f['case'], f['component']) not in decided for f in report.get('flags', ()))
+
+
+def check_errors(report: Optional[Mapping[str, Any]]) -> Optional[int]:
+    """Plug-ins that failed, timed out or could not load (``errors``), or None without a review block."""
+    if not isinstance(report, Mapping):
+        return None
+    return len(report.get('errors') or ())

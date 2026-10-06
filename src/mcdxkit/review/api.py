@@ -18,7 +18,7 @@ runs; the runner gives each one a time budget and records failures as ``check_er
 """
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, Iterable, Mapping, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Mapping, Optional, Protocol, Tuple
 
 COMPONENTS = ('P', 'Vy', 'Vz', 'My', 'Mz')
 # Columns of GROUP's '* PILE TOP REACTIONS, LOCAL *' table.
@@ -129,43 +129,12 @@ class Suggestion:
     basis: Mapping[str, Any] = field(default_factory=frozen_mapping)
 
 
-@runtime_checkable
 class HistoryStore(Protocol):
-    """Read-only past decisions: (case name, was it selected) from completed conversions."""
+    """Read-only past decisions: (case name, was it selected) from completed conversions.
+    A store may also have ``skipped``, the number of past audits it could not read."""
     def case_examples(self) -> Tuple[Tuple[str, bool], ...]: ...
 
 
 @dataclass(frozen=True)
 class Context:
     history: Optional[HistoryStore] = None
-
-
-@runtime_checkable
-class Check(Protocol):
-    kind: str  # 'check'
-    id: str
-    version: str
-    title: str
-    params: Mapping[str, Any]
-
-    def run(self, view: ReportView, ctx: Context) -> Iterable[Flag]: ...
-
-
-@runtime_checkable
-class Annotator(Protocol):
-    kind: str  # 'annotator'
-    id: str
-    version: str
-    params: Mapping[str, Any]
-
-    def run(self, view: ReportView, ctx: Context) -> Iterable[Annotation]: ...
-
-
-@runtime_checkable
-class CaseClassifier(Protocol):
-    kind: str  # 'classifier'
-    id: str
-    version: str
-    params: Mapping[str, Any]
-
-    def suggest(self, view: ReportView, ctx: Context) -> Iterable[Suggestion]: ...
