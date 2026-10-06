@@ -182,4 +182,4 @@ class BatchReviewCountTests(unittest.TestCase):
         counts = review_counts([failed, broken])
         self.assertEqual((counts['reports_checked'], counts['reports_with_check_errors']), (0, 1))
         self.assertEqual(format_review_summary(counts),
-                         '2 reports, 0 with items to review, 2 not checked, 1 report where some checks could not run')
+                         '2 reports, 0 with items to review, 1 not checked, 1 failed to convert, 1 report where some checks could not run')
