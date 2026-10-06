@@ -127,6 +127,25 @@ class SimilarJobsTests(unittest.TestCase):
         finally:
             session.temp.cleanup()
 
+    def test_session_sees_audits_published_into_existing_nested_folders(self):
+        # A batch run into a subfolder creates the job folder first and publishes the audit
+        # later; the cached history must not miss it.
+        audit(self.out, 'first', 1.1)
+        (self.out / 'batch' / 'job').mkdir(parents=True)
+        session = Session(None, self.out)
+        try:
+            self.assertEqual([j['name'] for j in jobs(session.inspect(self.report))], ['first/w.mcdx'])
+            path = audit(self.out, 'batch/job', 1.05)
+            # Force a distinct folder mtime even on coarse-timestamp filesystems.
+            os.utime(path.parent, ns=(path.parent.stat().st_mtime_ns + 10**9,) * 2)
+            self.assertEqual([j['name'] for j in jobs(session.inspect(self.report))],
+                             ['batch/job/w.mcdx', 'first/w.mcdx'])
+            path.unlink()
+            os.utime(path.parent, ns=(path.parent.stat().st_mtime_ns + 10**9,) * 2)
+            self.assertEqual([j['name'] for j in jobs(session.inspect(self.report))], ['first/w.mcdx'])
+        finally:
+            session.temp.cleanup()
+
     def test_cli_inspect_lists_similar_jobs_with_history(self):
         import contextlib
         import io

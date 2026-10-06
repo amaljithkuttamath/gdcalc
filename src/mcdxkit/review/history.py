@@ -58,18 +58,29 @@ def _newest_stats(paths: Iterable[Path], limit: int) -> Tuple[List[Tuple[Path, o
 
 def signature(output_dir) -> Optional[Tuple[int, int, int]]:
     """A cheap freshness signal for ``output_dir``: its own mtime, and the number and newest
-    mtime of its immediate subfolders (where every conversion and batch job writes its audit).
-    One directory listing, no file reads; None when the directory cannot be read."""
+    mtime of the folders below it (symlinks and ``_source`` snapshots are not entered). Adding,
+    replacing or removing an audit at any depth changes its folder's mtime, so nested batch
+    output folders are covered too. Directory listings only, no file reads; None when the
+    directory cannot be read."""
     try:
         own = os.stat(output_dir).st_mtime_ns
-        count = newest_child = 0
         with os.scandir(output_dir) as entries:
-            for entry in entries:
-                if entry.is_dir(follow_symlinks=False):
-                    count += 1
-                    newest_child = max(newest_child, entry.stat(follow_symlinks=False).st_mtime_ns)
+            pending = list(entries)
     except OSError:
         return None
+    count = newest_child = 0
+    while pending:
+        entry = pending.pop()
+        try:
+            if not entry.is_dir(follow_symlinks=False) or entry.name == '_source':
+                continue
+            newest_child = max(newest_child, entry.stat(follow_symlinks=False).st_mtime_ns)
+            count += 1
+            # A folder that cannot be listed is still counted by its own mtime.
+            with os.scandir(entry.path) as entries:
+                pending.extend(entries)
+        except OSError:
+            continue
     return own, count, newest_child
 
 
