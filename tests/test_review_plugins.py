@@ -283,6 +283,22 @@ class IsolationTests(unittest.TestCase):
 
 
 class RegistryTests(unittest.TestCase):
+    def test_plugin_import_system_exit_is_a_recorded_load_error(self):
+        entry = mock.Mock(name='entry')
+        entry.name = 'exiting_import'
+        entry.load.side_effect = SystemExit(3)
+        with mock.patch.object(registry, '_entry_points', return_value=[entry]):
+            plan = runner.prepare('default,exiting_import')
+        result = runner.review(group_report.parse(clean_report()), [1, 7], plan=plan)
+        self.assertEqual(result['errors'][0]['id'], 'exiting_import')
+        self.assertIn('SystemExit', result['errors'][0]['message'])
+
+    def test_unverified_decisions_do_not_claim_engineer_review(self):
+        block = runner.empty('effects')
+        block['decisions'] = [{'rule': 'missing', 'unverified': True}]
+        self.assertNotIn('reviewed by the engineer', engine.review_note(block))
+        self.assertIn('unverified', engine.review_note(block))
+
     def test_entry_point_is_discovered_but_off_by_default(self):
         with installed(point('pile_count', 'PileCount')):
             catalog = registry.discover()

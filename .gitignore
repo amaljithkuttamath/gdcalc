@@ -20,6 +20,7 @@ mcdxkit-output/
 *.cpd
 *.html
 !src/mcdxkit/web/*.html
+.mcdxkit/
 
 # Infrastructure state, plans and environment-specific settings are private.
 .terraform/

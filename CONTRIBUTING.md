@@ -54,6 +54,7 @@ The [testing contract](docs/testing.md) maps each change type to required positi
 ```bash
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
+node --test tests/*.test.cjs
 python -m pip install -r requirements-dev.txt
 ruff check src tests scripts
 mypy
@@ -77,6 +78,8 @@ The Actions workflow also starts the container, checks health, checks bundled fo
 
 For UI changes, use the real browser flow: upload → inputs → changes → generated outputs, then inspect the original file and fresh calculation view. Check the affected errors, keyboard focus and narrow layout. A rendered screenshot or syntax check alone does not establish a working conversion.
 
+For progress feedback, test pending requests, mixed success/failure, retries and cleanup after errors. Advance counts only on observed completion; do not simulate equation percentages or ETAs. Keep UI progress outside generated `.mcdx`, `.cpd`, result HTML and audit data. Browser orchestration tests use controlled HTTP responses; retain real-engine checks and actual browser verification as separate evidence.
+
 ## Change expectations
 
 - Reuse existing modules and established open-source implementations before rebuilding. Record candidates, licenses, offline requirements and any concrete gap in the issue/PR. New solvers need separate numerical validation; a renderer must consume shared results rather than reproduce template formulas.
@@ -84,6 +87,7 @@ For UI changes, use the real browser flow: upload → inputs → changes → gen
 - Fail visibly on unsupported expressions or incompatible units. Preserve original source and governing-case provenance.
 - Keep old caches distinct from calculated results. Never change native verification flags without actual Prime evidence.
 - Update CLI help/docs for new flags; update `SKILL.md` when agent workflow changes.
+- Keep [skill reviews](references/reviews.md) consistent with repository standards. The optional [installation interview](docs/agent-integration.md#install-with-optional-workflow-interview) must remain agent-neutral, skippable and local; preferences cannot count as validation evidence or change calculation defaults.
 - Add packaged assets to both package metadata and Docker's context allowlist. Include licenses for bundled dependencies/assets.
 - Update dependency locks intentionally. Pin the calculator revision and review its behavior when upgrading. Do not silently fetch newer engines during conversion.
 - Exclude reports, templates, source snapshots, credentials and generated engineering outputs from commits and build contexts. Review staged filenames before publishing.

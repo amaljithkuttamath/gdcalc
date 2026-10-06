@@ -86,7 +86,7 @@ def discover(names: Optional[Collection[str]] = None) -> Catalog:
                 problem = f'duplicate id {plugin.id!r}'
             if problem is None and plugin.id != point.name:
                 problem = f'id {plugin.id!r} must match the entry-point name {point.name!r}'
-        except Exception as exc:  # noqa: BLE001 - an installed plug-in must not break the tool
+        except (Exception, SystemExit) as exc:  # noqa: BLE001 - plug-in import must not terminate the host
             errors.append((point.name, f'failed to load: {type(exc).__name__}: {exc}'))
             continue
         if problem is not None:

@@ -3,6 +3,14 @@ const $ = id => document.getElementById(id);
 let viewerMode = null, currentCalculatedId = null;
 let session, templateId = null, hasTemplate = false, busy = false, step = 1, activeItem = null, currentViewFile = null, currentDocument = null, currentWorksheetId = null;
 const items = [];
+// On phones the viewer covers the workflow, so it opens only when asked for.
+const compactView = window.matchMedia('(max-width:560px)');
+let viewerOpener = null, lastAction = null;
+// render() rebuilds cards, so remember controls by container and label rather than by node.
+function focusKey(node){if(!node||node===document.body||$('inspector').contains(node))return null;return {scope:node.closest('[id]')?.id,label:node.textContent,id:node.id};}
+function restoreFocus(key){if(!key)return;const scope=key.id?null:$(key.scope);const node=key.id?$(key.id):Array.from(scope?.querySelectorAll('button,summary,input,select,textarea')||[]).find(n=>n.textContent===key.label);if(node&&!node.disabled)node.focus();}
+function overrideProblem(message){$('override-error').textContent=message;$('override-error').hidden=false;$('overrides').setAttribute('aria-invalid','true');$('overrides').closest('details').open=true;}
+function closeViewer(){if(!$('inspector').open)return;$('inspector').close();document.body.classList.remove('document-open');restoreFocus(viewerOpener);viewerOpener=null;}
 function el(tag, text, cls) { const n=document.createElement(tag); if(text!==undefined)n.textContent=text; if(cls)n.className=cls; return n; }
 function button(text, action, cls) { const n=el('button',text,cls); n.type='button'; n.addEventListener('click',action); return n; }
 function notice(text,error=false) { $('notice').textContent=text; $('notice').className='statusline'+(error?' error':''); }
@@ -11,8 +19,43 @@ async function api(path,data,raw=false) {
   if(data!==undefined){options.method='POST';options.headers['Content-Type']=raw?'application/octet-stream':'application/json';options.body=raw?data:JSON.stringify(data);}
   const r=await fetch(path,options);const value=await r.json();if(!r.ok)throw new Error(value.error||'The server could not complete this request.');return value;
 }
-async function run(fn) { if(busy)return;busy=true;$('workspace').disabled=true;$('workspace').setAttribute('aria-busy','true');try{await fn();}catch(e){notice(e.message,true);}finally{busy=false;$('workspace').disabled=false;$('workspace').setAttribute('aria-busy','false');render();} }
-function setStep(value) { step=value;for(let i=1;i<=4;i++)$('step-'+i).hidden=i!==step;document.querySelectorAll('[data-step]').forEach(n=>{n.classList.toggle('active',Number(n.dataset.step)===step);n.classList.toggle('done',Number(n.dataset.step)<step);n.setAttribute('aria-current',Number(n.dataset.step)===step?'step':'false');});render(); }
+async function run(fn) { if(busy)return;lastAction=focusKey(document.activeElement);busy=true;$('operation-progress').hidden=true;$('workspace').disabled=true;$('workspace').setAttribute('aria-busy','true');try{await fn();}catch(e){notice(e.message,true);}finally{busy=false;$('workspace').disabled=false;$('workspace').setAttribute('aria-busy','false');render();if(document.activeElement===document.body&&!$('inspector').open)restoreFocus(lastAction);} }
+
+// Progress belongs to this browser operation, never to the worksheet or request.
+async function processFiles(label, pending, process) {
+  if (!pending.length) return {ready: 0, failed: 0};
+  let completed = 0, succeeded = 0;
+  const panel = $('operation-progress'), bar = $('operation-bar');
+  function update(filename = null) {
+    const running = filename !== null;
+    const failed = completed - succeeded;
+    panel.hidden = false;
+    panel.dataset.running = String(running);
+    panel.dataset.failed = String(failed > 0);
+    $('operation-title').textContent = running ? label
+      : completed < pending.length ? 'Operation stopped'
+      : failed ? 'Finished with errors' : label + ' complete';
+    $('operation-count').textContent = `${completed} of ${pending.length} processed`;
+    $('operation-current').textContent = running ? filename
+      : `${succeeded} ready` + (failed ? ` · ${failed} failed` : '')
+        + (completed < pending.length ? ` · ${pending.length - completed} not processed` : '');
+    bar.max = pending.length;
+    // The backend returns one result per file; it does not report equation progress.
+    if (running && pending.length === 1) bar.removeAttribute('value');
+    else bar.setAttribute('value', completed);
+  }
+  try {
+    for (const item of pending) {
+      update(item.name);
+      if (await process(item)) succeeded++;
+      completed++;
+    }
+  } finally {
+    update();
+  }
+  return {ready: succeeded, failed: completed - succeeded};
+}
+function setStep(value) { step=value;$('workflow-position').textContent='Step '+step+' of 4';for(let i=1;i<=4;i++)$('step-'+i).hidden=i!==step;document.querySelectorAll('[data-step]').forEach(n=>{n.classList.toggle('active',Number(n.dataset.step)===step);n.classList.toggle('done',Number(n.dataset.step)<step);n.setAttribute('aria-current',Number(n.dataset.step)===step?'step':'false');});render(); }
 function overrides() {
   $('override-error').hidden=true;$('overrides').removeAttribute('aria-invalid');
   const values={};
@@ -20,8 +63,7 @@ function overrides() {
     const match=line.match(/^([A-Za-z][A-Za-z0-9_]*)\s*=\s*(.+)$/);
     if(!match||!Number.isFinite(Number(match[2]))||Object.hasOwn(values,match[1])){
       const message='Use VARIABLE=NUMBER, one per line, with no repeated variables.';
-      $('override-error').textContent=message;$('override-error').hidden=false;
-      $('overrides').setAttribute('aria-invalid','true');$('overrides').closest('details').open=true;
+      overrideProblem(message);
       setStep(2);setTimeout(()=>$('overrides').focus(),0);throw new Error(message);
     }
     values[match[1]]=Number(match[2]);
@@ -45,7 +87,7 @@ function render(){
   $('download-summary').hidden=items.filter(i=>i.inspection).length<2;$('download-summary').disabled=ready().length<2;
   $('review-next').disabled=!items.length;$('compare-next').disabled=!hasTemplate||!ready().length;
   $('convert-all').disabled=!items.some(i=>i.preview&&!i.result);
-  $('inspect-template').disabled=!hasTemplate;$('inspect-template-review').disabled=!hasTemplate;
+  $('inspect-template').disabled=!hasTemplate;$('choose-template').textContent=hasTemplate?'Change template':'Choose template';$('inspect-template-review').disabled=!hasTemplate;
   const imports=$('import-list');imports.replaceChildren();
   for(const item of items){const row=el('div',undefined,'import-row');row.append(el('span',item.kind==='report'?'REPORT':'MCDX'),el('b',item.name),el('span',item.error?'Needs attention':'Added','tag'+(item.error?' error':'')),removeButton(item));imports.append(row);}
   const queue=$('queue');queue.replaceChildren();if(!items.length)queue.append(el('div','Add a report to check its inputs.','empty'));
@@ -70,7 +112,7 @@ function resultCard(result,name){
   if(result.calculated_worksheet)actions.append(button('Calculated results',()=>run(()=>inspect(result.worksheet.id,'calculated'))));
   actions.append(button('Download Mathcad',()=>run(()=>download(result.worksheet))));
   if(result.open_worksheet)actions.append(button('Download Calcpad',()=>run(()=>download(result.open_worksheet))));
-  card.append(actions);const details=el('details');details.append(el('summary','File details'));
+  card.append(checkPanel(result),actions);const details=el('details');details.append(el('summary','File details'));
   if(result.validation)validation(details,result.validation,result.calculation);details.append(el('p',result.output,'path'));
   const more=el('div',undefined,'card-actions');more.append(button('View changes',()=>run(()=>inspectDiff(result.worksheet.id))),button('Download audit',()=>run(()=>download(result.audit))),button('Check file structure',()=>run(async()=>{result.validation=await api('/api/validate',{id:result.worksheet.id});notice('File structure checked. Native calculation requires Mathcad.');})));
   if(result.calculated_worksheet)more.append(button('Download results page',()=>run(()=>download(result.calculated_worksheet))));details.append(more);card.append(details);return card;
@@ -101,12 +143,33 @@ function adviceView(item){
   const actions=el('div',undefined,'card-actions');if(a.recommended_cases.length&&!a.selection_issue)actions.append(button(`Use cases ${a.recommended_cases.join(', ')}`,()=>run(async()=>{item.selected=[...a.recommended_cases];item.advice=null;await refresh(item);notice('Suggested cases selected. Check the envelope before continuing.');}),'primary-button'));
   actions.append(button('Dismiss',()=>{item.advice=null;render();},'quiet'));box.append(actions);return box;
 }
+function ratioText(value){return value===null||value===undefined?'—':Number(value).toFixed(3);}
+function checkPanel(result){
+  // Outcomes are read by the server from the calculated CalcpadCE page; nothing is recalculated here.
+  const summary=result.check_summary,panel=el('section',undefined,'check-panel');panel.setAttribute('aria-label','Worksheet checks');
+  const head=el('div',undefined,'check-head');head.append(el('h4','Worksheet checks'));panel.append(head);
+  if(!summary){head.append(el('span','Not recorded','check-state none'));panel.append(el('p','This output was created before check results were recorded. Open Calculated results to review it.','check-note'));return panel;}
+  if(!summary.total){head.append(el('span','No checks found','check-state none'));panel.append(el('p','No rendered comparisons in the calculated page. Review the calculated results directly.','check-note'));return panel;}
+  head.append(el('span',summary.failed?`${summary.failed} failed`:`All ${summary.total} passed`,'check-state '+(summary.failed?'fail':'pass')));
+  const stats=el('dl',undefined,'check-stats');const stat=(label,value)=>{const cell=el('div');cell.append(el('dt',label),el('dd',value));stats.append(cell);};
+  stat('Governing D/C',summary.governing?ratioText(summary.governing.ratio):'—');stat('Governing check',summary.governing?.name||'No ratio form');stat('Passed',`${summary.passed} of ${summary.total}`);panel.append(stats);
+  const list=(rows)=>{const ul=el('ul',undefined,'check-list');for(const c of rows){const li=el('li',undefined,c.passed?'pass':'fail');li.append(el('span',c.passed?'Pass':'Fail','check-mark'),el('b',c.name),el('span',ratioText(c.ratio),'check-ratio'),el('code',c.expression,'check-expression'));li.title=c.substituted;ul.append(li);}return ul;};
+  if(result.checks){const failed=result.checks.filter(c=>!c.passed);if(failed.length)panel.append(list(failed));
+    if(result.checks.length){const all=el('details',undefined,'check-details');all.append(el('summary',`All ${result.checks.length} checks`),list(result.checks));panel.append(all);}}
+  else{
+    // Saved outputs carry the summary only; expressions and ratios are in the downloadable audit.
+    if(summary.failed_checks.length){const ul=el('ul',undefined,'check-list');for(const name of summary.failed_checks){const li=el('li',undefined,'fail');li.append(el('span','Fail','check-mark'),el('b',name));ul.append(li);}panel.append(ul);}
+    panel.append(el('p','Download the audit for every check expression and ratio.','check-note'));
+  }
+  panel.append(el('p','Conditions as rendered by CalcpadCE (1 = pass, 0 = fail). Not an engineering approval.','check-note'));return panel;
+
+}
 function markView(mode){viewerMode=mode;for(const name of ['report','template','worksheet','calculation','diff'])$('view-'+name).setAttribute('aria-current',String(name===mode));}
-function dialog(title,type,note){markView(null);$('preview-summary').textContent='About this preview';$('inspector-title').textContent=title;$('inspector-type').textContent=type;$('inspector-note').textContent=note;$('inspector-content').replaceChildren();$('inspector-content').className='';currentDocument=null;$('inspector-search').value='';$('inspector-search').hidden=false;document.body.classList.add('document-open');if(!$('inspector').open)$('inspector').show();}
+function dialog(title,type,note){if(!$('inspector').open)viewerOpener=focusKey(document.activeElement)||lastAction;markView(null);$('preview-summary').textContent='About this preview';$('inspector-title').textContent=title;$('inspector-type').textContent=type;$('inspector-note').textContent=note;$('inspector-content').replaceChildren();$('inspector-content').className='';currentDocument=null;$('inspector-search').value='';$('inspector-search').hidden=false;document.body.classList.add('document-open');if(!$('inspector').open)$('inspector').show();}
 async function inspect(id,mode='file'){currentViewFile=id;currentDocument=null;const found=items.find(i=>i.id===id||i.preview?.worksheet.id===id||i.result?.worksheet.id===id);if(found)activeItem=found;const data=await api('/api/view',{id});if(data.kind!=='report'&&id!==(templateId||'default-template'))currentWorksheetId=id;dialog(data.name,data.kind==='report'?'ORIGINAL SOURCE':'WORKSHEET INSPECTOR',data.kind==='report'?'Original report text. Search or scroll to inspect the source.':'Text and native equations extracted from the .mcdx. This is not a native Mathcad page rendering; no expressions are executed.');const body=$('inspector-content');markView(data.kind==='report'?'report':id===(templateId||'default-template')?'template':'worksheet');$('preview-summary').textContent=data.kind==='report'?'Original report text':'About this file';if(data.calculated_html)currentCalculatedId=id;$('view-calculation').disabled=!currentCalculatedId;if(data.calculated_html&&mode==='calculated'){markView('calculation');$('preview-summary').textContent='Calculated with CalcpadCE';$('inspector-title').textContent=data.name.replace(/\.mcdx$/i,'.cpd');$('inspector-type').textContent='CALCULATED WORKSHEET';$('inspector-note').textContent='Calculated locally with CalcpadCE. This page is a result snapshot; the .cpd and .mcdx files contain the formulas. Prime execution remains unverified.';const calculated=el('div',undefined,'calculated');appendCalculated(calculated,data.calculated_html);body.append(calculated);return;}if(data.kind==='report'){const lines=data.text.split('\n');for(let n=0;n<lines.length;n+=100){const block=el('pre',lines.slice(n,n+100).map((line,i)=>String(n+i+1).padStart(5)+'  '+line).join('\n'),'source-text');block.dataset.search=block.textContent.toLowerCase();body.append(block);}}else{renderDocument(data,body);return;}}
 async function inspectDiff(id){currentWorksheetId=id;const data=await api('/api/diff',{id});dialog('Changes from template','EXPRESSION DIFF',data.scope);markView('diff');$('preview-summary').textContent='Changed equations and inputs';$('inspector-search').hidden=true;const item=items.find(i=>i.preview?.worksheet.id===id||i.result?.worksheet.id===id);$('inspector-content').append(diffView(data,false,item?.preview?.envelope||item?.inspection?.envelope));}
 async function history(){const data=await api('/api/history');dialog('Saved outputs','OUTPUT HISTORY','Previously generated files. Open a file to inspect it or download it.');$('preview-summary').textContent='Previous conversions';$('inspector-search').hidden=true;for(const result of data)$('inspector-content').append(resultCard(result,result.worksheet.name));if(!data.length)$('inspector-content').append(el('div','No saved outputs yet.','empty'));}
-async function importFiles(files){let added=0,failed=0,skipped=0;for(const file of files){const ext=file.name.split('.').pop().toLowerCase();if(!['gp11t','txt','mcdx'].includes(ext)){skipped++;continue;}if(items.length>=100)throw new Error('The queue is limited to 100 files. Start a new session for more.');const item={name:file.name,relativePath:file.webkitRelativePath,kind:ext==='mcdx'?'worksheet':'report'};notice('Reading '+file.name+'…');try{if(file.size>(item.kind==='report'?16:32)*1024*1024)throw new Error('File exceeds the upload size limit.');Object.assign(item,await api('/api/upload?'+new URLSearchParams({name:file.name,kind:item.kind}),file,true));if(item.inspection){item.selected=item.inspection.selected_cases;item.error=item.inspection.selection_required;if($('basis').value!=='effects'&&item.selected.length)await refresh(item);}added++;}catch(e){item.error=e.message;failed++;}items.push(item);activeItem=item;render();}if(activeItem?.id)await inspect(activeItem.id);notice(`${added} file${added===1?'':'s'} added`+(failed?` · ${failed} failed`:'')+(skipped?` · ${skipped} unsupported files skipped`:'')+'.',failed>0);}
+async function importFiles(files){let added=0,failed=0,skipped=0;for(const file of files){const ext=file.name.split('.').pop().toLowerCase();if(!['gp11t','txt','mcdx'].includes(ext)){skipped++;continue;}if(items.length>=100)throw new Error('The queue is limited to 100 files. Start a new session for more.');const item={name:file.name,relativePath:file.webkitRelativePath,kind:ext==='mcdx'?'worksheet':'report'};notice('Reading '+file.name+'…');try{if(file.size>(item.kind==='report'?16:32)*1024*1024)throw new Error('File exceeds the upload size limit.');Object.assign(item,await api('/api/upload?'+new URLSearchParams({name:file.name,kind:item.kind}),file,true));if(item.inspection){item.selected=item.inspection.selected_cases;item.error=item.inspection.selection_required;if($('basis').value!=='effects'&&item.selected.length)await refresh(item);}added++;}catch(e){item.error=e.message;failed++;}items.push(item);activeItem=item;render();}if(activeItem?.id&&!compactView.matches)await inspect(activeItem.id);notice(`${added} file${added===1?'':'s'} added`+(failed?` · ${failed} failed`:'')+(skipped?` · ${skipped} unsupported files skipped`:'')+'.',failed>0);}
 for(const id of ['files','folder']){$('choose-'+(id==='files'?'files':'folder')).addEventListener('click',()=>$(id).click());$(id).addEventListener('change',e=>{const files=Array.from(e.target.files);e.target.value='';run(()=>importFiles(files));});}
 $('choose-template').addEventListener('click',()=>$('template').click());
 $('template').addEventListener('change',e=>{const file=e.target.files[0];e.target.value='';if(!file)return;run(async()=>{if(file.size>32*1024*1024)throw new Error('Template exceeds 32 MiB.');const value=await api('/api/upload?'+new URLSearchParams({name:file.name,kind:'template'}),file,true);templateId=value.id;hasTemplate=true;invalidate();$('template-name').textContent=value.name;$('template-status').textContent='Ready to use';await inspect(templateId);notice('Template selected.');});});
@@ -116,17 +179,62 @@ $('overrides').addEventListener('input',()=>{$('override-error').hidden=true;$('
 $('review-next').addEventListener('click',()=>setStep(2));
 async function downloadSummary(){const included=ready(),excluded=items.filter(i=>i.inspection&&!included.includes(i));const unselected=excluded.filter(i=>!i.selected.length).length,failed=excluded.length-unselected;const value=await api('/api/summary',{reports:included.map(i=>({id:i.id,cases:i.selected})),load_source:$('basis').value});const url=URL.createObjectURL(new Blob(['\ufeff'+value.csv],{type:'text/csv;charset=utf-8'}));const a=el('a');a.href=url;a.download=value.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);const plural=n=>n+' report'+(n===1?'':'s');notice(`Summary downloaded: ${plural(value.reports)}, ${value.rows} load cases.`+(unselected?` Not included: ${plural(unselected)} without a load case selection.`:'')+(failed?` Not included: ${plural(failed)} whose load refresh failed; see the report card.`:'')+(value.duplicates_skipped.length?` Identical duplicates skipped: ${value.duplicates_skipped.join(', ')}.`:''));}
 $('download-summary').addEventListener('click',()=>run(downloadSummary));
-$('compare-next').addEventListener('click',()=>run(async()=>{setStep(3);for(const item of ready()){notice('Preparing changes for '+item.name+'…');item.previewError=null;try{item.preview=await api('/api/preview',options(item));item.result=null;}catch(e){item.preview=null;item.previewError=e.message;}render();}const prepared=items.find(i=>i.preview);if(prepared){activeItem=prepared;await inspectDiff(prepared.preview.worksheet.id);}notice('Review the changes, then select Create outputs.');}));
-$('convert-all').addEventListener('click',()=>run(async()=>{const pending=items.filter(i=>i.preview&&!i.result);let done=0;for(const item of pending){notice('Generating '+item.name+'…');try{item.result=await api('/api/convert',options(item));done++;}catch(e){item.previewError=e.message;notice(e.message,true);}render();}setStep(4);const generated=items.find(i=>i.result);if(generated){activeItem=generated;await inspect(generated.result.worksheet.id);}notice(`${done} output${done===1?'':'s'} created`+(done<pending.length?` · ${pending.length-done} failed`:'')+'.',done<pending.length);}));
+$('compare-next').addEventListener('click', () => run(async () => {
+  const pending = ready();
+  let rejected = null;
+  overrides(); // Validate before showing progress or sending a request.
+  setStep(3);
+  const result = await processFiles('Preparing previews', pending, async item => {
+    notice('Preparing changes for ' + item.name + '…');
+    item.previewError = null;
+    try {
+      item.preview = await api('/api/preview', options(item));
+      item.result = null;
+    } catch (error) {
+      item.preview = null;
+      item.previewError = error.message;
+      if (/override/i.test(error.message)) rejected = error.message;
+    }
+    render();
+    return Boolean(item.preview);
+  });
+  if (rejected) {
+    overrideProblem(rejected); setStep(2); setTimeout(() => $('overrides').focus(), 0);
+    throw new Error('Fix the template input overrides: ' + rejected);
+  }
+  const prepared = pending.find(item => item.preview);
+  if (prepared) { activeItem = prepared; if (!compactView.matches) await inspectDiff(prepared.preview.worksheet.id); }
+  notice(result.failed ? `${result.ready} previews ready · ${result.failed} failed. Review the errors.`
+    : 'Review the changes, then select Create outputs.', result.failed > 0);
+}));
+$('convert-all').addEventListener('click', () => run(async () => {
+  const pending = items.filter(item => item.preview && !item.result);
+  overrides();
+  const result = await processFiles('Generating outputs', pending, async item => {
+    notice('Generating ' + item.name + '…');
+    item.previewError = null;
+    try { item.result = await api('/api/convert', options(item)); }
+    catch (error) { item.previewError = error.message; }
+    render();
+    return Boolean(item.result);
+  });
+  setStep(4);
+  const generated = pending.find(item => item.result);
+  if (generated) { activeItem = generated; if (!compactView.matches) await inspect(generated.result.worksheet.id); }
+  notice(`${result.ready} output${result.ready === 1 ? '' : 's'} created`
+    + (result.failed ? ` · ${result.failed} failed` : '') + '.', result.failed > 0);
+}));
+
 for(const n of document.querySelectorAll('[data-step]'))n.addEventListener('click',()=>setStep(Number(n.dataset.step)));
 for(const n of document.querySelectorAll('[data-back]'))n.addEventListener('click',()=>setStep(Number(n.dataset.back)));
 for(const id of ['open-history','refresh-history'])$(id).addEventListener('click',()=>{if(session)run(history);});
-$('close-inspector').addEventListener('click',()=>{$('inspector').close();document.body.classList.remove('document-open');});
+$('close-inspector').addEventListener('click',closeViewer);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('inspector').open){e.preventDefault();closeViewer();}});
 $('inspector-search').addEventListener('input',()=>{const query=$('inspector-search').value.toLowerCase();if(currentDocument){currentDocument.search(query);return;}const body=$('inspector-content');const rows=body.querySelector('.calculated')?.children||body.children;for(const row of rows)row.hidden=Boolean(query)&&!(row.dataset.search||row.textContent.toLowerCase()).includes(query);});
 for(const name of ['dragenter','dragover'])$('dropzone').addEventListener(name,e=>{e.preventDefault();if(!busy)$('dropzone').classList.add('dragging');});
 for(const name of ['dragleave','drop'])$('dropzone').addEventListener(name,e=>{e.preventDefault();$('dropzone').classList.remove('dragging');});
 $('dropzone').addEventListener('drop',e=>{if(busy)return;const entries=Array.from(e.dataTransfer.items||[]).map(i=>i.webkitGetAsEntry?.());if(entries.some(e=>e?.isDirectory)){notice('Use Add folder to include files from a directory.',true);return;}const files=Array.from(e.dataTransfer.files);run(()=>importFiles(files));});
-async function connect(){const r=await fetch('/api/session');if(r.status===401){$('login').hidden=false;notice('Sign in to continue.');return;}if(!r.ok)throw new Error('Cannot connect. Use the URL printed by mcdxkit serve.');session=await r.json();hasTemplate=Boolean(session.template);$('login').hidden=true;$('template-name').textContent=session.template||'No template selected';$('template-status').textContent=session.template?'Ready to use':'Choose a .mcdx file with your design equations';$('output-dir').textContent=session.output_dir;$('storage-note').textContent=session.network?'Selected files upload to this server.':'Files stay on this computer.';$('workspace').disabled=false;notice('Add a report to start.');render();if(hasTemplate)await inspect('default-template');}
+async function connect(){const r=await fetch('/api/session');if(r.status===401){$('login').hidden=false;notice('Sign in to continue.');return;}if(!r.ok)throw new Error('Cannot connect. Use the URL printed by mcdxkit serve.');session=await r.json();hasTemplate=Boolean(session.template);$('login').hidden=true;$('template-name').textContent=session.template||'No template selected';$('template-status').textContent=session.template?'Ready to use':'Choose a .mcdx file with your design equations';$('output-dir').textContent=session.output_dir;$('storage-note').textContent=session.network?'Selected files upload to this server.':'Files stay on this computer.';$('workspace').disabled=false;notice('Add a report to start.');render();if(hasTemplate&&!compactView.matches)await inspect('default-template');}
 $('sign-in').addEventListener('click',async()=>{try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:$('access-token').value})});$('access-token').value='';if(!r.ok)throw new Error((await r.json()).error);await connect();}catch(e){notice(e.message,true);}});
 connect().catch(e=>notice(e.message,true));
 
@@ -158,7 +266,7 @@ function renderDocument(data,body){
   let number=1,query='';const matches=el('span',undefined,'document-matches');const previous=button('←',()=>show(number-1)),next=button('→',()=>show(number+1)),last=button('Last page',()=>show(page.count));previous.setAttribute('aria-label','Previous page');next.setAttribute('aria-label','Next page');
   const desk=el('div',undefined,'document-desk'),rail=el('nav',undefined,'page-rail'),stage=el('div',undefined,'document-stage');rail.setAttribute('aria-label','Worksheet pages');desk.append(rail,stage);stage.append(shell,details);
   const pagesToggle=button('Pages',()=>{rail.hidden=!rail.hidden;pagesToggle.setAttribute('aria-pressed',String(!rail.hidden));resize();});const compact=window.matchMedia('(max-width:560px)');const adaptPages=()=>{rail.hidden=compact.matches;pagesToggle.setAttribute('aria-pressed',String(!rail.hidden));};adaptPages();compact.addEventListener('change',adaptPages);
-  const zoom=el('select');zoom.setAttribute('aria-label','Page zoom');for(const [value,text]of [['page','Fit page'],['width','Fit width'],['1','100%']]){const option=el('option',text);option.value=value;zoom.append(option);}zoom.addEventListener('change',()=>resize());toolbar.append(pagesToggle,previous,label,next,last,zoom,matches);body.append(toolbar,desk);shell.append(canvas);
+  const zoom=el('select');zoom.setAttribute('aria-label','Page zoom');for(const [value,text]of [['page','Fit page'],['width','Fit width'],['1','100%']]){const option=el('option',text);option.value=value;zoom.append(option);}if(compact.matches)zoom.value='width';zoom.addEventListener('change',()=>resize());toolbar.append(pagesToggle,previous,label,next,last,zoom,matches);body.append(toolbar,desk);shell.append(canvas);
   const detailsTitle=el('summary','Select a region to inspect its source'),detailsBody=el('pre');details.append(detailsTitle,detailsBody);
   function regionNode(r,top,offset,interactive=true){const n=el('div',undefined,'file-region '+r.kind);n.style.left=(page.margins[0]+Number(r.left))+'px';n.style.top=(offset+top)+'px';n.style.width=Number(r.width)+'px';n.style.minHeight=Number(r.height)+'px';for(const [key,v]of Object.entries(r.style||{}))n.style[key]=v;n.dataset.region=r.id;n.title=r.kind==='math'?r.expression:r.text;
     if(r.kind==='math'){const math=document.createElementNS('http://www.w3.org/1998/Math/MathML','math');math.append(mathNode(r.presentation));n.append(math);}else{if(r.image){const img=el('img');img.src=r.image;img.alt='Diagram from worksheet';img.style.width='100%';img.style.height=Number(r.height)+'px';n.append(img);}for(const flow of r.flows||[])n.append(flowNode(flow));if(!r.image&&!(r.flows||[]).length)n.textContent=r.text;}

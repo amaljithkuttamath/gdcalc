@@ -61,9 +61,9 @@ Four files are published together, with audit JSON written last as the completio
 | `.mcdx` | Native input/formula package; Prime execution unverified |
 | `.cpd` | Executable translated Calcpad worksheet |
 | `.html` | Fresh Calcpad result snapshot |
-| `.audit.json` | Source selection, hashes, assumptions and calculation evidence |
+| `.audit.json` | Source selection, hashes, assumptions, calculation evidence and [check results](calculation.md#check-results) |
 
-Existing artifacts are never overwritten. Choose a new basename for a new run. A successfully calculated worksheet may contain failing design checks.
+Existing artifacts are never overwritten. Choose a new basename for a new run. A successfully calculated worksheet may contain failing design checks; `convert` prints `check_summary` (failed checks and governing D/C, or `no checks found`).
 
 ## Validate a package
 
@@ -87,7 +87,10 @@ mcdxkit batch /path/to/reports --recursive \
 
 Explicit files and multiple folders are also accepted. Options apply to every input in the invocation: group compatible reports/templates together. Keep source/template files outside the output directory. Worker count is 1–32; default is up to four. Progress is JSON Lines on stderr; stdout is the summary. `--quiet` suppresses progress.
 
+After the run, a per-report check table (status, check count, failures, governing D/C and check) is printed to stderr and written to a new `check-summary-<timestamp>.csv` in the output directory; earlier tables are kept. Reports are identified by their path relative to the common input folder, and rows are sorted. The stdout summary's `checks` object holds the table path and counts (`reports_with_failures`, `reports_without_checks`, `reports_not_recorded`), not the rows. On resume, outcomes are re-read from the hash-verified `.html`, not from the audit; outputs whose audit lacks calculation region lines show `checks not recorded for this output`. Failing checks do not change the exit code.
+
 Exit codes: 0 = all succeeded or verified/skipped; 1 = one or more jobs failed; 2 = invalid setup. Inspect `batch-manifest.jsonl` for individual failures. Resume validates saved identity, hashes and calculation evidence; corrupted outputs are not silently reused. Do not run two batches writing to the same output directory. Manifest rows of converted or verified jobs carry `open_checks`, the number of review flags without an engineer decision (`null` when no check ran successfully, never 0), and `check_errors`, the number of review plug-ins that failed or timed out. Batch accepts `--checks`; the enabled check ids and versions are part of the job identity, so a new check version converts and reviews again on `--resume` (in a new job folder) instead of reusing the old audit.
+
 
 ## Summary CSV across reports
 
@@ -119,7 +122,8 @@ mcdxkit serve --no-open --port 8765 \
 
 Open the printed URL. Omit `--template` to select it in the browser; omit `--no-open` to launch the browser automatically. `--port 0` chooses an available port. `GET /healthz` reports service health. Ctrl+C stops the server while retaining completed outputs.
 
-Workflow: Files → Inputs → Changes → Outputs. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Inputs and Changes list advisory review checks as "Review: …" items to check; they are never shown as a pass or fail. Inputs greys strength cases that can never govern; they stay selected. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
+Workflow: Files → Inputs → Changes → Outputs. Each output card shows a worksheet-checks panel with failed count, governing D/C and the failing conditions. Open Report/Template/Output file to inspect content; Results shows separate fresh Calcpad calculations. The original-file view is a reconstruction, not Prime rendering. Inputs and Changes list advisory review checks as "Review: …" items to check; they are never shown as a pass or fail. Inputs greys strength cases that can never govern; they stay selected. Current UI cannot edit arbitrary equations. Saved outputs survive restart; the visible upload queue and temporary previews do not.
+
 
 ## Environment variables
 

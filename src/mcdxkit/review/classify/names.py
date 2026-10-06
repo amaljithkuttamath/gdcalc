@@ -85,7 +85,8 @@ class NameModel:
                 continue
             denominator = self.totals[label] + size
             # n-grams overlap heavily, so average token evidence (scaled to EVIDENCE_TOKENS
-            # independent observations) instead of summing; this keeps probabilities calibrated.
+            # independent observations) instead of summing. This tempers overconfidence;
+            # the resulting score is not an empirically calibrated probability.
             scores[label] = math.log(self.docs[label] / documents) + EVIDENCE_TOKENS * sum(
                 math.log((self.counts[label][t] + 1) / denominator) for t in tokens) / len(tokens)
         peak = max(scores.values())

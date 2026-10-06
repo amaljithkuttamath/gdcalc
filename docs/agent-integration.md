@@ -10,6 +10,26 @@ Place the repository in a directory named `mcdxkit` under a skill directory supp
 
 Install the CLI with `uv tool install /path/to/mcdxkit`, then run `mcdxkit setup-engine` once. Skill discovery alone does not install Python dependencies or the calculator. Use the client's normal skill selection; `$mcdxkit` is not a universal invocation syntax.
 
+### Install with optional workflow interview
+
+From a Git checkout, copy the committed skill into a **new** directory supported by your agent:
+
+```bash
+python scripts/install_skill.py --destination /path/to/skills/mcdxkit
+# Explicit interview, including when input is piped:
+python scripts/install_skill.py --destination /another/path/mcdxkit --interview
+# Unattended installation:
+python scripts/install_skill.py --destination /new/path/mcdxkit --no-interview
+```
+
+An interactive terminal offers a seven-question interview; noninteractive installation skips it unless `--interview` is set. Each question can be skipped. Choices cover workflow, source formats, template status, units, standards, reviewer availability and operating mode. They cannot configure formulas, select load cases or establish approval. The [review guide](../references/reviews.md) explains how agents use the answers and validate subsequent work.
+
+The installer requires Python 3.10+ and Git. It copies **committed HEAD**, without history, untracked files or uncommitted edits, and prints that commit. Commit intended skill changes first. It rejects existing destinations and symlinks in the snapshot; upgrades use a new directory so local context cannot be overwritten. Review the repository you install—committed files are still included. The snapshot retains docs/scripts/source for offline use, but initial CLI/dependency/calculator setup remains separate and may need network access.
+
+Answers remain in the installed skill's `.mcdxkit/profile.json` (directory mode 0700 and file mode 0600 on POSIX; on Windows use the account's normal directory ACLs). `.mcdxkit/` is Git-ignored. The file contains no validation evidence, secrets or client paths, and is never uploaded by installation. It is not automatically sent to a model; an agent following the skill may read it, so follow your agent host's data policy. Inspect/edit or delete it locally to change/remove context. Missing or stale answers must not override the current request or source evidence.
+
+Installation does not install the CLI, build the calculator or modify an existing environment. After choosing the installed directory, use the CLI setup above. For updates, repeat installation to a fresh destination and intentionally carry over only still-relevant local context; there is no automatic background update.
+
 `agents/openai.yaml` supplies optional UI metadata for compatible OpenAI clients. It is not needed to run the skill, CLI, server, tests or contribution workflow. No host-specific tool names are required by the skill's execution path.
 
 ## Clients without skill discovery

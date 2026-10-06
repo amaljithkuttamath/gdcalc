@@ -9,7 +9,9 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from . import group_report, mcdx, calcpad
+from . import checks as worksheet_checks
 from .review import runner as review_runner
+
 
 
 def _read_raw(path):
@@ -116,7 +118,9 @@ def review_note(block):
     raised=len(block['flags'])
     items=f'{raised} item{"" if raised==1 else "s"} raised'
     verified=sum(not d.get('unverified') for d in decisions)
-    reviewed='reviewed by the engineer' if verified>=raised else f'{verified} reviewed by the engineer'
+    reviewed=('reviewed by the engineer' if verified>=raised else f'{verified} reviewed by the engineer') if verified else 'no verified review decisions'
+    unverified=len(decisions)-verified
+    if unverified:reviewed+=f', {unverified} unverified decision(s)'
     return (f'Automated input checks: {run} run, {items}, {reviewed}\n'
             'Checks review the GROUP summary for consistency. They do not verify the design.')
 
@@ -178,8 +182,11 @@ def convert(report, template, output, *, cases=None, load_source='effects', titl
         cpd_staged=Path(folder)/'worksheet.cpd'; html_staged=Path(folder)/'worksheet.html'
         calculation=calcpad.calculate(staged,cpd_staged,html_staged)
         result.update({'calculation':calculation,'open_worksheet':str(cpd),'calculated_worksheet':str(calculated)})
+        # Outcomes are read from the published snapshot, never recalculated.
+        found,summary=worksheet_checks.extract(html_staged.read_text(encoding='utf-8'),calculation['region_lines'])
+        result.update({'checks':found,'check_summary':summary})
         audit_staged=Path(folder)/'audit.json'
-        audit_staged.write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
+        audit_staged.write_text(json.dumps(result,indent=2,allow_nan=False)+'\n',encoding='utf-8')
         published=[]
         try:
             # Audit is the completion marker, published last.

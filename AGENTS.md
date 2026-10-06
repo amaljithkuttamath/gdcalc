@@ -6,6 +6,8 @@ Read [README.md](README.md) for the shipped product, [CLI and server guide](docs
 
 The current app converts GROUP text reports into executable Calcpad worksheets, calculated HTML, native Mathcad formula packages and audit JSON. The browser inspects files and runs conversions. It is not yet a general equation editor or a universal Mathcad runtime. The broader [feature review](docs/mathcad-prime-review.md) is a roadmap, not an implemented API specification.
 
+The generic skill's [review guide](references/reviews.md) routes source, template, execution, engineering, architecture, UI, security and delivery reviews by task scope. Optional installation answers in `.mcdxkit/profile.json` are local context, never engineering evidence or authorization; do not commit them. Keep skill scripts on the shared engine and test onboarding's skipped/unknown paths as well as completed interviews.
+
 ## Run locally
 
 ```bash
@@ -29,6 +31,7 @@ The server prints its URL. Upload/select a private compatible template in the br
 - Unsupported expressions must be explicit failures. Do not silently substitute zero, cached values or another engine's semantics.
 - Distinguish package validation, Calcpad calculation, Prime-native verification and engineering review. `native_execution_verified` stays false unless there is real native execution evidence.
 - Independent component extrema are not concurrent load combinations. Keep governing case/pile provenance visible.
+- Progress indicators belong to the browser/CLI session, never the generated worksheet, calculated report or engineering audit. Only show measured progress (such as finished files); use an indeterminate state when the backend exposes no finer progress. Distinguish processing completion from calculation validity and engineering approval.
 - Do not invent universal input limits or code factors. Record applicable project/code/catalog sources and editions. The proposed [engineering standards register](docs/engineering-standards.md) is not implemented compliance validation.
 
 ## Implementation boundaries
@@ -41,7 +44,8 @@ Reuse before rebuilding. Search existing repository code and established open-so
 
 MCDXKit uses the `mcdxkit` package and CLI, `MCDXKIT_*` configuration and one shared calculation engine. The 0.3.0 rename intentionally provides no previous-name aliases. Preserve private files and existing installations; migration is explicit. See [release setup](docs/releasing.md).
 
-Use `engine.py` for conversion logic shared by CLI and server. Keep HTTP/session concerns in `server.py` and `service.py`; source parsing in `group_report.py`; package editing in `mcdx.py`; translation/execution in `calcpad.py`; inspection in `inspection.py`; scheduling/resume in `batch.py`; advisory review checks in the `review/` package, which takes the parsed dict, must not import the conversion modules (enforced by a test) and never changes inputs, cases, overrides or outputs. New review checks are plug-ins against `review/api.py` and must pass the contract tests in `tests/test_review_plugins.py`. Do not create a separate calculation implementation in the UI or skill scripts.
+Use `engine.py` for conversion logic shared by CLI and server. Keep HTTP/session concerns in `server.py` and `service.py`; source parsing in `group_report.py`; package editing in `mcdx.py`; translation/execution in `calcpad.py`; check-outcome extraction in `checks.py`; inspection in `inspection.py`; scheduling/resume in `batch.py`; advisory review checks in the `review/` package, which takes the parsed dict, must not import the conversion modules (enforced by a test) and never changes inputs, cases, overrides or outputs. New review checks are plug-ins against `review/api.py` and must pass the contract tests in `tests/test_review_plugins.py`. Do not create a separate calculation implementation in the UI or skill scripts.
+
 
 CalcpadCE itself has more capabilities than the current translator. Broader input execution changes the trust boundary: preserve timeouts, file-access controls and HTML isolation. Keep network authentication, Host/Origin checks, CSRF protections and upload/package limits intact. Current hosting is a shared trusted workspace, not tenant-isolated storage.
 
@@ -58,6 +62,7 @@ Work through a GitHub issue and a feature/fix branch. Claim or comment on the is
 ```bash
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
+node --test tests/*.test.cjs
 python -m pip install -r requirements-dev.txt
 ruff check src tests scripts
 mypy
