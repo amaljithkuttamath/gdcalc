@@ -32,7 +32,7 @@ The server prints its URL. Upload/select a private compatible template in the br
 - Distinguish package validation, Calcpad calculation, Prime-native verification and engineering review. `native_execution_verified` stays false unless there is real native execution evidence.
 - Independent component extrema are not concurrent load combinations. Keep governing case/pile provenance visible.
 - Progress indicators belong to the browser/CLI session, never the generated worksheet, calculated report or engineering audit. Only show measured progress (such as finished files); use an indeterminate state when the backend exposes no finer progress. Distinguish processing completion from calculation validity and engineering approval.
-- Do not invent universal input limits or code factors. Record applicable project/code/catalog sources and editions. The proposed [engineering standards register](docs/engineering-standards.md) is not implemented compliance validation.
+- Do not invent universal input limits or code factors. Record applicable project/code/catalog sources and editions. The [engineering standards register](docs/engineering-standards.md) stores versioned provenance and external review records; it is not automatic compliance approval. No engineering rules are approved by default.
 
 ## Implementation boundaries
 

@@ -4,6 +4,8 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ## Unreleased
 
+- Add versioned source/standards records in the CLI and browser, with audit linkage, unit checks, stale-review detection and explicit pending engineering review.
+
 ### Added
 
 - Advisory review checks in a new `mcdxkit.review` plug-in package: service axial load above strength, effects below the pile top, duplicate cases, ratio outliers and possible unit slips, plus governing and "never governs" case annotations and offline case-name suggestions. Results appear in `inspect`, the audit (`review_checks`, with each check's id, version and thresholds), batch manifests and the browser. Checks never change inputs, case selection or outputs; with no review decisions the `.mcdx`, `.cpd` and `.html` are byte-identical with checks on or off. A crashing or slow check is recorded and never fails a conversion.
