@@ -46,7 +46,7 @@ flowchart LR
 | Module | Responsibility |
 | --- | --- |
 | `cli.py`, `generate.py`, `validate.py` | Commands, arguments, output and exit codes |
-| `engine.py` | Transport-independent inspect/convert/validate API and staged publication |
+| `engine.py` | Transport-independent inspect/convert/validate/summary API and staged publication |
 | `group_report.py` | Final summary parsing, case selection and envelopes |
 | `mcdx.py` | Package safety checks and constrained native template modifications |
 | `calcpad.py` | Strict XML-to-Calcpad translation, subprocess deadline and result validation |
@@ -57,6 +57,7 @@ flowchart LR
 | `server.py` | FastAPI/Uvicorn, authentication, origin checks, limits and static assets |
 | `web/` | Browser workflow and file viewer; no independent design solver |
 | `batch.py` | Input discovery, bounded process pool, job identity, manifest and resume |
+| `summary.py` | `mcdxkit summary` input discovery and exclusive CSV write; rows come from `engine.py` |
 
 ## Public Python API
 
@@ -103,3 +104,5 @@ The HTTP layer checks Host/Origin, request tokens and hosted login state. Networ
 `pyproject.toml` defines the Python package and assets. The multi-stage Dockerfile builds the pinned calculator, installs Python dependencies, then runs as UID/GID 10001. `.dockerignore` is an allowlist to prevent private project data entering images.
 
 Actions tests Python versions and package contents before container checks. Only a successful `main` run pushes the exact tested image to GHCR. Pull-request code is tested without registry login or publication. The repository's public source, registry package visibility and a live hosted deployment are separate states.
+
+See [distributed execution boundaries](distributed-architecture.md) for the future API/job/worker/storage contract and its acceptance gates.

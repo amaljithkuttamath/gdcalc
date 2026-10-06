@@ -21,3 +21,12 @@ mcdxkit-output/
 *.html
 !src/mcdxkit/web/*.html
 .mcdxkit/
+
+# Infrastructure state, plans and environment-specific settings are private.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+crash.log

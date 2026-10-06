@@ -1,5 +1,7 @@
 """Exercise the actual loopback HTTP boundary using synthetic engineering inputs."""
+import csv
 import http.client
+import io
 import json
 import tempfile
 import threading
@@ -119,6 +121,30 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(a[0], 200, a)
         self.assertEqual(b[0], 200, b)
         self.assertNotEqual(a[1]['worksheet']['id'], b[1]['worksheet']['id'])
+
+    def test_summary_csv_for_uploaded_reports(self):
+        _, first = self.upload('a.txt')
+        _, second = self.upload('b.gp11t', report().replace('Max. .2 .3 400 180 14 7', 'Max. .2 .3 400 180 14 9').encode())
+        reports = [{'id': first['id'], 'cases': [1, 7]}, {'id': second['id']}]
+        status, value = self.request('POST', '/api/summary', {'reports': reports, 'load_source': 'effects'})
+        self.assertEqual(status, 200, value)
+        self.assertEqual((value['reports'], value['rows']), (2, 6))
+        rows = {(r['report'], r['case_id']): r for r in csv.DictReader(io.StringIO(value['csv']))}
+        self.assertEqual(rows['b.gp11t', '1']['governs'], 'Vz')
+        self.assertEqual(rows['a.txt', '7']['P_kip'], '140')
+        self.assertFalse((self.root / 'results').exists())
+        self.assertEqual(self.request('POST', '/api/summary', {'reports': reports[:1]})[0], 400)
+        self.assertEqual(self.request('POST', '/api/summary', {'reports': [reports[0], reports[0]]})[0], 400)
+        _, third = self.upload('copy.txt')
+        status, value = self.request('POST', '/api/summary', {'reports': reports + [{'id': third['id'], 'cases': [1, 7]}]})
+        self.assertEqual(status, 200, value)
+        self.assertEqual((value['reports'], value['rows'], value['duplicates_skipped']), (2, 6, ['copy.txt']))
+        for bad in (['x'], {'a': 1}, None, 5):
+            self.assertEqual(self.request('POST', '/api/summary', {'reports': [reports[0], {'id': bad}]})[0], 400)
+        self.assertEqual(self.request('POST', '/api/summary', {'reports': [reports[0], {'id': 'missing'}]})[0], 404)
+        self.assertEqual(self.request('POST', '/api/summary', {'reports': [reports[0], {'id': second['id'], 'cases': [99]}]})[0], 400)
+        self.assertEqual(self.request('POST', '/api/summary', {'reports': reports, 'load_source': 'global'})[0], 400)
+        self.assertEqual(self.request('POST', '/api/summary', {'reports': reports}, authenticated=False)[0], 403)
 
     def test_static_ui_and_missing_template_error(self):
         status, html = self.request('GET', '/')

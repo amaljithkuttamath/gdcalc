@@ -4,7 +4,7 @@
 
 | Start here | What it covers |
 | --- | --- |
-| [CLI and browser](cli.md) | Install, calculator setup, inspect, convert, batch/resume, server startup and configuration |
+| [CLI and browser](cli.md) | Install, calculator setup, inspect, convert, batch/resume, [summary CSV](cli.md#summary-csv-across-reports), server startup and configuration |
 | [Python SDK](sdk.md) | Imports, function contracts, output artifacts and error handling |
 | [Calculation and compatibility](calculation.md) | Supported expressions, load basis, execution evidence and browser inspection |
 | [Template contract](../references/template-contract.md) | Required worksheet profile, geometry, inputs and overrides |
