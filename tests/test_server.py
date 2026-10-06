@@ -122,6 +122,12 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b'webkitdirectory', html)
         self.assertEqual(self.request('GET', '/app.js')[0], 200)
+        for name in ('regular', 'medium', 'semibold'):
+            status, font = self.request('GET', f'/fonts/plex-{name}.ttf', authenticated=False)
+            self.assertEqual(status, 200)
+            self.assertTrue(font.startswith(b'\x00\x01\x00\x00'))
+        self.assertEqual(self.request('GET', '/fonts/unlisted.ttf')[0], 404)
+        self.assertEqual(self.request('GET', '/fonts/%2e%2e%2fserver.py')[0], 404)
         self.assertEqual(self.request('GET', '/../../pyproject.toml')[0], 404)
         self.server.state.template = None
         _, uploaded = self.upload()

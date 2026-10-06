@@ -1,4 +1,4 @@
-"""Public conversion engine. No CLI, Codex, web service or Mathcad installation required."""
+"""Public conversion engine independent of CLI, agent host, HTTP and Mathcad."""
 import hashlib
 import json
 import os

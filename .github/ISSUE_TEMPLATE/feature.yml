@@ -1,0 +1,29 @@
+name: Feature request
+description: Define a concrete feature for a contributor or coding agent.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Problem and desired outcome
+      description: Describe the user workflow and what should change.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable behavior, supported inputs and expected failure cases.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and dependencies
+      description: Components involved, related tickets and explicit exclusions.
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation approach
+      description: Synthetic examples, automated checks and browser scenarios. Do not upload private engineering files.

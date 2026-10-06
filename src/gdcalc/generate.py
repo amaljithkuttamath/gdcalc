@@ -22,9 +22,18 @@ def case_ids(value):
 
 
 def default_template():
-    local_template=Path(__file__).resolve().parents[2]/'assets/local/reference.mcdx'
-    installed_template=Path(os.environ.get('CODEX_HOME',str(Path.home()/'.codex')))/'skills/gdcalc/assets/local/reference.mcdx'
-    return Path(os.environ['GDCALC_TEMPLATE']) if os.environ.get('GDCALC_TEMPLATE') else (local_template if local_template.is_file() else installed_template)
+    """Resolve explicit, checkout, generic user and legacy template locations."""
+    if os.environ.get('GDCALC_TEMPLATE'):
+        return Path(os.environ['GDCALC_TEMPLATE'])
+    home = Path.home()
+    generic = Path(os.environ.get('XDG_CONFIG_HOME', str(home / '.config'))) / 'gdcalc/reference.mcdx'
+    candidates = (
+        Path(__file__).resolve().parents[2] / 'assets/local/reference.mcdx',
+        generic,
+        home / '.agents/skills/gdcalc/assets/local/reference.mcdx',
+        Path(os.environ.get('CODEX_HOME', str(home / '.codex'))) / 'skills/gdcalc/assets/local/reference.mcdx',
+    )
+    return next((path for path in candidates if path.is_file()), generic)
 
 
 def main(argv=None,prog=None):

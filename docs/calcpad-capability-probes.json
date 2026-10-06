@@ -1,0 +1,69 @@
+{
+  "date": "2026-10-06",
+  "engine": "installed CalcpadCE gdcalc bridge",
+  "scope": "Synthetic engine probes; bypasses the Mathcad translator. Does not establish Prime compatibility or browser editing.",
+  "results": [
+    {
+      "name": "mixed_units",
+      "passed": true,
+      "source": "a = 1 m + 50 cm\nprobe = abs(a/(1 m) - 1.5) < 0.000000001\nprobe",
+      "errors": [],
+      "rendered_text": "a = 1\u2009m + 50\u2009cm = 1.5\u2009m\nprobe = |a1\u2009m \u2212 1.5| < 10-9 = |1.5\u2009m1\u2009m \u2212 1.5| < 10-9 = 1\nprobe = 1"
+    },
+    {
+      "name": "custom_function",
+      "passed": true,
+      "source": "f(x) = x^2 + 2*x + 1\na = f(3)\nprobe = abs(a - 16) < 0.000000001\nprobe",
+      "errors": [],
+      "rendered_text": "f\u200a(\u200ax\u200a)\u200a = x2 + 2\u2006\u00b7\u2006x + 1\na = f\u200a\u200a(\u200a3\u200a)\u200a = 16\nprobe = |\u200aa \u2212 16\u200a| < 10-9 = |\u200a16 \u2212 16\u200a| < 10-9 = 1\nprobe = 1"
+    },
+    {
+      "name": "loop",
+      "passed": true,
+      "source": "total = 0\n#for k = 1 : 5\ntotal = total + k\n#loop\nprobe = abs(total - 15) < 0.000000001\nprobe",
+      "errors": [],
+      "rendered_text": "total = 0\ntotal = total + k = 0 + 1 = 1\ntotal = total + k = 1 + 2 = 3\ntotal = total + k = 3 + 3 = 6\ntotal = total + k = 6 + 4 = 10\ntotal = total + k = 10 + 5 = 15\nprobe = |\u200atotal \u2212 15\u200a| < 10-9 = |\u200a15 \u2212 15\u200a| < 10-9 = 1\nprobe = 1"
+    },
+    {
+      "name": "matrix_solve",
+      "passed": true,
+      "source": "A = [2; 0|0; 3]\nb = [4; 9]\nx = lsolve(A; b)\nprobe = norm(x - [2; 3]) < 0.000000001\nprobe",
+      "errors": [],
+      "rendered_text": "A = [2; 0 | 0; 3] = \n20\n03\n\n\n\u20d7b = [4; 9] = [4\u20029]\n\u20d7x = lsolve\u200a(\u200aA; \u20d7b\u200a)\u200a = [2\u20023]\nprobe = norm\u200a(\u200a\u20d7x \u2212 [2; 3]\u200a)\u200a < 10-9 = 1\nprobe = 1"
+    },
+    {
+      "name": "root",
+      "passed": true,
+      "source": "a = $Root{x^2 - 4 @ x = 0 : 3}\nprobe = abs(a - 2) < 0.000000001\nprobe",
+      "errors": [],
+      "rendered_text": "a = $Root{x2 \u2212 4 = 0; x \u2208 [0; 3]} = 2\nprobe = |\u200aa \u2212 2\u200a| < 10-9 = |\u200a2 \u2212 2\u200a| < 10-9 = 1\nprobe = 1"
+    },
+    {
+      "name": "integration",
+      "passed": true,
+      "source": "a = $Integral{x^2 @ x = 0 : 3}\nprobe = abs(a - 9) < 0.000000001\nprobe",
+      "errors": [],
+      "rendered_text": "a = \u2003 3\u222b0\u00a0x2 dx = 9\nprobe = |\u200aa \u2212 9\u200a| < 10-9 = |\u200a9 \u2212 9\u200a| < 10-9 = 1\nprobe = 1"
+    },
+    {
+      "name": "differentiation",
+      "passed": true,
+      "source": "a = $Slope{x^3 @ x = 2}\nprobe = abs(a - 12) < 0.000000001\nprobe",
+      "errors": [],
+      "rendered_text": "a =  dd\u200ax\u00a0x3|x\u200a=\u200a2 = 12\nprobe = |\u200aa \u2212 12\u200a| < 10-9 = |\u200a12 \u2212 12\u200a| < 10-9 = 1\nprobe = 1"
+    },
+    {
+      "name": "incompatible_units_rejected",
+      "passed": true,
+      "source": "a = 1 m + 1 s",
+      "errors": [
+        {
+          "SourceLine": 1,
+          "OutputLine": 1,
+          "Message": "Inconsistent units: \"m + s\".",
+          "Source": 1
+        }
+      ]
+    }
+  ]
+}

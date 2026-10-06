@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a reproducible failure without private engineering data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: CLI invocation or browser steps and a minimal synthetic example.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Version and environment
+      description: gdcalc version/commit, OS, Python, calculator revision, browser or image tag.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized diagnostics
+      description: Remove credentials, private paths and project values before posting.
