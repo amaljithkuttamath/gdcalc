@@ -4,6 +4,8 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ## Unreleased
 
+- Batch runs print a review summary line (`12 reports, 2 with items to review`, naming reports where some checks could not run), add `review_items` and `check_error` columns to the per-report check table and CSV, and report the same counts under `review` in the stdout summary. Review items stay advisory: worksheets are unchanged and exit codes are unchanged.
+
 ## 0.4.0
 
 - Verify installed SDK origins in release/container tests and include test helpers and synthetic fixtures in source distributions.
