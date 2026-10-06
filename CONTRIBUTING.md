@@ -48,6 +48,9 @@ The [testing contract](docs/testing.md) maps each change type to required positi
 ```bash
 python -m unittest discover -s tests -v
 node --check src/mcdxkit/web/app.js
+python -m pip install -r requirements-dev.txt
+ruff check src tests scripts
+mypy
 python -m pip install build
 python -m build
 python scripts/check_package.py
@@ -70,6 +73,7 @@ For UI changes, use the real browser flow: upload → inputs → changes → gen
 
 ## Change expectations
 
+- Reuse existing modules and established open-source implementations before rebuilding. Record candidates, licenses, offline requirements and any concrete gap in the issue/PR. New solvers need separate numerical validation; a renderer must consume shared results rather than reproduce template formulas.
 - Keep domain calculations and file semantics outside HTTP/UI glue. Reuse the common engine.
 - Fail visibly on unsupported expressions or incompatible units. Preserve original source and governing-case provenance.
 - Keep old caches distinct from calculated results. Never change native verification flags without actual Prime evidence.
@@ -80,10 +84,14 @@ For UI changes, use the real browser flow: upload → inputs → changes → gen
 
 ## Pull requests and releases
 
+Add a line under `Unreleased` in [CHANGELOG.md](CHANGELOG.md) for any change a user, integrator or deployer would notice. Internal refactors and test-only changes can skip it.
+
 Describe the problem, resulting behavior, validation and remaining limitations. Separate current features from roadmap work. Include any template or expression compatibility changes so reviewers can assess existing documents.
 
 Every pull request runs checks. Pushes to `main` and manual `main` runs publish Python build artifacts and, after all image tests succeed, a GHCR container. Image tags are `latest` and `sha-<full-commit-sha>`; use the latter for repeatable deployment. Actions uses `GITHUB_TOKEN`, not a repository-stored personal token. Dependabot maintains action update proposals.
 
-When intentionally releasing a new application version, keep `pyproject.toml` and the version in `src/mcdxkit/cli.py` aligned. Check the workflow for the exact commit before claiming the package/image is published. Deployment to a live server is a separate operation; follow [deployment guidance](deploy/README.md).
+When intentionally releasing a new application version, keep `pyproject.toml` and the version in `src/mcdxkit/cli.py` aligned, and move the `Unreleased` changelog entries under the new version heading. Check the workflow for the exact commit before claiming the package/image is published. Deployment to a live server is a separate operation; follow [deployment guidance](deploy/README.md).
 
 Versioned Python releases use the separate [PyPI release workflow](docs/releasing.md), which tests the installed wheel before Trusted Publishing. Ordinary main CI artifacts are not a PyPI upload.
+
+See [GitHub workflow](docs/github-workflow.md) for the roadmap, triage and security controls. Contributions are distributed under the repository's [MIT license](LICENSE); dependencies keep their own terms and attribution.

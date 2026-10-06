@@ -3,11 +3,14 @@ import http.client
 import json
 import tempfile
 import threading
+import time
 import unittest
+from unittest import mock
 from pathlib import Path
 from urllib.parse import urlencode
 
 from test_pipeline import report, template
+from mcdxkit import server as server_module
 from mcdxkit.server import create_server
 
 
@@ -162,7 +165,11 @@ class DeploymentTests(unittest.TestCase):
             try:
                 self.assertEqual(call('GET', '/healthz')[0], 200)
                 self.assertEqual(call('GET', '/api/session')[0], 401)
-                self.assertEqual(call('POST', '/api/login', {'access_token': 'wrong'})[0], 401)
+                with mock.patch.object(server_module, 'LOGIN_DELAY_STEP', 0.01), mock.patch.object(server_module, 'LOGIN_DELAY_MAX', 0.05):
+                    for _ in range(12):
+                        start = time.monotonic()
+                        self.assertEqual(call('POST', '/api/login', {'access_token': 'wrong'})[0], 401)
+                    self.assertGreaterEqual(time.monotonic() - start, 0.05)
                 status, _, cookie = call('POST', '/api/login', {'access_token': 'test-only-' + 'x' * 32})
                 self.assertEqual(status, 200)
                 for flag in ['HttpOnly', 'Secure', 'SameSite=strict']:
