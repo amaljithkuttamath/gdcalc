@@ -17,7 +17,7 @@ from . import engine, calcpad
 from . import checks as worksheet_checks
 from .review import runner as review_runner
 
-from .generate import case_ids, default_template
+from .generate import case_ids, default_template, input_map as parse_input_map
 
 
 def digest(path):
@@ -226,7 +226,7 @@ def format_check_table(rows):
 
 
 def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, resume=False,
-                  cases=None, load_source='effects', overrides=None, checks='default', progress=None, check_rows=None):
+                  cases=None, load_source='effects', overrides=None, checks='default', progress=None, check_rows=None, input_map=None):
     """Convert files independently; append durable records and verify outputs on resume.
 
     The job identity includes the enabled review checks and their versions, so a new check
@@ -248,6 +248,7 @@ def convert_batch(inputs, template, output_dir, *, workers=1, recursive=False, r
     manifest = root / 'batch-manifest.jsonl'
     # Normalise once (tuples become lists) so identity matches the JSON saved in job.json.
     settings = json.loads(json.dumps({'cases': cases, 'load_source': load_source, 'overrides': overrides or {}, 'checks': checks}, allow_nan=False))
+    if input_map is not None:settings['input_map']=input_map
     template_hash = digest(template)
     counts = {'total': len(files), 'succeeded': 0, 'skipped': 0, 'failed': 0,
               'manifest': str(manifest), 'workers': workers, 'calculation_engine': 'CalcpadCE', 'native_execution_verified': False}
@@ -335,6 +336,7 @@ def main(argv=None):
     parser.add_argument('--cases', type=case_ids)
     parser.add_argument('--load-source', choices=['effects', 'reactions'], default='effects')
     parser.add_argument('--set', action='append', default=[], metavar='VARIABLE=VALUE')
+    parser.add_argument('--map', action='append', default=[], metavar='VARIABLE=COMPONENT', help='Explicit template input map; repeat for each variable')
     parser.add_argument('--checks', default='default', metavar='SPEC',
                         help='Advisory review plug-ins: default, none, or a comma list such as default,my_check')
     parser.add_argument('--quiet', action='store_true', help='Suppress per-file progress on stderr')
@@ -353,7 +355,7 @@ def main(argv=None):
         summary = convert_batch(args.inputs, args.template, args.output_dir, workers=args.workers,
                                 recursive=args.recursive, resume=args.resume, cases=args.cases,
                                 load_source=args.load_source, overrides=overrides, checks=args.checks, progress=progress,
-                                check_rows=rows)
+                                check_rows=rows,input_map=parse_input_map(args.map))
         print(format_check_table(rows), file=sys.stderr)
         print('Check summary table: ' + summary['checks']['table'], file=sys.stderr, flush=True)
 

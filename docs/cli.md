@@ -25,7 +25,33 @@ mcdxkit inspect /path/to/report.gp11t --checks none                        # no 
 
 Inspection returns cases, selected cases, load basis and an envelope where selection is resolved. Default selection recognizes `STR` case names and excludes service cases. If classification is unresolved, obtain the intended case IDs; do not guess. `case_suggestions` classifies every case name (strength, service, extreme, fatigue, other or unknown) with confidence and evidence and lists `recommended_cases`; it is advisory, so pass reviewed IDs to `--cases` yourself. `--history OUTPUT_DIR` (inspect only) learns naming conventions from completed conversion audits in that directory. Reports must be GROUP text in the supported kip/in convention, not Excel binaries.
 
+### Reports that start at the summary
+
+The preceding report header is optional. A `.gp11t` or `.txt` file may begin directly with `SUMMARY FOR LOAD CASES AND COMBINATIONS`, followed by the usual `LOAD CASE:` sections and unchanged tables. The parser finds the last summary and reads each case up to the next case marker. It still requires the table labels, directions and units; this does not support unlabelled numeric rows.
+
+Inspection identifies these files with `summary_only: true`. Without the earlier case names, strength/service classification is unavailable: choose the intended cases in the browser's expanded selector, or provide `--cases` in the CLI. Case numbers and loads are read from the summary; no names or classifications are inferred from case order.
+
+```bash
+mcdxkit inspect summary.txt
+# Example only: use the case IDs appropriate to this report.
+mcdxkit convert summary.txt --cases 1,3,7 --template reference.mcdx --output results/design.mcdx
+```
+
 Inspection, conversion audits and batch audits include an advisory `review_checks` block (schema `review-checks/1`, replacing the earlier `review_flags`): flags, annotations such as the governing case, case-name suggestions, errors from checks that could not run, and `checks_run` with each check's version and thresholds. A flag asks you to check the GROUP input and never changes the selection or result. See [review checks](machine-learning.md#review-checks).
+
+## Discover and map template inputs
+
+```bash
+mcdxkit inspect reference.mcdx
+mcdxkit inspect summary.txt --template reference.mcdx --cases 1-6 \
+  --map AxialCustom=P --map TransverseCustom=Vz
+mcdxkit convert summary.txt --template reference.mcdx --cases 1-6 \
+  --map AxialCustom=P --map TransverseCustom=Vz --output results/design.mcdx
+```
+
+These variable names are examples; use names detected in your template. `--map` replaces the fixed-head preset completely and is also accepted by `batch`. Supported report components are `P`, `Vy`, `Vz`, `My`, `Mz`. Unmapped inputs keep their template values; downstream formulas calculate from the new mapped inputs. Unknown, duplicate, derived or dimensionally incompatible targets fail. A mapped variable cannot also be changed with `--set`.
+
+In the browser, select a template, open **Inputs**, choose the report source beside each detected input, and select the intended cases. Changing the template or mapping invalidates earlier previews. Review the Changes view before creating outputs. Batch resume includes the mapping in job identity. See the [template contract](../references/template-contract.md) for layout, units and geometry limits.
 
 ## Review checks
 

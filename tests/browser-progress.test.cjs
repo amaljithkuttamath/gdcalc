@@ -56,8 +56,52 @@ async function browser(action, count) {
       : {error:message}});
     await new Promise(resolve => setImmediate(resolve));
   }
-  return {nodes, requests, respond, finished};
+  return {nodes, requests, respond, finished, context};
 }
+
+test('summary-only cases open for selection without claiming automatic STR selection', async () => {
+  const app = await browser('preview', 0);
+  await app.finished;
+  vm.runInContext(`
+    items.push({id:'summary', name:'summary.txt', selected:[], kind:'report',
+      inspection:{summary_only:true, cases:[{id:1,name:null},{id:7,name:null}],
+        selection_required:'Case names absent', envelope:null}});
+    render();
+  `, app.context);
+  const card = app.nodes.get('queue').children[0];
+  const details = card.children.find(child => child.children?.some(c => c.textContent === '0 of 2 load cases selected'));
+  assert.ok(details, 'The parsed cases must be available for review');
+  assert.equal(details.open, true);
+  assert.match(details.children[1].textContent, /summary.only/i);
+  assert.doesNotMatch(details.children[1].textContent, /STR cases selected/);
+  assert.equal(app.nodes.get('compare-next').disabled, true);
+  const checkboxes = details.children[2].children.map(label => label.children[0]);
+  assert.ok(checkboxes.every(input => input.checked === false));
+  assert.equal(app.requests.length, 0, 'No automatic inspection or conversion with guessed cases');
+});
+
+test('template mapping changes invalidate previews and switching templates clears old mappings', async () => {
+  const app = await browser('preview', 0);
+  await app.finished;
+  let loading = vm.runInContext('loadTemplateInputs()', app.context);
+  app.requests[0].resolve({ok:true,json:async()=>({name:'custom.mcdx',mapping_required:true,input_map:{},
+    inputs:[{variable:'AxialCustom',value:10,unit:'kip',status:'retained'}]})});
+  await loading;
+  vm.runInContext(`items.push({id:'a',selected:[1],name:'a.txt',inspection:{cases:[{id:1}],envelope:{P:120}},preview:{},result:{}})`,app.context);
+  const select=app.nodes.get('template-input-fields').children[0].children[2];
+  select.value='P';select.listeners.change();
+  assert.equal(app.nodes.get('template-status').textContent,'1 input mapped');
+  assert.equal(vm.runInContext('items[0].preview',app.context),null);
+  assert.equal(vm.runInContext('items[0].result',app.context),null);
+  assert.equal(vm.runInContext('JSON.stringify(options(items[0]).input_map)',app.context),'\{"AxialCustom":"P"\}');
+  loading=vm.runInContext('loadTemplateInputs()',app.context);
+  app.requests[1].resolve({ok:true,json:async()=>({name:'other.mcdx',mapping_required:true,input_map:{},
+    inputs:[{variable:'OtherLoad',value:5,unit:'kip',status:'retained'}]})});
+  await loading;
+  assert.equal(vm.runInContext('JSON.stringify(inputMap)',app.context),'{}');
+  assert.equal(app.nodes.get('template-input-fields').children.length,1);
+  assert.equal(app.nodes.get('template-input-fields').children[0].children[0].textContent,'OtherLoad');
+});
 
 for (const action of ['preview', 'convert']) {
   test(`${action}: single-file progress stays indeterminate until the response`, async () => {

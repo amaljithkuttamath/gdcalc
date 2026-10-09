@@ -344,3 +344,5 @@ main .case-caption, .queue-heading, .template-panel > p { color: var(--text-seco
 .standards-section summary { cursor: pointer; padding: 8px 0; }
 .standards-section pre { white-space: pre-wrap; font-size: 11px; overflow-wrap: anywhere; }
 @media(max-width:600px){ .standards-view{padding:12px}.standards-section{padding:14px}.standards-section dl{grid-template-columns:1fr}.standards-section dd{margin-bottom:8px} }
+
+.template-input-fields{display:grid;gap:12px}.template-input-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,1fr);gap:4px 16px;align-items:center}.template-input-row small{grid-column:1;overflow-wrap:anywhere;color:var(--muted)}.template-input-row select{grid-column:2;grid-row:1 / span 2;width:100%}@media(max-width:560px){.template-input-row{grid-template-columns:1fr}.template-input-row select{grid-column:1;grid-row:auto}}

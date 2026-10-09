@@ -5,6 +5,8 @@ import base64
 import math
 import re
 import copy
+import hashlib
+from pathlib import Path
 from . import mcdx
 
 OPS = {'plus': '+', 'minus': '−', 'mult': '×', 'div': '/', 'pow': '^', 'equal': '=',
@@ -194,6 +196,36 @@ def read_regions(parts, part, cache, budget=None):
             entry.update(kind='text',text=' '.join(texts) or '[image or layout region]',flows=flows)
         regions.append(entry)
     return regions
+
+
+def template_inputs(path, envelope=None, input_map=None):
+    """Read literal input candidates and explicit source mappings; never infer design semantics."""
+    path=Path(path)
+    mcdx.validate(path)
+    root=mcdx.read_xml(mcdx.read_package(path)['mathcad/worksheet.xml'])
+    definitions=mcdx.input_definitions(root)
+    mapping=mcdx.resolve_input_map(root,input_map,required=False)
+    rows=[]
+    for variable,entries in definitions.items():
+        for region,definition in entries:
+            try:
+                value=float(mcdx.scalar(definition).text)
+                if not math.isfinite(value):continue
+            except (ValueError,TypeError):continue
+            units=[mcdx.name(n) for n in definition[1].iter() if mcdx.tag(n)=='id']
+            component=mapping.get(variable)
+            ambiguous=len(entries)!=1
+            replacement=({'value':envelope[component], 'unit':'kip-in' if component.startswith('M') else 'kip'}
+                         if component and envelope is not None and not ambiguous else None)
+            rows.append({'variable':variable,'region':region.get('region-id'),'expression':expression(definition),
+                         'value':value,'unit':'·'.join(units) or '1','component':component,
+                         'replacement':replacement,'status':'ambiguous' if ambiguous else
+                         'matched' if replacement else 'selection_required' if component else 'retained'})
+    return {'name':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'inputs':rows,
+            'input_map':mapping,'mapping_required':not mapping,
+            'missing_load_inputs':[key for key in mcdx.LOADS if key not in definitions] if input_map is None else [],
+            'mapping_basis':'fixed-head pile preset' if input_map is None and mapping else 'explicit input map',
+            'native_execution_verified':False}
 
 
 def worksheet(path):

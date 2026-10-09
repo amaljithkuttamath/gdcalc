@@ -161,6 +161,10 @@ class Session:
 
     def operation(self, route, data):
         state = self
+        if route == '/api/template-inputs':
+            template=state.get(data['template_id'],['template'])['path'] if data.get('template_id') else state.template
+            if template is None:raise RequestError('Select a Mathcad template first.')
+            return engine.inspect_template(template,input_map=data.get('input_map'))
         if route == '/api/standards':
             output = self.get(data.get('id'), ['worksheet'])['path']
             audit_path = output.with_suffix('.audit.json')
@@ -206,7 +210,11 @@ class Session:
         cases = self.cases(data.get('cases'))
         basis = self.basis(data)
         if route == '/api/inspect':
-            return self.inspect(entry['path'], cases, basis)
+            found=self.inspect(entry['path'], cases, basis)
+            template=state.get(data['template_id'],['template'])['path'] if data.get('template_id') else state.template
+            if template is not None:
+                found['template_inputs']=inspection.template_inputs(template,found['envelope'],data.get('input_map'))
+            return found
         template = state.get(data['template_id'], ['template'])['path'] if data.get('template_id') else state.template
         if template is None or not template.is_file():
             raise RequestError('Select a compatible .mcdx template before converting.')
@@ -233,7 +241,7 @@ class Session:
             shutil.copyfile(entry['path'], snapshot_report)
             shutil.copyfile(template, snapshot_template)
             result = engine.convert(snapshot_report, snapshot_template, output, cases=cases,
-                                    load_source=basis, title=title, overrides=overrides, checks=self.plan)
+                                    load_source=basis, title=title, overrides=overrides, checks=self.plan,input_map=data.get('input_map'))
             changes = inspection.diff(snapshot_template, output)
         except Exception:
             shutil.rmtree(folder)

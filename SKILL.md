@@ -51,13 +51,16 @@ The browser opens the actual-file layout reconstruction by default, with text, d
 ## Interpret the input
 
 - Read load values only from the **last SUMMARY FOR LOAD CASES AND COMBINATIONS**. Earlier case names may classify cases; earlier load values and global tables never supply inputs.
+- Summary-only files may start directly at that heading, with no preceding report header. Read each case up to the next `LOAD CASE:` marker; retain table labels, units and directions. If inspection reports `summary_only: true`, use the user's intended case IDs with `--cases` (or browser selection); do not infer STR/SER from numbering or reuse another file's classification without evidence.
 - Default: axial compression from **PILE TOP REACTIONS, LOCAL**; Vy/Vz/My/Mz from **EFFECTS FOR LATERALLY LOADED PILE**. `--load-source reactions` explicitly uses the local pile-top reaction table for all components. These sources can give different shear values.
 - Automatically select cases named STR; exclude SER. If names are absent/unrecognized, get the intended case IDs and pass `--cases 1-10` or `--cases 1,3,7`. Do not assume the first ten cases are strength cases in an unfamiliar report.
-- The current adapter supports kip and kip-in reports, a compatible fixed-head compression pile template, and a single envelope worksheet. It does not import Excel binaries, design uplift, rerun GROUP, or establish concurrent pile/case combinations.
+- The current adapter supports kip and kip-in reports, compatible scalar templates with a fixed-head preset or explicit reviewed load mapping, and a single envelope worksheet. It does not import Excel binaries, design uplift, rerun GROUP, or establish concurrent pile/case combinations.
 
 ## Template and output
 
 Read [references/template-contract.md](references/template-contract.md) when choosing another template, changing inputs, or interpreting failures. Template geometry, materials, fixity, downdrag, headers and dates remain inherited. Surface material mismatches. A reported pile ID beyond template capacity requires reviewed geometry and explicit count overrides; the highest observed ID does not establish the total pile count.
+
+Discover inputs with `mcdxkit inspect reference.mcdx`. For custom variables use repeated `--map VARIABLE=COMPONENT` flags, or browser input mappings, for `P`, `Vy`, `Vz`, `My`, `Mz`. Explicit maps replace the preset; unmapped inputs remain unchanged. Never infer a custom engineering mapping from names or units alone. Source pages grow with the selected case count. Without an `n_z`/`n_y` pair in a custom template, pile capacity is unverified.
 
 `--set n_z=15` updates an authorized literal input while preserving its unit. Never invent missing geometry or silently change design assumptions to make a result pass.
 
