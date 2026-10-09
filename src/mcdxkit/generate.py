@@ -64,6 +64,11 @@ def main(argv=None,prog=None):
     args=parser.parse_args(argv)
     try:
         mapping=input_map(args.map)
+        overrides={}
+        for assignment in args.set:
+            key,value=assignment.split('=',1)
+            if key in overrides:raise ValueError('Duplicate override: '+key)
+            overrides[key]=float(value)
         if args.inspect:
             if args.input.suffix.lower()=='.mcdx':
                 print(json.dumps(engine.inspect_template(args.input,input_map=mapping),indent=2))
@@ -74,15 +79,10 @@ def main(argv=None,prog=None):
                 if not args.history.is_dir():raise ValueError('--history must be an existing output directory')
                 history=AuditHistory(args.history)
             print(json.dumps(engine.inspect_report(args.input,cases=args.cases,load_source=args.load_source,checks=args.checks,history=history,
-                                                  template=args.template,input_map=mapping),indent=2))
+                                                  template=args.template,input_map=mapping,overrides=overrides),indent=2))
             return 0
         if args.history is not None:raise ValueError('--history applies to inspect only')
         if args.output is None:raise ValueError('--output is required unless using --inspect')
-        overrides={}
-        for assignment in args.set:
-            key,value=assignment.split('=',1)
-            if key in overrides:raise ValueError('Duplicate override: '+key)
-            overrides[key]=float(value)
         result=engine.convert(args.input,args.template or default_template(),args.output,cases=args.cases,load_source=args.load_source,
                               title=args.title,overrides=overrides,checks=args.checks,input_map=mapping)
         print(json.dumps({'output':result['output'],'audit':result['audit'],'cases':result['cases'],

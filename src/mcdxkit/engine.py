@@ -131,7 +131,7 @@ def inspect_template(template, *, input_map=None):
     return template_inputs(template,input_map=input_map)
 
 
-def inspect_report(report, *, cases=None, load_source='effects', checks='default', history=None, template=None, input_map=None):
+def inspect_report(report, *, cases=None, load_source='effects', checks='default', history=None, template=None, input_map=None, overrides=None):
     """Inspect available cases; selection_required explains unresolved classification.
 
     ``checks`` selects review plug-ins ('default', 'none', a comma list of ids, or a plan from
@@ -154,8 +154,8 @@ def inspect_report(report, *, cases=None, load_source='effects', checks='default
             'review_checks':block,
             'largest_observed_pile_id':max((p for c in parsed['cases'] for p in c['pile_ids']),default=0)}
     if template is not None:
-        from .inspection import template_inputs
-        result['template_inputs']=template_inputs(template,result['envelope'],input_map)
+        from .inspection import template_report
+        result.update(template_report(template,result,input_map,overrides))
     elif input_map is not None:
         raise ValueError('Inspecting an input map requires --template')
     return result

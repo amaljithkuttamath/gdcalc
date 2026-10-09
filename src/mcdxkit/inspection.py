@@ -228,6 +228,23 @@ def template_inputs(path, envelope=None, input_map=None):
             'native_execution_verified':False}
 
 
+def template_report(template, report, input_map=None, overrides=None):
+    """Preflight the selected template against parsed raw data without generating or calculating."""
+    validation={'status':'blocked','errors':[],'warnings':[],
+                'native_execution_verified':False,'scope':'Input mapping, units, layout and observed pile capacity; not equation execution or engineering approval'}
+    try:
+        _,_,_,_,mapped,counts,observed=mcdx.prepare_template(
+            template,[{'pile_ids':[report['largest_observed_pile_id']]}],overrides,input_map,require_mapping=False)
+        inputs=template_inputs(template,report['envelope'],input_map)
+        validation.update(template_pile_count=int(math.prod(counts)) if counts else None,largest_observed_pile_id=observed,
+                          status='needs_mapping' if not mapped else 'needs_cases' if not report['selected_cases'] else 'ready')
+        if not counts:validation['warnings'].append('No n_z/n_y layout pair; pile capacity is unverified.')
+    except ValueError as error:
+        validation['errors'].append(str(error))
+        inputs=None
+    return {'template_inputs':inputs,'template_validation':validation}
+
+
 def worksheet(path):
     budget=mcdx.Budget();parts=mcdx.read_package(path,budget)
     cache={n.get('result-id'):n.find('m:result',mcdx.NS) for n in mcdx.read_xml(parts['mathcad/result.xml'])}

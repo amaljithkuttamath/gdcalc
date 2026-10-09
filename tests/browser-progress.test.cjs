@@ -44,7 +44,7 @@ async function browser(action, count) {
     inspect = async () => {}; inspectDiff = async () => {};
     for (let n = 1; n <= ${count}; n++) items.push({
       id:'r'+n, name:'report-'+n+'.gp11t', selected:[1],
-      inspection:{cases:[{id:1,name:'STR test'}], envelope:{P:10}},
+      inspection:{cases:[{id:1,name:'STR test'}], envelope:{P:10},template_validation:{status:'ready'}},
       preview:${action === 'convert' ? '{worksheet:{id:"preview"},diff:{changes:[]}}' : 'null'}
     });
   `, context);
@@ -89,18 +89,34 @@ test('template mapping changes invalidate previews and switching templates clear
   await loading;
   vm.runInContext(`items.push({id:'a',selected:[1],name:'a.txt',inspection:{cases:[{id:1}],envelope:{P:120}},preview:{},result:{}})`,app.context);
   const select=app.nodes.get('template-input-fields').children[0].children[2];
-  select.value='P';select.listeners.change();
+  select.value='P';const refreshed=select.listeners.change();
+  assert.equal(app.nodes.get('compare-next').disabled,true);
+  app.requests[1].resolve({ok:true,json:async()=>({cases:[{id:1}],envelope:{P:120},template_validation:{status:'ready'}})});
+  await refreshed;
   assert.equal(app.nodes.get('template-status').textContent,'1 input mapped');
   assert.equal(vm.runInContext('items[0].preview',app.context),null);
   assert.equal(vm.runInContext('items[0].result',app.context),null);
   assert.equal(vm.runInContext('JSON.stringify(options(items[0]).input_map)',app.context),'\{"AxialCustom":"P"\}');
   loading=vm.runInContext('loadTemplateInputs()',app.context);
-  app.requests[1].resolve({ok:true,json:async()=>({name:'other.mcdx',mapping_required:true,input_map:{},
+  app.requests[2].resolve({ok:true,json:async()=>({name:'other.mcdx',mapping_required:true,input_map:{},
     inputs:[{variable:'OtherLoad',value:5,unit:'kip',status:'retained'}]})});
   await loading;
   assert.equal(vm.runInContext('JSON.stringify(inputMap)',app.context),'{}');
   assert.equal(app.nodes.get('template-input-fields').children.length,1);
   assert.equal(app.nodes.get('template-input-fields').children[0].children[0].textContent,'OtherLoad');
+});
+
+test('check inputs validates the template/report pair and blocks incompatible files before preview', async () => {
+  const app=await browser('preview',0);await app.finished;
+  vm.runInContext(`items.push({id:'raw',name:'raw.txt',selected:[1],inspection:{cases:[{id:1}],envelope:{P:120}}});render();`,app.context);
+  assert.equal(app.nodes.get('compare-next').disabled,true);
+  const checking=app.nodes.get('review-next').listeners.click();
+  assert.equal(app.requests[0].url,'/api/inspect');
+  assert.equal(JSON.parse(app.requests[0].options.body).template_id,null);
+  app.requests[0].resolve({ok:true,json:async()=>({cases:[{id:1}],envelope:{P:120},template_validation:{status:'blocked',errors:['Pile 3 exceeds template capacity 1']}})});
+  await checking;
+  assert.equal(app.nodes.get('compare-next').disabled,true);
+  assert.equal(app.requests.length,1,'No preview or conversion for an incompatible pair');
 });
 
 for (const action of ['preview', 'convert']) {

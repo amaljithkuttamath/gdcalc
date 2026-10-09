@@ -51,7 +51,9 @@ mcdxkit convert summary.txt --template reference.mcdx --cases 1-6 \
 
 These variable names are examples; use names detected in your template. `--map` replaces the fixed-head preset completely and is also accepted by `batch`. Supported report components are `P`, `Vy`, `Vz`, `My`, `Mz`. Unmapped inputs keep their template values; downstream formulas calculate from the new mapped inputs. Unknown, duplicate, derived or dimensionally incompatible targets fail. A mapped variable cannot also be changed with `--set`.
 
-In the browser, select a template, open **Inputs**, choose the report source beside each detected input, and select the intended cases. Changing the template or mapping invalidates earlier previews. Review the Changes view before creating outputs. Batch resume includes the mapping in job identity. See the [template contract](../references/template-contract.md) for layout, units and geometry limits.
+Start with `mcdxkit inspect report.txt --template reference.mcdx` to validate the pair before generation. The `template_validation` result distinguishes `ready`, `blocked`, `needs_mapping` and `needs_cases`, with errors and warnings. `--set` overrides also participate in this preflight. These are input compatibility checks; equation translation and execution are checked during preview/conversion.
+
+In the browser, select a template, open **Inputs**, choose the report source beside each detected input, and select the intended cases. The template is checked against each raw report before preview. Changing template, mapping, cases, load basis or overrides requires fresh validation; blocked pairs cannot preview. Review the Changes view before creating outputs. Batch resume includes the mapping in job identity. See the [template contract](../references/template-contract.md) for layout, units and geometry limits.
 
 ## Review checks
 

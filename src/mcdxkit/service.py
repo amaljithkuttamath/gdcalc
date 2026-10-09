@@ -213,7 +213,7 @@ class Session:
             found=self.inspect(entry['path'], cases, basis)
             template=state.get(data['template_id'],['template'])['path'] if data.get('template_id') else state.template
             if template is not None:
-                found['template_inputs']=inspection.template_inputs(template,found['envelope'],data.get('input_map'))
+                found.update(inspection.template_report(template,found,data.get('input_map'),data.get('overrides')))
             return found
         template = state.get(data['template_id'], ['template'])['path'] if data.get('template_id') else state.template
         if template is None or not template.is_file():
@@ -252,7 +252,7 @@ class Session:
             state.conversions += 1
         return {'worksheet': state.register(output, 'worksheet'),
                 'audit': state.register(output.with_suffix('.audit.json'), 'audit'),
-                'output': str(output), 'envelope': result['envelope'], 'cases': result['cases'],
+                'output': str(output), 'envelope': result['envelope'], 'cases': result['cases'], 'input_map':result['input_map'],
                 'validation': result['validation'], 'native_execution_verified': False,
                 'preview': preview, 'diff': changes, 'review_checks': result['review_checks'],
                 'checks': result['checks'], 'check_summary': result['check_summary'],

@@ -2,6 +2,10 @@
 
 This is a template adapter, not a universal MCDX authoring engine. It preserves the supplied design expressions and adds input pages upstream of them.
 
+## Validate the pair first
+
+Use `mcdxkit inspect report.txt --template reference.mcdx` before generating outputs. Preflight compares the parsed raw report with the selected template, mapping, case selection and overrides. It checks dimensions, supported layout and observed pile capacity. The browser exposes this on Inputs and blocks incompatible pairs. It does not execute formulas or approve the engineering design.
+
 ## Default fixed-head profile
 
 Without an explicit input map, the fixed-head preset requires one literal scalar definition of each variable below. Literal subscripts in Mathcad's XAML identifiers are normalized with underscores for matching.

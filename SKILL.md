@@ -50,6 +50,8 @@ The browser opens the actual-file layout reconstruction by default, with text, d
 
 ## Interpret the input
 
+- Begin with the template/report pair: `mcdxkit inspect report.txt --template reference.mcdx`. Resolve `template_validation` states (`blocked`, `needs_mapping`, `needs_cases`) before conversion. Supply reviewed `--map`, `--cases` and `--set` values and inspect again. This preflight checks mapping, dimensions, layout and observed pile capacity without generating or calculating.
+
 - Read load values only from the **last SUMMARY FOR LOAD CASES AND COMBINATIONS**. Earlier case names may classify cases; earlier load values and global tables never supply inputs.
 - Summary-only files may start directly at that heading, with no preceding report header. Read each case up to the next `LOAD CASE:` marker; retain table labels, units and directions. If inspection reports `summary_only: true`, use the user's intended case IDs with `--cases` (or browser selection); do not infer STR/SER from numbering or reuse another file's classification without evidence.
 - Default: axial compression from **PILE TOP REACTIONS, LOCAL**; Vy/Vz/My/Mz from **EFFECTS FOR LATERALLY LOADED PILE**. `--load-source reactions` explicitly uses the local pile-top reaction table for all components. These sources can give different shear values.

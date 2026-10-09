@@ -132,6 +132,31 @@ class TemplateInputTests(unittest.TestCase):
         rows={r['component']:r for r in from_audit(result)['values']}
         self.assertEqual(rows['Vz']['template_mapping'],'P_downdrag')
 
+    def test_pair_preflight_checks_geometry_mapping_and_selection_without_generation(self):
+        from unittest.mock import patch
+        source=self.root/'summary.txt';source.write_text(summary_only())
+        original=self.template.read_bytes()
+        with patch('mcdxkit.calcpad.calculate',side_effect=AssertionError('Preflight cannot calculate')):
+            needs_cases=engine.inspect_report(source,template=self.template,checks='none')
+            self.assertEqual(needs_cases['template_validation']['status'],'needs_cases')
+            ready=engine.inspect_report(source,cases=[1,7],template=self.template,checks='none')
+            self.assertEqual(ready['template_validation']['status'],'ready')
+            self.assertEqual(ready['template_validation']['template_pile_count'],3)
+            too_small=engine.inspect_report(source,cases=[1],template=self.template,overrides={'n_z':1},checks='none')
+            self.assertEqual(too_small['template_validation']['status'],'blocked')
+            self.assertIn('beyond template count',too_small['template_validation']['errors'][0])
+            invalid=engine.inspect_report(source,cases=[1],template=self.template,input_map={'n_z':'P'},checks='none')
+            self.assertEqual(invalid['template_validation']['status'],'blocked')
+            self.assertIn('units',invalid['template_validation']['errors'][0])
+            self.assertEqual(self.template.read_bytes(),original)
+            custom_template(self.template)
+            unmapped=engine.inspect_report(source,cases=[1],template=self.template,checks='none')
+            self.assertEqual(unmapped['template_validation']['status'],'needs_mapping')
+            custom=engine.inspect_report(source,cases=[1],template=self.template,input_map={'AxialCustom':'P'},checks='none')
+            self.assertEqual(custom['template_validation']['status'],'ready')
+            self.assertTrue(custom['template_validation']['warnings'])
+        self.assertEqual(set(p.name for p in self.root.iterdir()),{'reference.mcdx','summary.txt'})
+
     def test_cli_discovers_and_maps_custom_template(self):
         custom_template(self.template)
         source=self.root/'summary.txt';source.write_text(summary_only())

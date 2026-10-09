@@ -24,6 +24,8 @@ The server prints its URL. Upload/select a private compatible template in the br
 
 ## Engineering and data invariants
 
+- Start by validating the selected Mathcad template against the raw report. Use shared preflight checks for mapping, dimensions, layout and observed pile capacity before preview or generation; show unresolved mappings/case selection explicitly. Revalidate after template, mapping, case, load-basis or override changes. Input compatibility does not prove equation execution or engineering approval.
+
 - Read load values from the final local-load summary only. No fallback to earlier/global tables. Preserve the intended case selection and load basis.
 - Support reports beginning directly at the summary heading. Bound each case by its next `LOAD CASE:` marker; never borrow rows across cases. Missing header case names require explicit selection, not inferred STR/SER labels. Keep full-report and summary-only equivalence tests for both load bases.
 - Discover template inputs from top-level scalar definitions. Keep explicit input maps shared across CLI, SDK, batch and browser; never guess custom engineering mappings from labels or units. Test custom names, Vz, dimensional mismatches, changing case counts, and batch resume identity. Unmapped values stay in the template; missing layout counts mean unverified capacity.
