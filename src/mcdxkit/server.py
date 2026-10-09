@@ -181,7 +181,7 @@ def create_app(*, origin, template=None, output_dir='mcdxkit-output', access_tok
 
     @app.post('/api/{operation}')
     async def operation(operation: str, request: Request):
-        if operation not in ('inspect', 'convert', 'validate', 'preview', 'view', 'diff', 'summary', 'standards'):
+        if operation not in ('inspect', 'convert', 'validate', 'preview', 'view', 'diff', 'summary', 'standards', 'template-inputs'):
             raise RequestError('Not found.', 404)
         try:
             # A summary lists up to 100 report IDs with their selected cases.

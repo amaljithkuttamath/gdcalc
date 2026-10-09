@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from test_pipeline import report, template
+from test_summary_only import summary_only
 from mcdxkit import server as server_module
 from mcdxkit.server import create_server
 
@@ -52,6 +53,50 @@ class ServerTests(unittest.TestCase):
     def upload(self, name='loads.gp11t', content=None, kind='report'):
         return self.request('POST', '/api/upload?' + urlencode({'name': name, 'kind': kind}),
                             report().encode() if content is None else content)
+
+    def test_headerless_upload_requires_case_selection_then_calculates(self):
+        status, uploaded = self.upload('summary.txt', summary_only().encode())
+        self.assertEqual(status, 200, uploaded)
+        self.assertTrue(uploaded['inspection']['summary_only'])
+        self.assertEqual(uploaded['inspection']['selected_cases'], [])
+        self.assertEqual(self.request('POST', '/api/convert', {'id': uploaded['id']})[0], 400)
+        status, inspected = self.request('POST', '/api/inspect', {'id': uploaded['id'], 'cases': [1, 7]})
+        self.assertEqual(status, 200, inspected)
+        self.assertEqual(inspected['envelope'], {'P': 140, 'Vy': 24, 'Vz': 8, 'My': 190, 'Mz': 850})
+        status, converted = self.request('POST', '/api/convert', {'id': uploaded['id'], 'cases': [1, 7]})
+        self.assertEqual(status, 200, converted)
+        self.assertTrue(converted['calculation']['calculated'])
+        _, raw = self.request('GET', '/api/download/' + converted['worksheet']['id'])
+        dest = self.root / 'summary-output.mcdx';dest.write_bytes(raw)
+        from evaluate_fixture import evaluate
+        self.assertEqual(evaluate(dest)['P_u'], 145)
+
+    def test_custom_template_selection_and_explicit_mapping_reach_conversion(self):
+        from test_template_inputs import custom_template
+        other=self.root/'custom.mcdx';custom_template(other)
+        status,uploaded=self.upload('custom.mcdx',other.read_bytes(),'template')
+        self.assertEqual(status,200,uploaded)
+        template_id=uploaded['id']
+        status,found=self.request('POST','/api/template-inputs',{'template_id':template_id})
+        self.assertEqual(status,200,found);self.assertTrue(found['mapping_required'])
+        self.assertIn('AxialCustom',[row['variable'] for row in found['inputs']])
+        self.assertEqual(self.request('POST','/api/template-inputs',{},authenticated=False)[0],403)
+        self.assertEqual(self.request('POST','/api/template-inputs',{'template_id':'invalid'})[0],404)
+        _,source=self.upload('summary.txt',summary_only().encode())
+        options={'id':source['id'],'template_id':template_id,'cases':[1,7],
+                 'input_map':{'AxialCustom':'P','TransverseCustom':'Vz'}}
+        status,found=self.request('POST','/api/inspect',options)
+        self.assertEqual(status,200,found)
+        self.assertEqual(found['template_inputs']['input_map'],options['input_map'])
+        self.assertEqual(found['template_validation']['status'],'ready')
+        status,blocked=self.request('POST','/api/inspect',{**options,'input_map':{'M_uy':'P'}})
+        self.assertEqual(status,200,blocked)
+        self.assertEqual(blocked['template_validation']['status'],'blocked')
+        self.assertEqual(list((self.root/'results').glob('*/*.mcdx')),[])
+        status,result=self.request('POST','/api/convert',options)
+        self.assertEqual(status,200,result)
+        _,audit=self.request('GET','/api/download/'+result['audit']['id'])
+        self.assertEqual(json.loads(audit)['input_map'],options['input_map'])
 
     def test_inspect_convert_download_and_validate_native_formulas(self):
         status, uploaded = self.upload()

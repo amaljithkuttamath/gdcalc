@@ -4,6 +4,12 @@ User-visible changes to MCDXKit (formerly gdcalc). The format follows [Keep a Ch
 
 ## Unreleased
 
+- Validate the template against the raw report before preview: expose mapping, unit, layout and pile-capacity problems in Inputs, refresh checks after input changes, and share preflight checks with native generation.
+
+- Discover scalar inputs from the selected Mathcad template and map them to P/Vy/Vz/My/Mz through CLI, SDK, batch and browser; preserve downstream formulas and grow source pages with the selected case count. Validate mapping dimensions and record custom mappings in audits and standards registers.
+
+- Support summary-only GROUP inputs explicitly, read bounded case markers, and guide case selection when header names are absent.
+
 ## 0.4.0
 
 - Verify installed SDK origins in release/container tests and include test helpers and synthetic fixtures in source distributions.
